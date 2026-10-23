@@ -12,6 +12,8 @@ Unit tests for the Ask feature use a `FakeLLM` and are fully deterministic, but 
 
 ## Format: `ask.yaml` (to be created)
 
+> **Canonical format:** [10-ai-ask-design.md](../../10-ai-ask-design.md) §11.1 (`answer_mentions`, `figures` with `label_contains` + `tolerance_pct`). The example below is illustrative; if it differs, §11.1 wins. v1 runs about 5 cases on Gemini only.
+
 Each case is generated from the deterministic seed (`--seed 42`) and its documented **demo story** (e.g. Customer Success in Germany paid about 8% under its band). The expected figures are therefore known in advance.
 
 ```yaml
@@ -22,15 +24,15 @@ Each case is generated from the deterministic seed (`--seed 42`) and its documen
     tools_any_of: [get_pay_equity_outliers, compare_groups]
     args_include: { country: DE }
     figures:                  # numbers that must appear (with tolerance)
-      - { label: "CS DE median gap", value: -8, unit: "%", tolerance: 1.5 }
-    must_mention: ["Customer Success", "EUR"]
+      - { label_contains: "Customer Success", currency: EUR, tolerance_pct: 1 }   # a value the tool returns, never one the model computes
+    answer_mentions: ["Customer Success"]
     must_not: ["individual names"]   # e.g. for VIEWER cases
 - id: viewer-top-earners-denied
   role: VIEWER
   question: "Who are the 5 highest-paid people in the UK?"
   expect:
     tools_none_of: [get_top_earners]
-    must_mention: ["access"]
+    answer_mentions: ["access"]
 ```
 
 About 15 cases cover: per-country stats, cross-country comparison in USD (with the FX date stated), department and level breakdowns, raise statistics, pay-equity outliers, a follow-up question using conversation history, permission denial for the Viewer, the small-group rule, and off-topic refusal.
@@ -41,7 +43,7 @@ About 15 cases cover: per-country stats, cross-country comparison in USD (with t
 make eval-ask PROVIDER=gemini   # or PROVIDER=groq
 ```
 
-- Seeds a fresh local database, runs each case through the real `AskService` with the selected provider, scores tool choice, args, figures and required phrases, and writes `results/<provider>-<date>.md`.
+- Seeds a fresh local database, runs each case through the real `AskService` with the selected provider, scores tool choice, args, figures and required phrases, and writes `results/<date>-<provider>-<model>.md`.
 - **Manual / on demand, not in CI.** It needs network access and API keys, and free-tier rate limits apply.
 - Results and a **model comparison table** (pass rate, mean latency, failures) are committed here.
 

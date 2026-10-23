@@ -31,7 +31,7 @@ The problem is small: **10,000 employees, about 30,000 salary records, about 10 
 | Salary change / create / update | **p95 < 300 ms** | Deployed, warm | One transaction, a few statements |
 | Export 10,000 rows (CSV / XLSX) | **< 3 s** **(proposed)** | Deployed | ~1 MB CSV / ~600 KB XLSX, under the 4.5 MB body cap |
 | Import dry-run of 10,000 rows | **< 5 s** **(proposed)** | Deployed | Validation in memory; 2 duplicate-check queries |
-| Import commit of 10,000 rows | **< 10 s** **(proposed)** | Deployed | One transaction, chunked inserts; well below the 300 s function limit |
+| Import commit of 10,000 rows | **< 30 s** **(proposed)** | Deployed | One transaction, chunked inserts with IDs pre-allocated in Python; checked against the day-1 spike's bulk-insert timing, and the row cap is lowered if needed |
 | Cold start (first request after idle) | **~1–2 s** | Vercel Python function | Not part of the p95 budget; measured and reported separately |
 | Ask about pay | **< 15 s** typical **(proposed)** | Deployed, LLM-dependent | Dominated by LLM latency (up to 4 tool steps). Shows a spinner; not part of the p95 budget |
 | Frontend: Largest Contentful Paint on `/employees` | **< 2.5 s** **(proposed)** | Deployed, warm, desktop | Server-rendered first page |
@@ -79,8 +79,8 @@ LIMIT :page_size OFFSET :offset;
 SELECT count(*) FROM employees e JOIN ... WHERE <same filters>;
 ```
 
-- Joins to small reference tables are cheap (≈ 30 job roles, 9 departments).
-- **No N+1:** role and department come from the join, not lazy loads. A test with SQLAlchemy query counting asserts "≤ 2 queries" for the list endpoint ([14-testing-strategy.md](14-testing-strategy.md)).
+- Joins to small reference tables are cheap (35 job roles, 9 departments).
+- **No N+1:** role and department come from the join, not lazy loads. A test with SQLAlchemy query counting asserts "≤ 3 queries" for the list endpoint (loading the current user, the page, the count) ([14-testing-strategy.md](14-testing-strategy.md)).
 - **Offset pagination** is fine: the deepest page (400 × 25) still scans at most 10k index entries. Keyset pagination is the documented upgrade path (§7).
 - **Search:** `search_text LIKE '%term%'` can't use a B-tree index, so it scans about 10k short strings, about a millisecond in SQLite. Prefix searches (`term%`) can use `ix_employees_search_text`. FTS5 is the upgrade path if search ever slows down.
 
@@ -97,7 +97,7 @@ ORDER BY e.country_code, e.current_base_minor;
 - The database does filtering, grouping keys and sorting. Python (`domain/stats.py`) computes count, min, max, mean, median, P25 and P75 per group in one pass over each sorted list.
 - Portable: percentiles use linear interpolation in Python, which gives the same numbers as Postgres `PERCENTILE_CONT` without depending on it (SQLite lacks it). Results are identical on SQLite, libSQL and Postgres ([ADR 0007](adr/0007-pure-python-stats.md)).
 - USD views convert per row in Python using the cached-per-request FX table (≤ 10 rows).
-- Pay-equity groups by `(job_role_id, level, country_code)`, about 30 × 6 × 10 = 1,800 possible cohorts, typically a few hundred non-empty. Still one query and in-memory grouping.
+- Pay-equity groups by `(job_role_id, level, country_code)`, about 1,360 possible cohorts (the seeded bands), typically a few hundred non-empty. Still one query and in-memory grouping.
 - `raises` reads `salary_records` filtered by `effective_date` range (indexed) and pairs each record with the previous one for the same employee using a window function (`LAG`), supported by SQLite ≥ 3.25 and Postgres; or ordered rows and pairing in Python **(implementation choice at milestone 7)**.
 
 ### 4.3 Writes
@@ -204,7 +204,7 @@ To be filled in with measured values. Each row records the date, commit and envi
 | `GET /insights/pay-equity` p95 | < 300 ms | TBD | | |
 | Salary change p95 | < 300 ms | TBD | | |
 | Export 10k CSV / XLSX | < 3 s | TBD | | |
-| Import dry-run / commit 10k | < 5 s / < 10 s | TBD | | |
+| Import dry-run / commit 10k | < 5 s / < 30 s | TBD | | |
 | Cold start | ~1–2 s | TBD | | |
 | LCP `/employees` | < 2.5 s | TBD | | |
 | Backend test suite | < 30 s | TBD | | |

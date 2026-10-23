@@ -148,7 +148,7 @@ sequenceDiagram
     participant A as FastAPI (acme-api.vercel.app)
     participant D as Turso
 
-    B->>W: POST /api/v1/auth/login {email, password}
+    B->>W: POST /api/v1/auth/login {email, password} (client fetch, not a Server Action)
     W->>A: rewrite → POST /api/v1/auth/login
     A->>D: SELECT user WHERE email=?
     A->>A: pwdlib argon2 verify; check is_active
@@ -311,8 +311,8 @@ All configuration comes from environment variables, validated at startup by `pyd
 
 | Variable | Example (dev) | Prod | Notes |
 |---|---|---|---|
-| `APP_ENV` | `development` | `production` | Switches strict checks (secure cookies, no defaults) |
-| `DATABASE_URL` | `sqlite:///./dev.db` | `sqlite+libsql://<db>.turso.io?secure=true` | The only thing that changes to switch DB; Postgres fallback `postgresql+psycopg://...` |
+| `APP_ENV` | `development` (`test` in CI) | `production` | Switches strict checks (secure cookies, no defaults). Values per the [glossary](glossary.md) §7 |
+| `DATABASE_URL` | `sqlite:///./dev.db` | `sqlite+libsql://<db>.turso.io?secure=true` (no token in the URL) | The only thing that changes to switch DB; Postgres fallback `postgresql+psycopg://...` |
 | `DATABASE_AUTH_TOKEN` | — | Turso token (secret) | Passed via connect args, never logged |
 | `JWT_SECRET` | `dev-only-change-me` | random ≥32 bytes (secret) | Prod rejects the dev value |
 | `JWT_TTL_MINUTES` | `480` **(proposed)** | `480` **(proposed)** | Session length, see [08-security-rbac.md](08-security-rbac.md) |

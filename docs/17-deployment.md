@@ -40,7 +40,7 @@ flowchart LR
 3. Create the database from a pre-seeded file (section 6). Or create it empty: `turso db create salary-prod --location <region>`.
 4. Create an auth token: `turso db tokens create salary-prod`. Store it **only** in Vercel env vars or a local `.env`; never commit it.
 5. Get the URL: `turso db show salary-prod --url` → `libsql://salary-prod-<org>.turso.io`.
-6. A preview DB **(proposed)**: `salary-preview` for PR previews, so previews never write to the demo data.
+6. No preview DB: **preview deployments are cut from v1**. Only production is deployed; everything else is tested locally ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)). In both Vercel projects, turn off preview builds for non-production branches (Git settings / Ignored Build Step).
 
 ### 3.2 Vercel API project (`salary-api`)
 
@@ -73,30 +73,32 @@ export default nextConfig;
 ```
 
 - The rewrite is the **only** proxying in Next.js: no business logic and no data transformation ([05-architecture.md](05-architecture.md)).
-- `lib/api/server.ts` (used by Server Components and Server Actions) calls `API_ORIGIN` directly and forwards the `session` cookie as a header **(exact header TBD: Cookie passthrough or `Authorization: Bearer`)**.
+- `lib/api/server.ts` (used by Server Components and Server Actions) calls `API_ORIGIN` directly and sends the `session` cookie's JWT as `Authorization: Bearer <JWT>`.
+- Login and file uploads use a client `fetch` through the rewrite, never a Server Action: a Server Action would receive FastAPI's `Set-Cookie` on the server instead of the browser, and Server Actions cap bodies at 1 MB by default.
+- `proxy.ts` must not match `/api/*` or `/login`, or the login request gets redirected.
 
 ## 4. Environment variables
 
 | Variable | Project | Local (`.env`) | CI | Preview | Production | Secret? |
 |---|---|---|---|---|---|---|
-| `APP_ENV` | api | `local` | `test` | `preview` | `production` | no |
+| `APP_ENV` | api | `development` | `test` | — | `production` | no |
 | `DATABASE_URL` | api | `sqlite:///./dev.db` | `sqlite://` (memory); `postgresql+psycopg://…` in the pg job | `sqlite+libsql://salary-preview-<org>.turso.io?secure=true` | `sqlite+libsql://salary-prod-<org>.turso.io?secure=true` | no (URL), token is |
-| `TURSO_AUTH_TOKEN` | api | — | — | preview token | prod token | **yes** |
+| `DATABASE_AUTH_TOKEN` | api | — | — | — | prod token (passed via `connect_args`) | **yes** |
 | `JWT_SECRET` | api | dev placeholder | test value | random 32+ bytes | random 32+ bytes | **yes** |
 | `JWT_TTL_MINUTES` | api | `480` **(proposed)** | `5` | `480` | `480` | no |
 | `COOKIE_SECURE` | api | `false` (http localhost) | `false` | `true` | `true` | no |
-| `CORS_ALLOWED_ORIGINS` | api | `http://localhost:3000` | — | web preview URL | web prod URL | no |
+| `CORS_ORIGINS` | api | `http://localhost:3000` | — | — | empty (same origin via the rewrite) | no |
 | `LLM_BASE_URL` | api | Gemini OpenAI-compatible URL | — (FakeLLM) | Gemini URL | Gemini URL | no |
 | `LLM_MODEL` | api | Gemini Flash-class model **(TBD at build)** | — | same | same | no |
 | `LLM_API_KEY` | api | optional; feature off if empty | — | optional | Gemini free key | **yes** |
-| `ASK_RATE_LIMIT_PER_HOUR` | api | `100` | — | `20` | `20` | no |
+| `ASK_RATE_LIMIT_PER_HOUR` | api | `20` | — | — | `20` | no |
 | `SEED_ADMIN_PASSWORD`, `SEED_HR_PASSWORD`, `SEED_VIEWER_PASSWORD` | seed script | dev values | test values | demo values | demo values | **yes** |
 | `API_ORIGIN` | web | `http://localhost:8000` | `http://localhost:8000` | API preview URL | API prod URL | no |
 
 Rules:
 - `.env.example` in each app lists every variable with safe placeholders and comments. Real `.env` files are git-ignored and **denied to Claude Code** ([16-claude-code-setup.md](16-claude-code-setup.md#71-permissions-outline)).
 - **Production refuses to start** if `JWT_SECRET` is a known placeholder or shorter than 32 bytes, if `COOKIE_SECURE` isn't true, or if `DATABASE_URL` points to a local file (pydantic-settings validation).
-- Preview → API wiring: Vercel preview URLs change per deployment. **Proposed:** previews of the web project point to the API project's *branch* preview alias (`salary-api-git-<branch>-<org>.vercel.app`), set via a Vercel system env pattern. Fallback: previews point to a stable `salary-api-preview` alias. **TBD** during the spike.
+- Preview columns above are unused in v1: **preview deployments are cut**. (They would also hit Vercel Deployment Protection, which by default blocks unauthenticated requests to preview URLs, including the web → API rewrite.)
 - Secrets are rotated by updating the Vercel env var and redeploying. A JWT secret rotation logs everyone out, which is acceptable.
 
 ## 5. Region alignment
@@ -128,7 +130,7 @@ The production database is then **byte-for-byte the deterministic seed**, alread
 
 ```bash
 DATABASE_URL="sqlite+libsql://salary-prod-<org>.turso.io?secure=true" \
-TURSO_AUTH_TOKEN=... \
+DATABASE_AUTH_TOKEN=... \
 uv run alembic upgrade head
 ```
 
@@ -151,7 +153,11 @@ The deploy is the riskiest unknown (young Turso Python driver, a two-project Ver
 - [ ] A test endpoint sets an `HttpOnly; Secure; SameSite=Lax` cookie through the rewrite; a second request sees it, in **Chrome and Safari**.
 - [ ] A Server Component on the web project fetches from `API_ORIGIN` server-side, forwarding the cookie.
 - [ ] Measure the warm p95 of health and the cold-start time; record them in [19-performance.md](19-performance.md).
-- [ ] PR preview deployments work for both projects, and preview web → preview API wiring works.
+- [ ] Login via client fetch through the rewrite (not a Server Action): FastAPI's `Set-Cookie` reaches the browser.
+- [ ] A 4 MB multipart upload passes through the rewrite to FastAPI.
+- [ ] A 1,000-row bulk insert in one transaction against Turso: time it, and use the result to set the import row cap.
+- [ ] The Python version Vercel actually uses matches `.python-version`, and the Turso driver installs from wheels.
+- [ ] The Gemini project's real free-tier quota (RPM / RPD) is checked in AI Studio.
 - [ ] **Decision gate:** if the libSQL driver is flaky (connection errors, unsupported features), switch to the **Neon Postgres fallback now** (section 8) and record it in a superseding ADR.
 
 ## 8. Fallback: Neon Postgres

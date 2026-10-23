@@ -66,10 +66,10 @@ Every insight takes `comp`:
 |---|---|
 | Statistic over a group where **all members share one currency** (e.g. one country, or DE+FR together in EUR) | Computed and returned **in that local currency**. Optionally also returned in USD (`usd_equivalent`) |
 | Statistic over a group that **mixes currencies** (e.g. "whole org", "Engineering across all countries") | Computed **only in USD**, by converting each individual amount to USD *before* aggregation (§2.6). Never sums or averages local amounts across currencies |
-| Salary-range filter (`min_salary`/`max_salary`) | **Requires `SALARY_READ`** (Viewers get `403`, because filtering by salary could reveal individual pay). Requires `currency` to be set (range applies to amounts in that currency), **or** `range_basis=usd` (range applies to USD-converted amounts). Otherwise the API returns `422` with a clear message |
+| Salary-range filter (`salary_min`/`salary_max`) | **Requires `SALARY_READ`** (Viewers get `403`, because filtering by salary could reveal individual pay). Requires `currency` to be set (range applies to amounts in that currency), **or** `salary_basis=usd` (range applies to USD-converted amounts). Otherwise the API returns `422` with a clear message |
 | Comparing two countries | Done in USD, and the response states the FX `as_of` date |
 
-Every response that contains a USD figure also contains `fx: { "as_of": "2026-10-01", "source": "illustrative static snapshot" }`. The UI shows this next to the figure.
+Every response that contains a USD figure also contains `fx_as_of` (the oldest `as_of` among the rates used). The UI shows it next to the figure, with the source in a tooltip.
 
 ### 2.6 USD conversion
 
@@ -111,28 +111,23 @@ Why this method: it is the most common definition in analytics tools, it matches
 
 ### 2.9 Common output shape
 
+Every insight response carries `population` (the filters actually applied) and `fx_as_of` whenever USD appears. Each group holds a **stats object** as defined in [07-api-spec.md](07-api-spec.md) §8.2: `{ count, min, p25, median, mean, p75, max, currency, suppressed }`, with integers in minor units of `currency`.
+
 ```json
 {
-  "filters": { "country": "DE", "department": null, "employment_type": ["FULL_TIME"], "status": ["ACTIVE"], "comp": "base" },
-  "currency_mode": "local",              // "local" (single currency) or "usd" (mixed)
-  "fx": { "as_of": "2026-10-01", "source": "illustrative static snapshot" },
+  "population": { "country": ["DE"], "employment_type": ["FULL_TIME"], "status": ["ACTIVE"], "comp": "base" },
+  "currency": "EUR",
+  "fx_as_of": "2026-10-01",
   "groups": [
     {
-      "key": { "department": "Engineering" },
-      "count": 412,
-      "suppressed": false,
-      "currency": "EUR",
-      "min": { "amount_minor": 4200000, "currency": "EUR" },
-      "p25": { ... }, "median": { ... }, "mean": { ... }, "p75": { ... },
-      "max": { ... },
-      "usd_equivalent": { "median": { "amount_minor": 5600000, "currency": "USD" }, ... }
+      "department": { "id": 1, "name": "Engineering" },
+      "stats": { "count": 412, "min": 4200000, "p25": 4900000, "median": 5400000, "mean": 5523000, "p75": 6300000, "max": 14500000, "currency": "EUR", "suppressed": false }
     }
-  ],
-  "generated_at": "2026-10-24T10:15:00Z"
+  ]
 }
 ```
 
-Exact schemas live in the OpenAPI contract (see [07-api-spec.md](07-api-spec.md) and [adr/0014-contract-first-openapi-client.md](adr/0014-contract-first-openapi-client.md)).
+For a mixed-currency population the response `currency` is `USD`. Exact schemas live in the OpenAPI contract (see [07-api-spec.md](07-api-spec.md), the [glossary](glossary.md) and [adr/0014-contract-first-openapi-client.md](adr/0014-contract-first-openapi-client.md)).
 
 ---
 
@@ -159,17 +154,19 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 
 - Grouped by department.
 - If a `country` filter is set (single currency), statistics are in **local currency**.
-- Without a country filter, the groups mix currencies, so statistics are in **USD** (`currency_mode: "usd"`) and the UI says so.
+- Without a country filter, the groups mix currencies, so statistics are in **USD** (response `currency: "USD"`, plus `fx_as_of`) and the UI says so.
 
 ### 3.3 Pay by job title within a country: `GET /api/v1/insights/by-job-title`
 
 **Answers:** "Within India, what do Software Engineers vs Data Engineers earn?"
 
 - **`country` is required.** Job-title pay only means something within one market and currency. Missing `country` returns `422`.
-- Grouped by `job_role` (and optionally by `level` with `group_by=job_role,level`).
+- Grouped by `job_role` (and optionally by `level` with `split_by_level=true`).
 - Local currency.
 
 ### 3.4 Salary distribution: `GET /api/v1/insights/distribution`
+
+> **Cut from v1** ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)). Kept here as the future-work design.
 
 **Answers:** "How is pay spread? Is it bunched or long-tailed?"
 
@@ -195,9 +192,11 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 - **`country` is required** (local-currency ranking). Parameters: `n` (default 10, max 50), `direction=top|bottom`.
 - Ties are broken by `employee_code` ascending, so results are deterministic.
 - Output: list of `{ employee_code, name, job_role, level, department, amount }`.
-- Writes an `audit_event` (`INSIGHT_INDIVIDUALS_VIEWED`) because it exposes individual pay. **(proposed)**, see [08-security-rbac.md](08-security-rbac.md).
+- Writes an `insights.individuals_view` audit event because it exposes individual pay (see [08-security-rbac.md](08-security-rbac.md)).
 
 ### 3.7 Raises: `GET /api/v1/insights/raises`
+
+> **Cut from v1** ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)). Kept here as the future-work design. Open issue for later: a `CORRECTION` record can't neutralise a wrong earlier raise in these statistics; a `corrects_record_id` link would fix that.
 
 **Answers:** "What raises did we give last year, by department and reason?"
 
@@ -213,7 +212,7 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 **Answers:** "Are we paying people fairly against the pay band for their job? Who looks underpaid or overpaid? Is any *team* systematically paid below band?"
 
 #### Why bands, not the peer-cohort median
-An earlier draft defined compa-ratio as salary ÷ median of the peer cohort. That **can't detect systemic underpayment**: if an entire cohort is paid 8% less, its median drops by 8% too, and everyone still looks "in band". HR practice defines compa-ratio against an **external benchmark, the pay band midpoint**. That's what we use. The cohort spread (P25/median/P75) is still reported, as context next to the band. Decision recorded in [ADR 0007](adr/0007-pure-python-stats.md) and [06-data-model.md](06-data-model.md) (`pay_bands`).
+An earlier draft defined compa-ratio as salary ÷ median of the peer cohort. That **can't detect systemic underpayment**: if an entire cohort is paid 8% less, its median drops by 8% too, and everyone still looks "in band". HR practice defines compa-ratio against an **external benchmark, the pay band midpoint**. That's what we use. The cohort spread (P25/median/P75) is still reported, as context next to the band. Decision recorded in the [docs README](README.md) decision log (#1), [ADR 0007](adr/0007-pure-python-stats.md) and [06-data-model.md](06-data-model.md) (`pay_bands`).
 
 #### Pay bands
 - A **pay band** exists per **job role + level + country** (same country means the same currency and labour market). Columns: `min`, `mid`, `max` (minor units, local currency) and `effective_from`.
@@ -309,9 +308,9 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
 | Group with `count < 5` | Viewer: `suppressed: true`. HR/Admin: shown normally. Pay-equity still computes compa-ratio for every employee with a band (no minimum peer count needed) |
 | Percentile of a single value | Equals that value (the formula handles `n = 1`) |
 | Mixed currencies with no USD rate for one currency | `500`-class configuration error, logged and surfaced as a problem+json `fx_rate_missing`. Seeded and admin-managed rates prevent this, and a test asserts every currency in `countries` has a rate |
-| Salary range filter without `currency` or `range_basis=usd` | `422` with the message "Salary range needs a currency or USD basis" |
+| Salary range filter without `currency` or `salary_basis=usd` | `422` with the message "Salary range needs a currency or USD basis" |
 | `by-job-title` / `top-earners` without `country` | `422` (single-market requirement) |
-| Employee whose currency differs from the country default | Grouping is by country. If a country group then contains two currencies, it is treated as **mixed** (USD mode) and the response flags `currency_mode: "usd"`. Rare by design (see [06-data-model.md](06-data-model.md)) |
+| Employee whose currency differs from the country default | Can't happen in v1: every salary is in its country's currency (validated on write, [06-data-model.md](06-data-model.md) §4.2). So a country group is always single-currency, and compa-ratio always divides amounts in the same currency |
 | JPY (0 decimals) | Handled by the exponent table. Means and percentiles round to whole yen |
 | Very large INR values | Integers have no precision issue (BIGINT; Python `int` is unbounded) |
 | Terminated employees | Excluded by default; included only via the explicit `status` filter |
@@ -327,10 +326,10 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
 
 ## 6. Performance notes
 
-The largest query is 10k amounts per request. Fetching sorted integers and computing in Python takes single-digit milliseconds. Indexes on `(country)`, `(department)`, `(job_role_id, level, country)`, and `(status, employment_type)` support the filters. Budgets and the scaling path are in [19-performance.md](19-performance.md).
+The largest query is 10k amounts per request. Fetching sorted integers and computing in Python takes single-digit milliseconds. The indexes in [06-data-model.md](06-data-model.md) §4.5 (`country_code, status`; `job_role_id, level`; `status, employment_type`) support the filters; department filters join through `job_roles`. Budgets and the scaling path are in [19-performance.md](19-performance.md).
 
 ## 7. Open questions
 
 - ~~Reference-band rollup in v1?~~ **Decided:** yes. Band-based compa-ratio + department rollup (§3.8).
-- Should `top-earners` access write an audit event? **(proposed: yes)**.
+- ~~Should `top-earners` access write an audit event?~~ **Decided:** yes, `insights.individuals_view`.
 - Distribution binning: 20 bins between p1 and p99 **(proposed)**.

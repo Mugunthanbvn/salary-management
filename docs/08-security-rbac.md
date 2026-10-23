@@ -186,7 +186,7 @@ Written by services in the **same transaction** as the change ([ADR 0011](adr/00
 | Action | Entity | `diff` / payload |
 |---|---|---|
 | `auth.login` | user | `{ "result": "success" }` |
-| `auth.login_failed` | user (if email known) or none | `{ "email_hash": "..." }` (hash, not the raw email) **(proposed)** |
+| `auth.login_failed` | `auth` (entity id = user id if the email is known) | `{ "email_hash": "..." }` (hash, not the raw email) |
 | `auth.logout` | user | — |
 | `employee.create` | employee | Created fields (salary included only as record id) |
 | `employee.update` | employee | `{ field: [old, new] }` |
@@ -194,10 +194,12 @@ Written by services in the **same transaction** as the change ([ADR 0011](adr/00
 | `salary.change` | employee | reason, effective_date, `base_minor: [old, new]`, level/role changes |
 | `import.dry_run` | import_job | filename, sha256, row/valid/error counts |
 | `import.commit` | import_job | inserted count |
+| `import.fail` | import_job | failure reason |
 | `export.download` | employee (collection) | format, filters, row count, salary columns included yes/no |
-| `fx.update` | fx_rate | `rate_to_usd: [old, new]`, as_of |
-| `reference.country.update` | country | `{ field: [old, new] }` |
-| `user.create` / `user.update` | user | role `[old, new]`, is_active, `"password": "changed"` (never the value) |
+| `insights.individuals_view` | insights | endpoint (top earners or cohort drill-down) and its filters |
+| `fx.update` (cut from v1) | fx_rate | `rate_to_usd: [old, new]`, as_of |
+| `reference.country.update` (cut from v1) | country | `{ field: [old, new] }` |
+| `user.create` / `user.update` (cut from v1) | user | role `[old, new]`, is_active, `"password": "changed"` (never the value) |
 | `ask.query` | ask | question text (truncated to 500 chars **(proposed)**), tool names called, provider, latency, outcome |
 
 Audit rows are never updated or deleted through the application. Retention policy: **TBD** (out of scope; noted in [03-clarifications.md](03-clarifications.md)).

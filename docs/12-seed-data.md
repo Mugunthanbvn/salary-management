@@ -169,7 +169,7 @@ Each employee gets **1 to ~6 salary records** (append-only; [adr/0006-append-onl
 3. A small number **(proposed: 1%)** of **MARKET_ADJUSTMENT** (+5–10%) records, and **0.5%** **CORRECTION** records (−3% to +3%).
 4. Walking back divides the base by each raise factor. The earliest record is the **HIRE** record at `hire_date`.
 5. Amounts are re-rounded at each step to the currency's rounding unit. Components are recomputed per record from the rules in §6, using that record's level.
-6. `changed_by` = the seed system user; reasons use the enum `HIRE`, `PROMOTION`, `MERIT`, `MARKET_ADJUSTMENT`, `CORRECTION`.
+6. `changed_by` = `null` (seeded history has no acting user); reasons use the enum `HIRE`, `PROMOTION`, `MERIT`, `MARKET_ADJUSTMENT`, `CORRECTION`.
 
 This guarantees the current distribution matches §5. The raises insight ([09-insights-pay-equity.md](09-insights-pay-equity.md) §3.7) gets a realistic spread.
 
@@ -184,7 +184,7 @@ The data is planted so pay equity and "Ask about pay" have **real findings** to 
 
 > **Detectability (decided).** Compa-ratio is measured against the **pay band midpoint**, not the cohort's own median ([09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8). Bands are seeded from the **pre-noise reference formula** in §5 (`mid` = reference × factors → local currency; `min` = 0.8 × mid; `max` = 1.2 × mid), so they are independent of the generated salaries. The team-wide −8% in DE Customer Success therefore shows as a department median compa-ratio ≈ 0.92 (below the 0.95 threshold), while normal departments sit ≈ 1.00 (log-normal noise has median 1). Individual outliers (×0.65–0.75 / ×1.30–1.45) fall outside 0.8–1.2 and are flagged.
 
-**Pay bands seeded:** one row in `pay_bands` per job role × level × country (about 30 × 6 × 10 = 1,800 rows), `effective_from` = 2026-01-01 **(proposed)**. A test asserts every active employee has a band.
+**Pay bands seeded:** one row in `pay_bands` per job role × allowed level × country (136 role-levels from §3 × 10 countries ≈ 1,360 rows), `effective_from` = 2026-01-01 **(proposed)**. A test asserts every active employee has a band.
 
 Both patterns can be switched off (`--no-story`) for tests that need a "clean" distribution.
 
@@ -272,9 +272,9 @@ If the generator logic changes on purpose, the golden checksum is updated **in t
 
 Inserting ~80k rows one network round-trip at a time into a remote DB is slow. The seed therefore builds a local file and uploads it:
 
-1. `make seed-file` → runs migrations + seed into `./build/acme-seed.db` (with a WAL checkpoint, so it is a single self-contained file).
-2. `turso db create acme-salary --from-file ./build/acme-seed.db` (first time), **or** for a re-seed: destroy and re-create (demo data only; documented).
-3. Verify: row counts via `turso db shell acme-salary "select count(*) from employees"` and the `/api/health` endpoint.
+1. `make seed-turso` → runs migrations + seed into `./build/seed.db` (with a WAL checkpoint, so it is a single self-contained file).
+2. `turso db create salary-prod --from-file ./build/seed.db` (first time), **or** for a re-seed: destroy and re-create (demo data only; documented; check the auth token still works afterwards).
+3. Verify: row counts via `turso db shell salary-prod "select count(*) from employees"` and the `/api/v1/health` endpoint.
 4. Alembic's version table travels with the file, so later migrations apply normally.
 
 Exact Turso CLI flags and file-size limits are **verified during the milestone 1 deploy spike** ([17-deployment.md](17-deployment.md)). The fallback (Neon Postgres) seeds via the normal insert path against the pooled URL.
@@ -292,10 +292,10 @@ uv run python -m salary_api.seed \
   --reset \                 # drop + recreate data (refuses on APP_ENV=production unless --force-demo)
   --no-story \              # disable demo-story distortions
   --no-history \            # one HIRE record per employee (fast tests)
-  --db-url sqlite:///./build/acme-seed.db
+  --db-url sqlite:///./build/seed.db
 
 # build the Turso upload file
-make seed-file
+make seed-turso
 ```
 
 Output: a summary table (counts per country, department, level, and type; salary records; components; duration).

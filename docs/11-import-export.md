@@ -33,7 +33,7 @@ ACME's HR team **manages salaries in Excel today** (problem statement). Two cons
 |---|---|---|
 | Download template | `IMPORT` | HR_MANAGER, ADMIN |
 | Upload → dry-run | `IMPORT` | HR_MANAGER, ADMIN |
-| Commit a dry-run | `IMPORT` (and must be the same user who created the job) | HR_MANAGER, ADMIN |
+| Commit a dry-run | `IMPORT` (and must be the job's creator or an `ADMIN`) | HR_MANAGER, ADMIN |
 | Export employees **with** salary columns | `EXPORT` + `SALARY_READ` | HR_MANAGER, ADMIN |
 | Export employees **without** salary columns | `EXPORT` | VIEWER (salary columns stripped) |
 
@@ -56,7 +56,7 @@ One row per employee. Header names are **case-insensitive and trimmed**. Column 
 | `employment_type` | enum | ✅ | `FULL_TIME`, `PART_TIME`, `CONTRACTOR` | `FULL_TIME` |
 | `country` | ISO 3166-1 alpha-2 | ✅ | Must exist in `countries` | `DE` |
 | `hire_date` | date `YYYY-MM-DD` (or an Excel date cell) | ✅ | Not in the future; not before 1970-01-01 | `2022-04-01` |
-| `currency` | ISO 4217 | ⬜ | Defaults to the country's `default_currency`; must have an FX rate | `EUR` |
+| `currency` | ISO 4217 | ⬜ | Defaults to the country's `default_currency`; if given, must equal it | `EUR` |
 | `base_salary` | decimal, **major units**, annual | ✅ | > 0; at most as many decimals as the currency allows (JPY: 0, EUR: 2); no thousands separators | `52000.00` |
 | `bonus_target` | decimal, major units, annual | ⬜ | ≥ 0; same precision rule | `4160.00` |
 | `allowance_1_name` … `allowance_3_name` | string 1–50 | ⬜ | Required if the matching amount is present | `Transport` |
@@ -78,7 +78,7 @@ flowchart LR
     A[Upload file<br/>POST /imports] --> B{Size ≤ 4 MB?<br/>type allowed?}
     B -- no --> X1[413 / 415 problem+json]
     B -- yes --> C[Parse<br/>CSV or XLSX → raw rows]
-    C -- parse error --> X2[422 file-level error]
+    C -- parse error --> X2[400 bad-request file-level error]
     C --> D[Normalize<br/>trim, case, dates, money → minor units]
     D --> E[Validate each row<br/>types, enums, reference data, rules]
     E --> F[Duplicate check<br/>in-file + against DB]
@@ -86,7 +86,7 @@ flowchart LR
     G --> H[Dry-run report to UI]
     H -- errors > 0 --> I[User fixes file,<br/>re-uploads]
     H -- errors = 0 --> J[POST /imports/:id/commit]
-    J --> K{Re-validate duplicates<br/>job fresh? same user?}
+    J --> K{Re-validate duplicates<br/>job fresh? creator or ADMIN?}
     K -- conflict --> X3[409 problem+json]
     K -- ok --> L[Single transaction:<br/>employees + salary_records<br/>+ components + audit]
     L --> M[(import_jobs<br/>status=COMMITTED)]
@@ -128,8 +128,8 @@ Pydantic models validate each row against the **same domain rules** the create-e
 |---|---|---|
 | Within the file | `employee_code` | `duplicate_in_file` (reported on the 2nd and later occurrences, pointing to the first row) |
 | Within the file | `email` | `duplicate_in_file` |
-| Against the DB | `employee_code` exists | `already_exists` |
-| Against the DB | `email` exists | `already_exists` |
+| Against the DB | `employee_code` exists | `duplicate_in_db` |
+| Against the DB | `email` exists | `duplicate_in_db` |
 
 DB checks run as **one batched query per key** (`WHERE employee_code IN (...)`), not one per row.
 
@@ -139,10 +139,10 @@ Stored in `import_jobs` and returned to the UI:
 
 ```json
 {
-  "id": "imp_01JB…",
+  "id": 31,
   "status": "DRY_RUN",
   "filename": "q4-new-hires.xlsx",
-  "format": "xlsx",
+  "format": "XLSX",
   "row_count": 248,
   "valid_count": 241,
   "error_count": 7,
@@ -174,14 +174,14 @@ Stored in `import_jobs` and returned to the UI:
 Preconditions (otherwise `409 Conflict` problem+json):
 - `status == DRY_RUN` and `error_count == 0`.
 - `expires_at` not passed: **24 hours** after the dry-run. This bounds the gap between validation and commit. The DB duplicate re-check below covers changes made in the meantime.
-- Requested by the same user who created the job.
+- Requested by the job's creator or an `ADMIN`.
 - **DB duplicates re-checked**, because someone else may have created one of these employees since the dry-run.
 
 Execution:
 - **One DB transaction**: insert employees → salary records → salary components → audit event → mark the job `COMMITTED`.
 - Bulk inserts (SQLAlchemy Core `insert()` with executemany, in chunks of 1,000), the same approach as the seed ([12-seed-data.md](12-seed-data.md)).
-- Any exception rolls back, marks the job `FAILED` with `failure_reason`, and returns `500` problem+json `import_failed`. **No partial data is ever written.**
-- Response: `{ id, status: "COMMITTED", created_count }`.
+- A duplicate found at commit returns `409` problem+json `duplicate` with the conflicting rows. Any other exception rolls back, marks the job `FAILED` with `failure_reason`, and returns `500` problem+json `import-failed`. **No partial data is ever written.**
+- Response: `{ id, status: "COMMITTED", inserted }`.
 
 ### 5.7 `import_jobs` lifecycle
 
@@ -190,7 +190,8 @@ stateDiagram-v2
     [*] --> DRY_RUN: upload validated (errors may be > 0)
     DRY_RUN --> COMMITTED: commit (0 errors, fresh, same user, no new dupes)
     DRY_RUN --> FAILED: commit transaction error
-    DRY_RUN --> DRY_RUN: expired (commit refused with 409; job kept for audit)
+    DRY_RUN --> EXPIRED: commit attempted after expires_at (refused with 409; job kept for audit)
+    EXPIRED --> [*]
     COMMITTED --> [*]
     FAILED --> [*]
 ```
@@ -211,7 +212,7 @@ Retention **(proposed)**: the `payload` is cleared 7 days after the job ends (it
 | Dry-run validity | **24 hours** | Bounds stale validation; duplicates are re-checked at commit anyway |
 | Concurrent active dry-runs per user | **3 (proposed)** | Stops abuse and bloat |
 
-Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; commit < 30 s against Turso) are tracked in [19-performance.md](19-performance.md).
+Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; commit < 30 s against Turso, checked against the spike's bulk-insert timing) are tracked in [19-performance.md](19-performance.md). Insert with IDs pre-allocated in Python, so no `RETURNING` is needed and `current_salary_record_id` is set on insert.
 
 ---
 
@@ -258,7 +259,7 @@ Rule (follows OWASP CSV Injection guidance): any **string** cell whose first cha
 
 ### 6.4 Audit
 
-Each export writes `EXPORT` to `audit_events` with: format, filters, row count, and `salary_included: true|false` ([adr/0011-audit-events.md](adr/0011-audit-events.md)).
+Each export writes `export.download` to `audit_events` with: format, filters, row count, and `salary_included: true|false` ([adr/0011-audit-events.md](adr/0011-audit-events.md)).
 
 ---
 
@@ -266,10 +267,10 @@ Each export writes `EXPORT` to `audit_events` with: format, filters, row count, 
 
 | Action | When | `diff` payload |
 |---|---|---|
-| `IMPORT_DRY_RUN` | Upload validated | `{ job_id, filename, format, row_count, error_count }` |
-| `IMPORT_COMMITTED` | Commit succeeded | `{ job_id, created_count, employee_code_range }` |
-| `IMPORT_FAILED` | Commit rolled back | `{ job_id, failure_reason }` |
-| `EXPORT` | Export downloaded | `{ format, filters, row_count, salary_included }` |
+| `import.dry_run` | Upload validated | `{ job_id, filename, format, row_count, error_count }` |
+| `import.commit` | Commit succeeded | `{ job_id, inserted, employee_code_range }` |
+| `import.fail` | Commit rolled back | `{ job_id, failure_reason }` |
+| `export.download` | Export downloaded | `{ format, filters, row_count, salary_included }` |
 
 **(Proposed)** A committed import writes **one summary event** rather than 10k per-employee events. The job ID links the summary to the stored rows.
 

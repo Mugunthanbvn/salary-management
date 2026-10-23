@@ -192,6 +192,8 @@ Hooks deliberately **don't run the test suite**. Red-phase TDD commits must be p
 
 ## 8. GitHub Actions CI
 
+> **v1 scope:** one `ci.yml` with the `backend`, `frontend`, `contract` and `security` (gitleaks) jobs. **Cut from v1:** `backend-pg`, the e2e job (one local Playwright smoke at most), CodeQL, Dependabot (§11) and knip ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)). The full pipeline below is the future-work design.
+
 Workflow `.github/workflows/ci.yml` runs on every push to a PR branch and on `main`. Jobs run in parallel; a PR may merge only when all required jobs are green.
 
 ```mermaid
