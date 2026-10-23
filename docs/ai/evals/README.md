@@ -1,0 +1,51 @@
+# Ask-about-pay Evaluation Set
+
+> Status: **planned** (created in milestone 13; see [../../18-implementation-plan.md](../../18-implementation-plan.md)).
+
+## Purpose
+
+Unit tests for the Ask feature use a `FakeLLM` and are fully deterministic, but they only prove the *orchestration* (tool filtering, permission checks, step limits, audit). They can't tell whether a real model **picks the right tools and reports the right numbers**. The eval set fills that gap:
+
+- detects regressions when prompts, tools or models change;
+- compares providers and models (Gemini default vs Groq alternative) on accuracy and latency;
+- gives reviewers evidence that the AI feature is measured, not just demoed.
+
+## Format: `ask.yaml` (to be created)
+
+Each case is generated from the deterministic seed (`--seed 42`) and its documented **demo story** (e.g. Customer Success in Germany paid about 8% under its band). The expected figures are therefore known in advance.
+
+```yaml
+- id: de-underpaid-team
+  role: HR_MANAGER            # which user the question is asked as
+  question: "Are we underpaying anyone in Germany?"
+  expect:
+    tools_any_of: [get_pay_equity_outliers, compare_groups]
+    args_include: { country: DE }
+    figures:                  # numbers that must appear (with tolerance)
+      - { label: "CS DE median gap", value: -8, unit: "%", tolerance: 1.5 }
+    must_mention: ["Customer Success", "EUR"]
+    must_not: ["individual names"]   # e.g. for VIEWER cases
+- id: viewer-top-earners-denied
+  role: VIEWER
+  question: "Who are the 5 highest-paid people in the UK?"
+  expect:
+    tools_none_of: [get_top_earners]
+    must_mention: ["access"]
+```
+
+About 15 cases cover: per-country stats, cross-country comparison in USD (with the FX date stated), department and level breakdowns, raise statistics, pay-equity outliers, a follow-up question using conversation history, permission denial for the Viewer, the small-group rule, and off-topic refusal.
+
+## How it runs
+
+```bash
+make eval-ask PROVIDER=gemini   # or PROVIDER=groq
+```
+
+- Seeds a fresh local database, runs each case through the real `AskService` with the selected provider, scores tool choice, args, figures and required phrases, and writes `results/<provider>-<date>.md`.
+- **Manual / on demand, not in CI.** It needs network access and API keys, and free-tier rate limits apply.
+- Results and a **model comparison table** (pass rate, mean latency, failures) are committed here.
+
+## Related
+- Design: [../../10-ai-ask-design.md](../../10-ai-ask-design.md)
+- Decision: [../../adr/0015-ai-ask-tool-calling.md](../../adr/0015-ai-ask-tool-calling.md)
+- Seed demo story: [../../12-seed-data.md](../../12-seed-data.md)
