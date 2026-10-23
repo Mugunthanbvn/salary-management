@@ -19,12 +19,12 @@ Replace ACME's Excel-based salary management with a web application that lets th
 | 2 | **Search, filter, sort, paginate** — by name/ID, country, department, title, level, employment type, status, currency, salary range | Fast lookups at 10k scale; shareable URLs |
 | 3 | **Salary history** — append-only records with effective date, reason, who changed it, and title/level snapshot | Answers "when and why did pay change?"; audit trail |
 | 4 | **Compensation components** — base + allowances + target bonus; annual/monthly display | Base-only comparisons mislead across countries |
-| 5 | **Multi-currency done right** — integer minor units + ISO 4217; per-country stats in local currency; USD reporting with FX date | Avoids the classic "summing rupees and dollars" error |
-| 6 | **Insights** — headcount, payroll, min/max/mean/median/P25/P75 by country, department, title; distribution; department cost; raises; top/bottom earners | "How does the org pay people?" |
+| 5 | **Multi-currency done right** — each salary in its country's currency, as integer minor units + ISO 4217; per-country stats in local currency; USD reporting with FX date | Avoids the classic "summing rupees and dollars" error |
+| 6 | **Insights** — headcount, payroll, min/max/mean/median/P25/P75 by country, department, title; department cost; top/bottom earners | "How does the org pay people?" |
 | 7 | **Pay equity** — compa-ratio vs pay band (title + level + country); flag < 0.8 / > 1.2; team-level "below band" view | Surfaces unfair pay |
 | 8 | **Ask about pay (AI)** — plain-English questions answered by read-only tools over the same insight services | Fastest path from question to answer |
 | 9 | **Import & export** — CSV/XLSX import with dry-run preview, per-row errors, duplicate detection, all-or-nothing commit; CSV/XLSX export | Migration path off Excel |
-| 10 | **Roles & security** — Admin / HR Manager / Viewer; Viewer never sees individual salaries; aggregates over < 5 people hidden; audit log | Salary data is confidential |
+| 10 | **Roles & security** — Admin / HR Manager / Viewer; Viewer never sees individual salaries; aggregates over < 5 people hidden; audit trail of every change | Salary data is confidential |
 | 11 | **Seed** — deterministic 10,000 employees with realistic bands and history | Required by brief; reproducible demos/tests |
 
 ## Deliberately left out — and why
@@ -36,7 +36,10 @@ Replace ACME's Excel-based salary management with a web application that lets th
 | Line-manager and employee self-service roles | Require a reporting hierarchy and employee accounts — large scope for little assessment value |
 | Approval workflows, future-dated raises | Workflow engine scope; current-dated changes cover the HR manager's need |
 | SSO / MFA, multi-tenancy | Single organisation, single small HR team; documented as future work |
-| Live FX feeds | Static, dated, admin-maintained table is transparent and deterministic |
+| Live FX feeds | Static, dated, seeded table is transparent and deterministic |
+| Salary paid in another country's currency (expat pay) | Local hires are paid in local currency; exceptions need split-pay rules |
+| Admin screens (users, FX rates, countries, audit viewer) | Seeded data covers the demo; audit events are still recorded |
+| Raises and salary-distribution charts | Nice-to-have analytics; core questions are answered by the stats and pay equity |
 | Gender/demographic pay-gap analysis | Requires sensitive personal data and legal review; we minimise personal data instead |
 | Custom backup system | Platform provides point-in-time restore (Turso); documented |
 

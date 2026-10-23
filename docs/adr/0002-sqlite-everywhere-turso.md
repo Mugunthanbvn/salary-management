@@ -1,6 +1,6 @@
 # ADR-0002: SQLite everywhere (local file, in-memory tests, Turso in production) behind the SQLAlchemy ORM
 
-- **Status:** Accepted
+- **Status:** Accepted (2026-10-24 amendment: the Postgres CI job is cut from v1; it is added only if the deploy spike forces the Neon fallback)
 - **Date:** 2026-10-24
 - **Deciders:** the candidate + Claude (AI pair)
 

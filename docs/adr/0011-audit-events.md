@@ -25,11 +25,11 @@ For confidential HR data, the organisation must be able to answer: *who changed 
 
 **Option 1.**
 - `audit_events(id, actor_id, action, entity, entity_id, diff JSON, at)`. Append-only: no update or delete endpoints exist.
-- Actions include (final list in [08-security-rbac.md](../08-security-rbac.md)): `employee.created/updated/terminated/reactivated`, `salary.changed`, `import.dry_run/committed`, `export.generated` (with filters and format), `user.created/role_changed/deactivated`, `fx.updated`, `auth.login_succeeded/failed`, `ask.question` (question + tools used).
+- Actions include (canonical list in the [glossary](../glossary.md) §4): `employee.create/update/terminate/reactivate`, `salary.change`, `import.dry_run/commit/fail`, `export.download` (with filters and format), `insights.individuals_view`, `auth.login/login_failed/logout`, `ask.query` (question + tools used). Admin actions (`user.*`, `fx.update`) are cut from v1.
 - `diff` stores before/after for changed fields. **Salary values in diffs are only visible to users with `AUDIT_READ` (Admin).**
 - Written by services in the same transaction as the domain write, so they're atomic.
 - Admin UI: `/admin/audit` with filters (actor, action, entity, date).
-- The per-user rate limit on AI Ask counts `ask.question` events, which works across stateless serverless instances ([ADR-0015](0015-ai-ask-tool-calling.md)).
+- The per-user rate limit on AI Ask counts `ask.query` events, which works across stateless serverless instances ([ADR-0015](0015-ai-ask-tool-calling.md)).
 
 ## Consequences
 

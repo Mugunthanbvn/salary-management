@@ -105,8 +105,12 @@ Validation errors add an `errors` array:
 | 413 | `payload-too-large` | Upload > 4 MB |
 | 415 | `unsupported-media-type` | Upload that is not CSV/XLSX |
 | 422 | `validation` | Field-level validation errors |
-| 429 | `rate-limited` | Ask rate limit or provider rate limit; includes `Retry-After` |
-| 503 | `feature-disabled` / `upstream-unavailable` | Ask disabled (no key) or LLM provider down |
+| 429 | `rate-limited` | Login failure limit, Ask per-user limit, or provider rate limit after one retry; includes `Retry-After` |
+| 500 | `import-failed` | Import commit transaction failed; job marked `FAILED`, nothing written |
+| 502 | `upstream-unavailable` | LLM provider 5xx, timeout, 4xx or invalid output after one repair retry |
+| 503 | `feature-disabled` | Ask disabled (no `LLM_API_KEY`) |
+
+This table mirrors the [glossary](glossary.md) §5, which wins if the two ever differ.
 
 ### 1.6 Permission notation
 
@@ -117,11 +121,13 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 - Individual salary fields (`current_base`, `current_total`, `components`) are returned as `null`, and the item carries `"salary_masked": true`.
 - Endpoints that exist only to reveal individual pay (salary history, top earners, cohort member lists) return **403**.
 - Filtering or sorting by individual salary returns **403**. Otherwise repeated range queries could reveal one person's pay.
-- Aggregates are allowed, but any group with fewer than **3** people is suppressed: values `null`, `"suppressed": true` (the small-group rule, [ADR 0009](adr/0009-permission-rbac-small-group-rule.md)).
+- Aggregates are allowed, but any group with fewer than **5** people is suppressed: values and `count` are `null`, `"suppressed": true` (the small-group rule, [ADR 0009](adr/0009-permission-rbac-small-group-rule.md)).
 
 ---
 
 ## 2. Endpoint index
+
+> **v1 scope:** these endpoints are **cut from v1** and kept as future-work designs: `PATCH /countries/{code}`, `GET /insights/distribution`, `GET /insights/raises`, `PUT /fx-rates/{currency}`, `GET/POST/PATCH /users`, `GET /audit-events`. Users, countries and FX rates are seeded; audit events are still written. See the [v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first).
 
 | Method | Path | Permission |
 |---|---|---|
@@ -161,7 +167,6 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 | POST | `/users` | `USER_ADMIN` |
 | PATCH | `/users/{id}` | `USER_ADMIN` |
 | GET | `/audit-events` | `AUDIT_READ` |
-| GET | `/ask/status` | `ASK` |
 | POST | `/ask` | `ASK` |
 
 ---
@@ -202,7 +207,7 @@ Clears the cookie (`Max-Age=0`). 204. Writes `auth.logout`.
 
 ### `GET /auth/me`: Authenticated
 
-Same body as the login response. Used by the frontend to render role-aware navigation.
+Same body as the login response, plus `"features": { "ask": true }` (`false` when no `LLM_API_KEY` is configured). Used by the frontend to render role-aware navigation and to hide Ask when it's disabled.
 
 ---
 
@@ -303,7 +308,7 @@ Creates the employee **and** its `HIRE` salary record in one transaction.
   "country_code": "DE",
   "hire_date": "2026-10-01",
   "salary": {
-    "currency": "EUR",                        // defaults to the country's default_currency
+    "currency": "EUR",                        // optional; must equal the country's default_currency
     "base_minor": 5400000,
     "components": [
       { "type": "ALLOWANCE", "name": "Transport", "amount_minor": 60000 },
@@ -322,7 +327,7 @@ Returns the list item fields plus `current_salary` (record id, effective date, c
 
 ### 6.4 `PATCH /employees/{id}`: `EMPLOYEE_WRITE`
 
-Profile fields only (names, email, employment type, country). **Salary, role and level change only through salary changes**, so history always explains them.
+Profile fields only (names, email, employment type). **Salary, role, level and country change only through salary changes**, so history always explains them (a country change also changes the salary currency).
 
 ```json
 // request
@@ -383,7 +388,8 @@ Records are ordered by `(effective_date, id)`. `base_change_pct` is a decimal st
   "reason": "PROMOTION",
   "job_role_id": 3,          // optional; defaults to current
   "level": "L4",             // optional; defaults to current
-  "currency": "INR",         // optional; defaults to current
+  "country_code": "IN",      // optional; relocation only; defaults to current
+  "currency": "INR",         // optional; must equal the (new) country's currency
   "base_minor": 260000000,
   "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount_minor": 104000000 } ],
   "note": "Annual cycle 2026"
@@ -443,7 +449,7 @@ Runs parse → validate → duplicate checks (within the file and against the DB
 }
 ```
 
-Errors: 413, 415, 400 (unreadable file / header mismatch, reported with the expected headers).
+Errors: 413, 415, 400 `bad-request` (unreadable file / header mismatch, reported with the expected headers). Row-level problems are not an error status: they come back in `errors[]` with the 201.
 
 ### 7.3 `GET /imports/{id}`: `IMPORT`
 
@@ -451,10 +457,11 @@ Returns the stored job (same shape). Only the creator or an ADMIN can see it (40
 
 ### 7.4 `POST /imports/{id}/commit`: `IMPORT`
 
-- Requires `status=DRY_RUN`, `error_count=0` and not expired; otherwise 409 `invalid-state`.
-- Re-runs duplicate checks against the DB (data may have changed since the preview); new conflicts → 409 with the conflicting rows, nothing written.
-- Inserts all employees + `HIRE` salary records in **one transaction**; any failure rolls back everything.
-- 200 `{ "id": 31, "status": "COMMITTED", "inserted": 409 }`. Writes `import.commit` (plus `import.dry_run` at upload).
+- Only the job's creator or an `ADMIN` may commit (404 otherwise).
+- Requires `status=DRY_RUN`, `error_count=0` and not expired; otherwise 409 `invalid-state`. An expired job is marked `EXPIRED` at that point.
+- Re-runs duplicate checks against the DB (data may have changed since the preview); new conflicts → 409 `duplicate` with the conflicting rows, nothing written.
+- Inserts all employees + `HIRE` salary records in **one transaction**; any other failure rolls back everything, marks the job `FAILED` and returns 500 `import-failed`.
+- 200 `{ "id": 31, "status": "COMMITTED", "inserted": 409 }`. Writes `import.commit` (`import.fail` on rollback; `import.dry_run` at upload).
 
 ---
 
@@ -485,7 +492,7 @@ Every response includes a `population` echo (the filters actually applied) and `
 }
 ```
 
-All values are integers in minor units of `currency`. Percentiles use **linear interpolation** (the same result as SQL `PERCENTILE_CONT`); interpolated and mean values are rounded **half-even** to the minor unit. Full definitions are in [09-insights-pay-equity.md](09-insights-pay-equity.md). For callers without `SALARY_READ`, a group with `count < 5` returns `"suppressed": true` and nulls every value except `count` (the count is also nulled **(proposed)**, to avoid confirming that one person exists in a narrow slice).
+All values are integers in minor units of `currency`. Percentiles use **linear interpolation** (the same result as SQL `PERCENTILE_CONT`); interpolated and mean values are rounded **half-even** to the minor unit. Full definitions are in [09-insights-pay-equity.md](09-insights-pay-equity.md). For callers without `SALARY_READ`, a group with `count < 5` returns `"suppressed": true` and nulls every value **including `count`**, to avoid confirming that one person exists in a narrow slice.
 
 ### 8.3 `GET /insights/overview`
 
@@ -533,7 +540,7 @@ Total compensation cost per department in **USD** (sum of converted amounts), wi
 
 ### 8.8 `GET /insights/top-earners`: requires `SALARY_READ`
 
-`country` required; `n` (default 10, max 50); `direction=top|bottom`. Returns employee summaries with local amounts. 403 for VIEWER.
+`country` required; `n` (default 10, max 50); `direction=top|bottom`. Returns employee summaries with local amounts. 403 for VIEWER. Writes an `insights.individuals_view` audit event.
 
 ### 8.9 `GET /insights/raises`
 
@@ -572,7 +579,7 @@ Flags: `underpaid` = compa-ratio < 0.80 (below band minimum); `overpaid` = compa
 
 ### 8.11 `GET /insights/pay-equity/cohort`: requires `SALARY_READ`
 
-`job_role_id`, `level`, `country` required. Returns the band and each cohort member with `employee_code`, name, base, `compa_ratio` (decimal string, 2 dp) and flag `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20). 403 for VIEWER. Viewing it writes an `insights.pay_equity_drilldown` audit event **(proposed)**.
+`job_role_id`, `level`, `country` required. Returns the band and each cohort member with `employee_code`, name, base, `compa_ratio` (decimal string, 2 dp) and flag `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20). 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event.
 
 ### 8.12 `GET /pay-bands`: `INSIGHTS_READ`
 
@@ -631,13 +638,7 @@ Filters: `actor_id`, `action` (prefix match, e.g. `salary.`), `entity`, `entity_
 
 ## 12. Ask about pay
 
-### `GET /ask/status`: `ASK`
-
-```json
-{ "enabled": true, "provider": "gemini", "rate_limit_per_hour": 20, "remaining": 17 }
-```
-
-`enabled: false` when no `LLM_API_KEY` is configured; the UI then hides the feature.
+Whether Ask is enabled comes from `GET /auth/me` → `features.ask`; there is no separate status endpoint.
 
 ### `POST /ask`: `ASK`
 
@@ -661,4 +662,4 @@ Filters: `actor_id`, `action` (prefix match, e.g. `salary.`), `entity`, `entity_
 }
 ```
 
-Limits: message `content` ≤ 1,000 chars **(proposed)**, ≤ 6 turns, ≤ 4 tool steps. Errors: 429 `rate-limited` (per-user limit or provider 429, with `Retry-After`), 503 `feature-disabled`, 503 `upstream-unavailable`. Full design: [10-ai-ask-design.md](10-ai-ask-design.md).
+Limits: message `content` ≤ 1,000 chars, ≤ 6 turns, ≤ 4 tool steps. Errors: 429 `rate-limited` (per-user limit, or provider 429 after one retry, with `Retry-After`), 502 `upstream-unavailable`, 503 `feature-disabled`. Full design: [10-ai-ask-design.md](10-ai-ask-design.md).

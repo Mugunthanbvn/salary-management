@@ -39,12 +39,12 @@ Design consequence: this is a **data-dense internal tool used daily**. Speed, le
 | `/employees/[id]` | **Employee detail** + salary timeline | all roles; salary sections need `SALARY_READ` |
 | `/employees/import` | **Import** (upload → preview → commit) | `IMPORT` |
 | `/ask` | **Ask about pay** | `ASK` and feature enabled |
-| `/admin/users` | Users & roles | `USER_ADMIN` |
-| `/admin/fx-rates` | FX rates | `FX_ADMIN` |
-| `/admin/countries` | Countries (default currency) | `REFERENCE_ADMIN` |
-| `/admin/audit` | Audit log | `AUDIT_READ` |
+| `/admin/users` | Users & roles (**cut from v1**) | `USER_ADMIN` |
+| `/admin/fx-rates` | FX rates (**cut from v1**) | `FX_ADMIN` |
+| `/admin/countries` | Countries (default currency) (**cut from v1**) | `REFERENCE_ADMIN` |
+| `/admin/audit` | Audit log (**cut from v1**) | `AUDIT_READ` |
 
-Navigation is a **top bar** (proposed; final layout decided in the design phase, §9). Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
+Navigation is a **top bar** (proposed). Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
 
 **Auth redirect:** `proxy.ts` (Next 16's middleware) redirects unauthenticated requests to `/login?next=…`. Routes the user's permissions don't allow show a 403 page with a link home. The **backend is the enforcement point**; the UI only hides things ([08-security-rbac.md](08-security-rbac.md)).
 
@@ -62,12 +62,12 @@ Navigation is a **top bar** (proposed; final layout decided in the design phase,
 All filter, sort, and paging state lives in the **URL query string**, managed with `nuqs`:
 
 ```
-/employees?q=müller&country=DE&department=Engineering&level=L3&status=ACTIVE&sort=-base_salary&page=2&size=25
+/employees?q=müller&country=DE&department_id=1&level=L3&status=ACTIVE&sort=-current_base&page=2&page_size=25
 /insights?country=DE&comp=total&period=monthly
-/insights/pay-equity?country=DE&department=Customer%20Success
+/insights/pay-equity?country=DE&department_id=4
 ```
 
-Benefits: links can be shared ("look at this view"), the back and forward buttons work, refresh keeps state, and the Ask feature's **"View in dashboard"** link is just a URL ([10-ai-ask-design.md](10-ai-ask-design.md)).
+URL parameters use the API's names ([glossary](glossary.md) §6), so a page URL maps straight onto its API call. `period` is the one UI-only parameter. Benefits: links can be shared ("look at this view"), the back and forward buttons work, refresh keeps state, and the Ask feature's **"View in dashboard"** link is just a URL ([10-ai-ask-design.md](10-ai-ask-design.md)).
 
 Paging defaults: **page size 25**, options 25 / 50 / 100 (max 100) ([07-api-spec.md](07-api-spec.md)).
 
@@ -138,10 +138,10 @@ Every screen defines:
 | Header | Title, global toggles (Base/Total, Annual/Monthly), population chip, filters: country, department, job role, level |
 | KPI tiles | Headcount · Total annual payroll (USD) · Median pay (USD, org-wide) · Countries · FX as-of date |
 | **Pay by country** table | Country, headcount, min, P25, **median**, mean, P75, max in **local currency**, plus a USD median column; sortable; a row click filters the dashboard to that country |
-| **Salary distribution** chart | Histogram (local currency when one country is selected, otherwise USD, with a visible label); P25, median, and P75 reference lines |
+| **Salary distribution** chart (**cut from v1**) | Histogram (local currency when one country is selected, otherwise USD, with a visible label); P25, median, and P75 reference lines |
 | **Pay by department** | Bar chart of median (and mean on hover). Currency label follows the single- or mixed-currency rule |
 | **Department cost** | Horizontal bar of total payroll in USD with share-of-total % |
-| **Raises** | Date-range picker (default: last 12 months); average raise % by department; stacked count by reason (Merit / Promotion / Market adjustment / Correction) |
+| **Raises** (**cut from v1**) | Date-range picker (default: last 12 months); average raise % by department; stacked count by reason (Merit / Promotion / Market adjustment / Correction) |
 | **Top / bottom earners** (HR/Admin) | Country selector (required), top 10 / bottom 10 table with links to employees |
 | Links | "Open pay equity →" · "Ask a question →" |
 
@@ -190,7 +190,7 @@ Export uses the **current URL filters**: what you see is what you export ([11-im
 - A live preview shows "+8.5% vs current, new total comp €61,200 · ≈ US$66,100".
 - Validation mirrors the backend (zod schemas built from the OpenAPI types).
 
-**Edit employee**: profile fields only (name, email, country, employment type). **Salary, job role and level can't be edited here.** They change only through "Record salary change", so every change is captured in history with a reason. Department is derived from the job role and is not edited separately. The optimistic-lock `version` is sent in the request body.
+**Edit employee**: profile fields only (name, email, employment type). **Salary, job role, level and country can't be edited here.** They change only through "Record salary change", so every change is captured in history with a reason. Department is derived from the job role and is not edited separately. The optimistic-lock `version` is sent in the request body.
 
 ### 4.6 Create employee (`/employees/new`)
 
@@ -217,13 +217,15 @@ A three-step flow ([11-import-export.md](11-import-export.md)):
 | Intro | "Ask about how ACME pays people. Answers use live data and show their sources." |
 | Suggested questions (chips) | "Which country pays L3 engineers the most (USD)?" · "Are any teams paid below their band?" · "Average raise in 2025 by department?" · "Median total comp in Singapore?" |
 | Conversation | Chat-style list. User bubble; **answer card** with markdown answer, **key figures** (amount + currency), caveats (e.g. "Full-time only · FX as of 2026-10-01"), **"How I got this"** (collapsible: tool names + arguments), **"View in dashboard"** link |
-| Input | Text box (max 500 chars) + Send; Enter sends, Shift+Enter adds a new line |
+| Input | Text box (max 1,000 chars, same cap as the API) + Send; Enter sends, Shift+Enter adds a new line |
 | Waiting | **Spinner** with "Thinking…" (no streaming in v1) |
 | History | Kept in page state only; last 6 turns sent; "New conversation" clears it; a note says history is not saved |
-| Errors | `llm_busy` → "The assistant is busy, try again in N s"; `ask_rate_limited` → "You've reached the hourly limit"; `feature_disabled` (503) → the page isn't linked at all (`features.ask = false` from `/auth/me`) |
+| Errors | `429 rate-limited` → "The assistant is busy, try again in N s" (N from `Retry-After`; the problem `detail` says whether it's the hourly limit); `502 upstream-unavailable` → "The assistant is unavailable right now"; `503 feature-disabled` → the page isn't linked at all (`features.ask = false` from `/auth/me`) |
 | Viewer | Same UI; access-limited answers are explained by the assistant |
 
 ### 4.9 Admin
+
+> **Cut from v1** ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)): no admin screens. Users, FX rates and countries are seeded. Kept here as the future-work design.
 
 | Screen | Content |
 |---|---|
@@ -235,6 +237,8 @@ A three-step flow ([11-import-export.md](11-import-export.md)):
 ---
 
 ## 5. Design workflow
+
+> **Cut from v1** ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)): no Claude Design phase. v1 uses shadcn/ui defaults guided by the frontend-design skill, with a short hand-written `docs/design/DESIGN.md` if time allows. The workflow below is the future-work design.
 
 ([adr/0018-design-workflow.md](adr/0018-design-workflow.md), [16-claude-code-setup.md](16-claude-code-setup.md))
 

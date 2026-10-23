@@ -45,7 +45,7 @@ ACME pays employees in about 10 countries and 9 currencies (USD, INR, GBP, EUR, 
 - Columns are named `*_minor` (e.g. `base_minor`, `amount_minor`) and typed `BIGINT`, alongside `currency CHAR(3)`.
 - A pure domain module `domain/currency.py` holds the ISO exponents, and `domain/money.py` provides an immutable `Money(amount_minor: int, currency: str)` value object. Arithmetic is only allowed within one currency; cross-currency operations raise.
 - Input validation **rejects** amounts with more decimals than the currency allows (e.g. `¥1000.5`) instead of silently rounding.
-- Conversions use Python `Decimal` with an explicit rounding mode (half-up, documented).
+- Conversions use Python `Decimal` with an explicit rounding mode: half-even, the same mode used everywhere else ([glossary](../glossary.md)).
 - The API returns money as `{amount_minor: int, currency: "EUR"}`, and the frontend formats it with `Intl.NumberFormat` driven by the exponent. No float math on totals in JavaScript.
 - FX conversion rules are in [ADR-0005](0005-fx-read-time-conversion.md).
 

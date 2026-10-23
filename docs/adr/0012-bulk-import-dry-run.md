@@ -27,15 +27,15 @@ Runtime constraints: Vercel functions are stateless and cap request bodies at ab
 ## Decision
 
 **Option 1.**
-1. **Upload** (`POST /api/v1/imports`, ≤ 4 MB, row cap TBD around 10k–20k). The parser is chosen by file type: Python `csv` for CSV, `openpyxl` in **read-only, values-only** mode for XLSX (formulas aren't evaluated, macros are never executed).
+1. **Upload** (`POST /api/v1/imports`, ≤ 4 MB, row cap 10,000, lowered if the deploy spike's bulk-insert timing requires it). The parser is chosen by file type: Python `csv` for CSV, `openpyxl` in **read-only, values-only** mode for XLSX (formulas aren't evaluated, macros are never executed).
 2. **Normalise** to a common row model (the same columns as the downloadable template).
-3. **Validate** each row: required fields, controlled-list lookups (job role, department, country), currency/exponent rules, salary > 0, dates, employment type.
+3. **Validate** each row: required fields, controlled-list lookups (job role, country; department is derived from the job role), currency/exponent rules, salary > 0, dates, employment type.
 4. **Duplicate detection** on `employee_code` and `email`, both **within the file** and **against the database**.
 5. **Dry-run report** stored in `import_jobs` (status `DRY_RUN`, row count, per-row errors JSON). Functions are stateless, so the report lives in the DB, not in memory.
 6. **Preview UI** shows a table of valid rows plus per-row errors and duplicates.
 7. **Commit** (`POST /imports/{id}/commit`) re-validates and writes **all rows in one transaction** (all or nothing), with hire salary records and audit events. Status becomes `COMMITTED` or `FAILED`.
 
-Templates are downloadable (`GET /imports/template?format=csv|xlsx`). Exports (CSV + XLSX) neutralise formula injection by prefixing cells that start with `= + - @` (see [11-import-export.md](../11-import-export.md)).
+Templates are downloadable (`GET /imports/template?format=csv|xlsx`). Exports (CSV + XLSX) neutralise formula injection by prefixing cells that start with `=`, `+`, `-`, `@`, tab or CR (see [11-import-export.md](../11-import-export.md)).
 
 ## Consequences
 
@@ -44,8 +44,8 @@ Templates are downloadable (`GET /imports/template?format=csv|xlsx`). Exports (C
 - A strong, demo-able product story ("migrate from Excel in two clicks").
 
 ### Negative / risks
-- XLSX parsing has edge cases (dates as serial numbers, merged cells, multiple sheets). Mitigation: first sheet only, a strict header match against the template, explicit date parsing, clear errors.
-- Updates to existing employees by import are **TBD**. The current scope is creating new employees; updates go through the UI.
+- XLSX parsing has edge cases (dates as serial numbers, merged cells, multiple sheets). Mitigation: first sheet (or one named `Employees`), headers matched against the template case-insensitively in any order with unknown columns rejected, explicit date parsing, clear errors.
+- Updates to existing employees by import are out of scope (create-only, decided). The current scope is creating new employees; updates go through the UI.
 - The 4 MB cap limits very large files. 10k rows are about 1.5 MB as CSV, so it's fine.
 
 ## Links

@@ -8,10 +8,36 @@ Design and planning documents for the ACME Salary Management system (Incubyte So
 
 ---
 
+## v1 scope (decided 2026-10-24): read this first
+
+The build budget is **1–2 days** (Incubyte prioritises fast submissions, [00](00-assessment-brief.md) §2). The docs below were written for a larger plan. The items in this table are **cut from v1**. Where a doc still describes them, read that section as a future-work design, not as something that was built.
+
+| Cut from v1 | What v1 does instead | Docs that describe the cut item |
+|---|---|---|
+| Postgres portability CI job (`backend-pg`, `compose.yaml`) | SQLite-only CI. Neon stays the fallback if the deploy spike fails | [14](14-testing-strategy.md) §8, [15](15-tooling-devex.md) §8, [ADR 0002](adr/0002-sqlite-everywhere-turso.md) |
+| Claude Design phase (milestone 7b) | shadcn/ui defaults guided by the frontend-design skill; a short hand-written `docs/design/DESIGN.md` if time allows | [13](13-frontend-ux.md) §5, [ADR 0018](adr/0018-design-workflow.md) |
+| The whole admin UI (users, FX rates, countries, audit log viewer) | Users, FX rates and countries are seeded. Audit events are still written and tested | [13](13-frontend-ux.md) §4.9, [07](07-api-spec.md) §9–11 |
+| Raises insight | Not built | [09](09-insights-pay-equity.md) §3.7, [07](07-api-spec.md) §8.9 |
+| Salary distribution histogram | Not built | [09](09-insights-pay-equity.md) §3.4, [07](07-api-spec.md) §8.6 |
+| Groq provider run and the model comparison table | Gemini only; small eval set | [10](10-ai-ask-design.md) §11, [ADR 0015](adr/0015-ai-ask-tool-calling.md) |
+| Dependabot, CodeQL, knip | Not set up | [15](15-tooling-devex.md) §8, §11 |
+| Most Playwright tests | At most one smoke flow | [14](14-testing-strategy.md) §5.8 |
+| Preview deployments | Production only; everything else is tested locally | [17](17-deployment.md) §3.1, §4, §7 |
+| Salary in a currency other than the country's | Every salary is in its country's currency (enforced by validation). A country change goes through a salary change | [06](06-data-model.md) §4.2, §4.6, [09](09-insights-pay-equity.md) §4 |
+
+**Kept in full:** CSV + XLSX import (dry-run, all-or-nothing commit) and CSV/XLSX export ([11](11-import-export.md)), because HR's data lives in Excel.
+
+**Never cut:** TDD (`test:` → `feat:` commits), the one-pager, the 10k seed, employees + salary history, currency-correct insights, band-based pay equity, RBAC with Viewer masking, the deployed app, the video demo.
+
+The day-by-day build order is in [18 — Implementation plan](18-implementation-plan.md). Canonical names, enums, error codes and numbers are in the [glossary](glossary.md): if a doc disagrees with it, the glossary wins.
+
+---
+
 ## Suggested reading order
 
 | If you want to… | Read |
 |---|---|
+| Know what Incubyte asked for and expects | [00 — Assessment brief & expectations](00-assessment-brief.md) |
 | Understand the product in 2 minutes | [02 — Requirements one-pager](02-requirements-one-pager.md) |
 | See the full product spec | [01 — PRD](01-prd.md) → [03 — Clarifications](03-clarifications.md) |
 | Understand the system design | [05 — Architecture](05-architecture.md) → [06 — Data model](06-data-model.md) → [07 — API spec](07-api-spec.md) → [08 — Security & RBAC](08-security-rbac.md) |
@@ -27,6 +53,8 @@ Design and planning documents for the ACME Salary Management system (Incubyte So
 ### Product
 | # | Document | Purpose |
 |---|---|---|
+| — | [Glossary](glossary.md) | Canonical names, enums, audit actions, error codes, env vars and numbers; wins over any other doc |
+| 00 | [Assessment brief & expectations](00-assessment-brief.md) | The brief restated, the email's expectations, a map from each requirement to the doc that covers it, and a submission checklist |
 | 01 | [PRD](01-prd.md) | Problem, personas, goals and non-goals, user stories with acceptance criteria, functional and non-functional requirements, success metrics, risks |
 | 02 | [Requirements one-pager](02-requirements-one-pager.md) | The one-page requirements document the brief asks for: goal, scope, what's deliberately left out and why |
 | 03 | [Clarifications](03-clarifications.md) | Open questions for Incubyte, the assumptions taken, and an email draft |
@@ -52,7 +80,7 @@ Design and planning documents for the ACME Salary Management system (Incubyte So
 | 15 | [Tooling & DevEx](15-tooling-devex.md) | Every tool explained, Makefile, git hooks, CI, GitHub policies |
 | 16 | [Claude Code setup](16-claude-code-setup.md) | CLAUDE.md, rules, skills, reviewer agent, hooks, MCP servers |
 | 17 | [Deployment](17-deployment.md) | Vercel (web + API) + Turso, env vars, migrations/seed, fallback, deploy spike |
-| 18 | [Implementation plan](18-implementation-plan.md) | Milestones 0–14 with tasks, done-criteria, risks |
+| 18 | [Implementation plan](18-implementation-plan.md) | The 2-day build order with done-criteria, further cuts and risks |
 | 19 | [Performance](19-performance.md) | Budgets, indexes, scaling path |
 | 20 | [Trade-offs](20-trade-offs.md) | Major choices compared with the alternatives |
 | — | [Demo script](demo-script.md) | Script for the 3–5 minute demo video |
@@ -90,8 +118,8 @@ Design and planning documents for the ACME Salary Management system (Incubyte So
 ### Created later (placeholders)
 | Path | When |
 |---|---|
-| `design/DESIGN.md` + screenshots | Milestone 7b (design phase) |
-| `ai/evals/ask.yaml` + results | Milestone 13 |
+| `design/DESIGN.md` (short, optional) | Day 2, frontend block |
+| `ai/evals/ask.yaml` + results | Day 2, if Ask is built |
 
 ---
 
@@ -106,8 +134,10 @@ These came up while writing the docs and have been decided and applied to every 
 | 4 | Session policy | 8 h JWT, no refresh token; lockout after 5 failed logins for 15 min | Simple and safe for an internal tool | [08](08-security-rbac.md) |
 | 5 | Retention / erasure | Out of scope, documented | Not needed to demonstrate the product; flagged for real-world use | [03](03-clarifications.md) Q18 |
 | 6 | Seed: Singapore names | Curated Chinese/Malay/Indian name lists in the seed config | Faker has no `en_SG`; a fixed list is realistic and deterministic | [12](12-seed-data.md) §9 |
+| 7 | **v1 scope cut** | Cut the items in "v1 scope" above | 1–2 day build budget; a hostile design review flagged the scope as too large for a fast submission | This README, [02](02-requirements-one-pager.md), [18](18-implementation-plan.md) |
+| 8 | Salary currency | Always the country's currency | That's how local hires are paid in practice. Allowing other currencies made compa-ratio divide, say, a USD salary by a EUR band | [06](06-data-model.md) §4.2 |
 
-**Still open, by design (resolved in the milestone 1 deploy spike):** the Turso SQLAlchemy dialect/URL, the Vercel Python entrypoint key, preview-environment wiring and cookie forwarding, the exact Gemini model ID, and Groq's data policy. See [17](17-deployment.md), [ADR 0002](adr/0002-sqlite-everywhere-turso.md), [ADR 0015](adr/0015-ai-ask-tool-calling.md).
+**Still open, by design (resolved in the day-1 deploy spike):** the Turso SQLAlchemy dialect/URL, the Vercel Python entrypoint key, cookie forwarding, the exact Gemini model ID and the project's real Gemini free-tier quota. See [17](17-deployment.md), [ADR 0002](adr/0002-sqlite-everywhere-turso.md), [ADR 0015](adr/0015-ai-ask-tool-calling.md).
 
 ---
 
@@ -115,4 +145,4 @@ These came up while writing the docs and have been decided and applied to every 
 - **(proposed)** means a sensible default chosen to keep the docs concrete; open to change during review.
 - **TBD** means not yet decided; resolved at the milestone shown in [18 — Implementation plan](18-implementation-plan.md).
 - Exact package versions are resolved at scaffold time and pinned in lockfiles ([ADR 0017](adr/0017-toolchain.md)).
-- Permission names (`EMPLOYEE_READ`, `SALARY_READ`, …) are defined once, in [08 — Security & RBAC](08-security-rbac.md).
+- Permission names (`EMPLOYEE_READ`, `SALARY_READ`, …), enums, audit actions, error codes and env vars are defined once, in the [glossary](glossary.md).

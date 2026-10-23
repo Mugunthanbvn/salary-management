@@ -52,7 +52,7 @@ The candidate asked for a **free** LLM provider (**Gemini** personal key or **Gr
 - **Currency rule** in the system prompt: always state the currency and FX date; compare across countries only via USD fields.
 - **Limits:** max 4 tool steps; compact system prompt (reference data inline); on a 429 from the provider, show a friendly "busy, retry in X s"; per-user limit (e.g. 20/hour, counted from `audit_events`).
 - **Conversation:** follow-ups supported. The client keeps and sends the last ~6 turns; nothing is stored server-side. UI shows a **spinner** (no streaming in v1).
-- **Response:** `{answer, figures[], tool_calls[], caveats[]}`. Each question is audited (`ask.question`).
+- **Response:** `{answer, figures[], tool_calls[], caveats[]}`. Each question is audited (`ask.query`).
 - **Testing:** `FakeLLM` plays back scripted tool calls, so CI is deterministic. An **eval set** (`docs/ai/evals/ask.yaml`, about 15 questions with expected tools and figures from the seed's documented "demo story") is run manually with `make eval-ask PROVIDER=gemini|groq`, and the results plus a **model comparison table** are committed.
 
 ## Consequences

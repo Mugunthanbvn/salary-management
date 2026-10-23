@@ -109,7 +109,7 @@ Rules load only when Claude works on matching files, which keeps root memory lea
 | `testing.md` | `backend/tests/**`, `frontend/**/*.test.ts*`, `frontend/e2e/**` | One behaviour per test; descriptive names (`test_<who>_<does>_<outcome>`); arrange-act-assert; factories over fixtures with hidden data; freeze time; no network or sleeps; every endpoint in the authz matrix; parametrize tables |
 | `security.md` | `backend/src/**/core/**`, `backend/src/**/modules/auth/**`, `backend/src/**/modules/ask/**`, `backend/src/**/modules/imports/**`, `backend/src/**/modules/exports/**` | Permissions not roles; masking + small-group rule in services; cookie flags (HttpOnly, Secure, SameSite=Lax); identical error for unknown user and wrong password; CSV formula neutralisation; XLSX values only; upload caps; LLM tool results are data, tools are read-only; never log secrets or full salary rows |
 | `api-contract.md` | `backend/src/**/modules/*/router.py`, `backend/src/**/modules/*/schemas.py`, `frontend/src/lib/api/**` | Versioned `/api/v1`; problem+json errors; pagination/sort/filter conventions; `extra="forbid"`; response models declared on every route; run `make api-sync` after changes; the contract job must pass |
-| `design.md` | `frontend/src/**` | Mirrors `docs/design/DESIGN.md` (created in milestone 7b): tokens, typography (tabular numerals), spacing scale, component rules, currency labelling, light/dark, a list of anti-patterns to avoid |
+| `design.md` | `frontend/src/**` | Mirrors `docs/design/DESIGN.md` (a short hand-written file in v1, if time allows; created during the frontend block): tokens, typography (tabular numerals), spacing scale, component rules, currency labelling, light/dark, a list of anti-patterns to avoid |
 
 ---
 
@@ -265,7 +265,7 @@ Both are development-time only; neither is used by the running application. The 
 |---|---|---|
 | **frontend-design** (official Anthropic skill) | While building each screen | Guidance on typography, layout and avoiding a templated look |
 | **Impeccable** (`pbakaus/impeccable`, Apache 2.0) | Audit of each screen before its frontend PR merges | Anti-"AI slop" rules (gradients, Inter-everywhere, nested cards, cramped spacing). **Its files are reviewed before install**, because third-party skills can ship scripts and hooks. Audit findings go in the prompt log |
-| **Claude Design / `/design`** | Milestone 7b design phase | Canvases with 2 options for each of 5 key screens → the user picks → frozen into `docs/design/DESIGN.md` ([adr/0018-design-workflow.md](adr/0018-design-workflow.md)) |
+| **Claude Design / `/design`** | **Cut from v1** (future work) | Canvases with 2 options for each of 5 key screens → the user picks → frozen into `docs/design/DESIGN.md` ([adr/0018-design-workflow.md](adr/0018-design-workflow.md)) |
 | **`/code-review`** | Before each milestone PR and before submission | Correctness-focused review of the diff |
 | **`/security-review`** | Before submission, and after the auth, import and ask milestones | Security pass over pending changes |
 

@@ -196,6 +196,16 @@ Tool: Claude Code (VS Code extension), model Claude Opus 5.5, plan mode (read-on
   All applied across the affected docs; recorded in [README](../README.md) "Decisions made".
 - **Why it matters:** the cross-check caught a correctness bug *before code*, which is cheap. It also shows that the tests for the demo story ([14-testing-strategy.md](../14-testing-strategy.md)) would have failed against the original design.
 
+### 22. Hostile design review, then a 1–2 day scope cut
+- **Context:** a fresh session, before any code.
+- **Prompt:** *(pasted)* "You are a principal engineer and a hostile design reviewer. Your job is to ATTACK the design in this repo and decide whether it is ready for implementation…" (full prompt: requirement coverage, internal consistency, domain correctness, security, platform feasibility, scope vs time, testability, data model, AI feature, unverified assumptions; every finding with a failure scenario, severity and confidence).
+- **AI produced:** verdict **READY WITH FIXES**. Three blockers: scope far too large for a fast submission; milestone order broke dependencies (employees needed salary records from a later milestone; login lockout needed the audit table from a later milestone); conflicting names across docs (audit actions in three spellings, small-group threshold 3 vs 5). Majors included Viewer privacy leaks (min/max, totals minus visible groups, `compare_groups`), compa-ratio dividing a USD salary by a EUR band, part-timers all flagged underpaid, login through a Server Action never setting the browser cookie, and the 1 MB Server Action body limit.
+- **Follow-up prompts:** "1 day if possible, if not 2 days max" · "what does preview deployment mean" · "employees across multiple countries: how is salary managed, generally multi-currency?" · "cut: Postgres CI job, Claude Design phase, the whole admin UI, raises insight, histogram, Groq and the model comparison, Dependabot/CodeQL/knip, most Playwright tests, previews, non-local salary currency" · "CSV + XLSX import, export" (keep import).
+- **Decision:** v1 scope cut recorded in the [docs README](../README.md#v1-scope-decided-2026-10-24-read-this-first); the implementation plan rewritten as ten build blocks over two days ([18](../18-implementation-plan.md)), with audit moved into the auth block and salary records into the employees block; every salary in its country's currency. CSV + XLSX import kept in full.
+- **⚠ correction:** the review showed the earlier plan was about 2–3 weeks of work, which contradicted the brief's "least possible time".
+- **Follow-up ("proceed"):** added [glossary.md](../glossary.md) as the single source for names, enums, audit actions, error codes, env vars and numbers, and aligned every doc to it (audit actions now `ask.query` etc.; threshold 5 everywhere; Ask errors 429 / 502 / 503; Ask flag via `/auth/me`; one import response shape; half-even rounding; one env-var set).
+- **Still open from the review:** Viewer min/max hiding, `compare_groups` suppression, part-time compa-ratio.
+
 ---
 
 ## Observations

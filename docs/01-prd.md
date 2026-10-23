@@ -52,6 +52,8 @@ Full rationale for each exclusion: [02-requirements-one-pager.md](02-requirement
 
 IDs are referenced from tests and the implementation plan ([18-implementation-plan.md](18-implementation-plan.md)).
 
+> **v1 scope:** US-32 (distribution histogram), US-35 (raises), and US-60–US-62 (admin screens) are **cut from v1**. FX rates and countries are seeded, and audit events are still written. Every salary is in its country's currency. See the [v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first).
+
 ### 4.1 Authentication and access
 
 | ID | Story | Acceptance criteria |

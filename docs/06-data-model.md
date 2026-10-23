@@ -199,7 +199,7 @@ Indexes: `uq_users_email`.
 |---|---|---|---|---|
 | `code` | CHAR(2) | no | PK | ISO 3166-1 alpha-2 (`US`, `IN`, `DE`, ...) |
 | `name` | VARCHAR(80) | no | | Display name |
-| `default_currency` | CHAR(3) | no | CHECK value is a supported ISO 4217 code (validated in the service) | Pre-fills the currency on new employees; an employee may still be paid in another currency |
+| `default_currency` | CHAR(3) | no | CHECK value is a supported ISO 4217 code (validated in the service) | Every salary of an employee in this country uses this currency (enforced by the salary service). Salaries in another currency (expat pay) are out of scope for v1 |
 | `is_active` | BOOLEAN | no | default `true` | Inactive countries are hidden from forms and import |
 
 Seeded with 10 countries ([12-seed-data.md](12-seed-data.md)). Admins can edit `name`, `default_currency` and `is_active` (`REFERENCE_ADMIN`).
@@ -224,7 +224,7 @@ The **controlled list of job titles**. Forms and imports validate against it so 
 | `department_id` | INTEGER | no | FK → `departments.id` | A role belongs to exactly one department |
 | `family` | VARCHAR(30) **(proposed)** | no | CHECK IN (family list) | Pay family used by seed band multipliers, e.g. `ENGINEERING`, `SALES`, `G_AND_A` (final list in [12-seed-data.md](12-seed-data.md)) |
 
-Indexes: `uq_job_roles_title`, `ix_job_roles_department_id`. About 30 seeded rows. No admin edit UI in scope.
+Indexes: `uq_job_roles_title`, `ix_job_roles_department_id`. 35 seeded rows ([12-seed-data.md](12-seed-data.md) §3). No admin edit UI in scope.
 
 Department is derived through `job_role → department`; `employees` does not store `department_id` separately (avoids two sources of truth). Department filters join through `job_roles` (indexed).
 
@@ -245,7 +245,7 @@ Department is derived through `job_role → department`; `employees` does not st
 | `status` | VARCHAR(10) | no | CHECK IN (`ACTIVE`, `TERMINATED`), default `ACTIVE` | |
 | `hire_date` | DATE | no | | |
 | `termination_date` | DATE | yes | CHECK `(status = 'TERMINATED') = (termination_date IS NOT NULL)`; CHECK `termination_date >= hire_date` | |
-| `currency` | CHAR(3) | no | | Currency of the current salary |
+| `currency` | CHAR(3) | no | | Currency of the current salary; always the country's `default_currency` |
 | `current_base_minor` | BIGINT | no | CHECK `> 0` | Denormalized from the current salary record |
 | `current_total_minor` | BIGINT | no | CHECK `>= current_base_minor` | base + sum(components) |
 | `current_salary_record_id` | INTEGER | yes* | FK → `salary_records.id` | *Nullable only for the instant inside the creating transaction (the employee row must exist before its first salary record). The service guarantees it is set before commit; an integration test asserts no committed employee has it null |
@@ -274,7 +274,7 @@ One row per salary event: hire, promotion, merit raise, market adjustment, corre
 | `id` | INTEGER | no | PK | Also breaks ties between same-day records |
 | `employee_id` | INTEGER | no | FK → `employees.id` | |
 | `effective_date` | DATE | no | | Service rules: `>= employees.hire_date`, `<= today` (no future-dated changes), `>=` the employee's latest existing `effective_date` |
-| `currency` | CHAR(3) | no | | Usually unchanged, but a relocation can change it |
+| `currency` | CHAR(3) | no | | The employee's country currency at that time. Only a relocation (a country change, recorded as a salary change) changes it |
 | `base_minor` | BIGINT | no | CHECK `> 0` | Annual base in minor units |
 | `total_minor` | BIGINT | no | CHECK `>= base_minor` | Derived at write time: base + sum(components). Stored so history needs no re-aggregation |
 | `job_role_id` | INTEGER | no | FK → `job_roles.id` | **Snapshot** of the role at that moment |
@@ -337,7 +337,7 @@ The benchmark for pay equity. Compa-ratio = employee base ÷ `mid_minor` ([09-in
 | `effective_from` | DATE | no | | `2026-01-01` **(proposed)** |
 
 - Unique `(job_role_id, level, country_code, effective_from)`. The current band is the latest `effective_from` ≤ today.
-- About 1,800 rows (30 roles × 6 levels × 10 countries). Read-only in v1. Editing (with `REFERENCE_ADMIN` + audit) is future work.
+- About 1,360 rows (each of the 35 roles' allowed levels × 10 countries). Read-only in v1. Editing (with `REFERENCE_ADMIN` + audit) is future work.
 - An employee whose combination has no band gets `compa_ratio: null` (`no_band: true`). Seed data guarantees full coverage, and a test asserts it.
 
 ### 4.9 `audit_events` (append-only)
@@ -345,7 +345,7 @@ The benchmark for pay equity. Compa-ratio = employee base ÷ `mid_minor` ([09-in
 | Column | Type | Null | Constraint | Notes |
 |---|---|---|---|---|
 | `id` | INTEGER | no | PK | |
-| `actor_id` | INTEGER | yes | FK → `users.id` | Null for system actions (seed, migrations) |
+| `actor_id` | INTEGER | yes | FK → `users.id` | Null for system actions (seed, migrations) and failed logins with an unknown email |
 | `action` | VARCHAR(60) | no | | Dotted verb, e.g. `employee.update`, `salary.change`, `export.download`, `ask.query` (full list in [08-security-rbac.md](08-security-rbac.md)) |
 | `entity` | VARCHAR(40) | no | | e.g. `employee`, `user`, `fx_rate`, `import_job` |
 | `entity_id` | VARCHAR(40) | yes | | String, so it fits integer IDs, currency codes and country codes |
@@ -427,6 +427,7 @@ employees.current_salary_record_id = new_record.id
 employees.current_base_minor       = new_record.base_minor
 employees.current_total_minor      = new_record.total_minor
 employees.currency                 = new_record.currency
+employees.country_code             = new country                     (relocation only; currency must be that country's)
 employees.job_role_id, level       = new_record.job_role_id, level   (if changed)
 employees.version                  = version + 1
 ```
@@ -449,7 +450,7 @@ fold(s)     = NFKD-normalize → strip combining marks → casefold
 ```
 
 - SQLite's `LIKE` is case-insensitive only for ASCII, so `Müller` would not match `müller` with plain `LIKE`. Folding in Python makes search behave the same on SQLite, libSQL and Postgres.
-- Accent stripping (so `muller` also finds `Müller`) is **(proposed)**. The decision says lowercased; accent folding is a small extension to confirm.
+- Accent stripping is **decided**: `muller` also finds `Müller`, and `jose` finds `José`.
 - The query term goes through the same `fold()`, then `search_text LIKE '%term%'`, with `%` and `_` escaped.
 - Romanized names for Japanese employees appear in `email`, so searching `sato` finds `佐藤`'s record through the email part.
 
@@ -506,7 +507,7 @@ Switching is a `DATABASE_URL` change plus `alembic upgrade head` on the new data
 | salary_records | ~30,000 | ~3 MB |
 | salary_components | ~40,000 | ~2 MB |
 | audit_events | grows with use (seed writes none) | — |
-| pay_bands | ~1,800 | ~0.2 MB |
+| pay_bands | ~1,360 | ~0.2 MB |
 | reference tables | < 100 | negligible |
 | **Total incl. indexes** | | **~10 MB** (well within Turso's free 5 GB) |
 
