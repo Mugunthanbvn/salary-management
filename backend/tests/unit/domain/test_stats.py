@@ -8,7 +8,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from salary_api.domain.stats import InsufficientData, Summary, median, summarize
+from salary_api.domain.stats import InsufficientData, Summary, mean, median, summarize
 
 # Seven EUR salaries in cents; NumPy percentile(..., [25, 50, 75]) = 5000000, 5400000, 6650000.
 SALARIES = [4200000, 4900000, 5100000, 5400000, 6300000, 7000000, 14500000]
@@ -106,6 +106,27 @@ def test_median_of_ratios_is_exact_and_unrounded(ratios: list[str], expected: st
 def test_median_of_no_ratios_is_an_error() -> None:
     with pytest.raises(ValueError, match="no values"):
         median([])
+
+
+@pytest.mark.parametrize(
+    ("ratios", "expected"),
+    [
+        (["0.90", "1.00"], Decimal("0.95")),
+        (["0.91", "0.92", "0.96"], Decimal("0.93")),
+        (["1", "0", "0"], Decimal(1) / 3),  # kept at Decimal precision, not rounded
+    ],
+)
+def test_mean_of_ratios_is_their_unrounded_decimal_average(
+    ratios: list[str], expected: Decimal
+) -> None:
+    result = mean(Decimal(ratio) for ratio in ratios)
+
+    assert result == expected
+
+
+def test_mean_of_no_ratios_is_an_error() -> None:
+    with pytest.raises(ValueError, match="no values"):
+        mean([])
 
 
 @given(amount_lists)
