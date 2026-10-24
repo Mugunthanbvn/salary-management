@@ -1,6 +1,7 @@
 """Engine behaviour (docs/06-data-model.md section 7). Each test builds its own engine."""
 
 import secrets
+import threading
 from pathlib import Path
 
 import pytest
@@ -17,7 +18,7 @@ from sqlalchemy import (
     insert,
     select,
 )
-from sqlalchemy.exc import IntegrityError
+from sqlalchemy.exc import IntegrityError, OperationalError
 from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
@@ -166,3 +167,73 @@ def test_app_sessions_enforce_foreign_keys_after_the_test_schema_is_migrated(
     foreign_keys = db_session.connection().exec_driver_sql("PRAGMA foreign_keys").scalar()
 
     assert foreign_keys == 1
+
+
+def _file_engine_with_notes(tmp_path: Path) -> tuple[Engine, Table]:
+    engine = create_db_engine(make_settings(database_url=f"sqlite:///{tmp_path / 'app.db'}"))
+    notes = Table("notes", MetaData(), Column("id", Integer, primary_key=True))
+    notes.metadata.create_all(engine)
+    return engine, notes
+
+
+def _insert_without_waiting(engine: Engine, notes: Table) -> bool:
+    """One write on another connection that gives up at once instead of waiting for a lock."""
+    with engine.connect() as connection:
+        driver_connection = connection.connection.dbapi_connection
+        assert driver_connection is not None
+        driver_connection.execute("PRAGMA busy_timeout=0")
+        try:
+            connection.execute(insert(notes))
+            connection.commit()
+        except OperationalError:
+            return False
+        finally:
+            driver_connection.execute("PRAGMA busy_timeout=5000")
+    return True
+
+
+@pytest.mark.sqlite_only
+def test_a_read_then_write_transaction_is_not_broken_by_a_write_in_between(
+    tmp_path: Path,
+) -> None:
+    engine, notes = _file_engine_with_notes(tmp_path)
+
+    with create_session_factory(engine)() as session:
+        session.scalar(select(func.count()).select_from(notes))  # the transaction starts here
+        other_writer_committed = _insert_without_waiting(engine, notes)
+        session.execute(insert(notes))  # "database is locked" if the other write got in
+        session.commit()
+
+    assert not other_writer_committed  # it has to wait for the open transaction instead
+    engine.dispose()
+
+
+@pytest.mark.sqlite_only
+def test_concurrent_read_then_write_transactions_on_a_file_database_all_commit(
+    tmp_path: Path,
+) -> None:
+    engine, notes = _file_engine_with_notes(tmp_path)
+    session_factory = create_session_factory(engine)
+    start = threading.Barrier(10)
+    errors: list[OperationalError] = []
+
+    def read_then_write() -> None:
+        start.wait()
+        try:
+            with session_factory() as session:
+                session.scalar(select(func.count()).select_from(notes))
+                session.execute(insert(notes))
+                session.commit()
+        except OperationalError as error:
+            errors.append(error)
+
+    threads = [threading.Thread(target=read_then_write) for _ in range(10)]
+    for thread in threads:
+        thread.start()
+    for thread in threads:
+        thread.join()
+
+    assert [str(error.orig) for error in errors] == []
+    with engine.connect() as connection:
+        assert connection.scalar(select(func.count()).select_from(notes)) == 10
+    engine.dispose()

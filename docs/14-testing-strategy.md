@@ -152,7 +152,7 @@ def make_employee(session, *, country="DE", level="L3", base_minor=6_000_000,
 
 Each builder sets sensible defaults, so a test only states the fields that matter to it. That keeps the intent visible: a test about Germany says `country="DE"` and nothing else.
 
-`make_user(session, role="VIEWER", email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`.
+`make_user(session, role=..., email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`. `role` defaults to `VIEWER`, the least privilege, so a test that needs more says so. The email is unique per call unless given.
 
 ---
 
@@ -220,7 +220,7 @@ These are the behaviours we intend to cover. The list grows during TDD, and name
 - Unknown body fields are rejected (`extra="forbid"`).
 
 **Authz matrix (`test_authz_matrix.py`)**
-One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table (`MATRIX`, one `Endpoint(method, path, (anon, viewer, hr, admin))` row per route) lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). A row whose request needs a body, a query or a database row (an id in the path) gets a `prepare(session)` function that returns the request's keyword arguments and an optional concrete `url`. Adding an endpoint without adding it to the matrix fails a guard test that introspects the FastAPI routes (`fastapi.routing.iter_route_contexts`, which also sees inside included routers); a row without a route fails too. Only health, `openapi.json` and the docs page are exempt. So no endpoint can ship without a declared permission.
+One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table (`MATRIX`, one `Endpoint(method, path, (anon, viewer, hr, admin))` row per route) lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). A row whose request needs a body, a query or a database row (an id in the path) gets a `prepare(session)` function that returns the request's keyword arguments and an optional concrete `url`. Adding an endpoint without adding it to the matrix fails a guard test that introspects every route of the app, under `/api/v1` or not (`fastapi.routing.iter_route_contexts`, which also sees inside included routers); a row without a route fails too. Only health, `openapi.json` and the docs page are exempt (an explicit list). The Swagger OAuth2 redirect page is turned off, because FastAPI served it outside `/api/v1`. So no endpoint can ship without a declared permission.
 
 | Endpoint (sample) | Anonymous | VIEWER | HR_MANAGER | ADMIN |
 |---|---|---|---|---|
@@ -283,7 +283,7 @@ All of these use `FakeLLM`. No network in CI.
 - Counts per country are exact (largest-remainder allocation).
 - Every employee has ≥ 1 salary record; the latest record matches the denormalized current salary.
 - The demo story is present: Customer Success in DE has a median compa-ratio ≈ 0.92 vs its pay bands, and is the only DE department with `below_threshold: true`.
-- A small seed (e.g. 200 employees) is used in tests for speed. The 10k run is a separate, marked slow test (`-m slow`) **(proposed)**.
+- A small seed (200 employees) is used in most seed tests for speed. The full 10k run also stays in the default suite (`tests/integration/test_seed_full.py`): it takes about 2.5 s in memory, and its tests share one xdist group (`--dist loadgroup`), so a run builds it once. No `slow` mark is needed, so `make test` and CI always run it.
 
 ### 5.7 Frontend unit (Vitest + React Testing Library + MSW)
 
@@ -322,7 +322,7 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 |---|---|
 | Wall clock (`now()`, "today") | `time-machine` fixture, frozen per test. Production code takes time from an injectable `Clock` **(proposed)** or `datetime.now(UTC)`, which time-machine patches |
 | Randomness in code (seed) | `random.Random(seed)` instances passed explicitly; never the global `random` |
-| Faker | `Faker.seed(seed)` + per-locale instances created from the seed |
+| Faker | One `Faker(locale)` instance per country, each `seed_instance(seed + country_index)` (never the shared `Faker.seed`); Singapore's curated names use `random.Random(seed + country_index)` |
 | Hypothesis | `derandomize=True` profile in CI (`HYPOTHESIS_PROFILE=ci`), with a fixed `max_examples`. Locally the default profile explores more |
 | Test order | **pytest-randomly** shuffles test order on every run and prints the seed, which exposes hidden coupling between tests. A failing order can be reproduced with `-p randomly -p "randomly_seed=<seed>"` |
 | Parallelism | **pytest-xdist** (`-n auto`). Each worker has its own in-memory DB, so nothing is shared |

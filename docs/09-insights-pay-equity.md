@@ -57,7 +57,7 @@ Every insight takes `comp`:
 
 - All amounts are **integer minor units** plus an **ISO 4217 currency code** (see [adr/0004-money-integer-minor-units.md](adr/0004-money-integer-minor-units.md)).
 - The minor-unit exponent comes from currency metadata (JPY = 0, USD/EUR/GBP/INR/… = 2).
-- Arithmetic in the domain layer uses Python `int` (sums) and `decimal.Decimal` (means, percentiles, ratios, FX). **Floats are never used for money.**
+- Arithmetic in the domain layer uses Python `int` (sums, means) and `decimal.Decimal` (percentiles, ratios, FX). **Floats are never used for money.**
 - API responses carry amounts as `{ "amount_minor": 5200000, "currency": "EUR" }`. Rendering (thousands separators, symbols) is the client's job.
 
 ### 2.5 Currency-context rules (the core anti-misleading rule)
@@ -93,7 +93,7 @@ These are implemented as **pure functions** in `domain/stats.py`, unit-tested wi
 | `count` | Number of employees in the group after filters |
 | `min`, `max` | Smallest and largest amount |
 | `sum` | Σ amounts (integer; same currency only, or USD) |
-| `mean` | `sum / count` in `Decimal`, rounded **half-even** to the minor unit |
+| `mean` | `sum / count`, rounded **half-even** to the minor unit, in exact integer arithmetic (`domain/rounding.py`; never float) |
 | `median` | `percentile(0.5)` |
 | `p25`, `p75` | `percentile(0.25)`, `percentile(0.75)` |
 | `percentile(p)` | **Linear interpolation between closest ranks**, the same as NumPy's default (`method="linear"`) and SQL `PERCENTILE_CONT`. For sorted values `x[0..n-1]`: `h = (n − 1) × p`, `lo = floor(h)`, `hi = ceil(h)`, `result = x[lo] + (h − lo) × (x[hi] − x[lo])`, computed in `Decimal` and rounded half-even to the minor unit |
@@ -106,6 +106,10 @@ Why this method: it is the most common definition in analytics tools, it matches
 - If a group has **fewer than 5 people** (`n < 5`), its aggregates would reveal individual salaries. For a group of 1, the "average" *is* that person's pay.
 - For users **without `SALARY_READ`** (the `VIEWER` role), any group with `count < 5` returns `suppressed: true`. All monetary fields **and `count`** are `null`. The group key is still listed, so the user knows the group exists, and the UI shows "—" with the tooltip "Hidden to protect individual pay (fewer than 5 people)". The count is hidden too: combined with other figures (e.g. department totals), a small count could help re-identify individuals.
 - Users with `SALARY_READ` (HR_MANAGER, ADMIN) can see individual salaries anyway, so suppression does not apply to them.
+- **`min` and `max` are always `null`** for users without `SALARY_READ`, for every group of any size: each is one person's exact pay.
+- **Complementary suppression.** A breakdown is the list of groups in one response (countries in the overview, departments, job titles, cohorts); its total is shown too (the overview headcount, the department-cost total, the pay-equity summary) or can be asked for with the same filters. If the small-group rule hides exactly one group of a breakdown, the service also hides the smallest visible group of that breakdown (on a tie, the one listed first). The total minus the visible groups then covers at least two hidden groups, never just one. Groups that are already hidden in twos or more need nothing extra. When groups nest, each parent's groups are a breakdown too: the levels of one job role (`split_by_level`; the role's total is visible without the split), and the cohorts of one department or one country in pay equity. The rule repeats over every breakdown until nothing changes. It applies only to users without `SALARY_READ`.
+- **Differences** between two groups (the Ask `compare_groups` tool, a department's `share_of_total`) are computed from the values after suppression: if either side is hidden, the difference is `null` too.
+- Limit: these rules protect each response. Comparing different filters or endpoints can still narrow a value down (differencing, [08-security-rbac.md](08-security-rbac.md) §4.2).
 - The threshold `MIN_GROUP_SIZE = 5` is a single named constant (setting), tested at the boundary (n = 4 suppressed, n = 5 shown).
 - The rule is enforced **in the service layer**, so the dashboard, exports, and the AI tools all inherit it. See [08-security-rbac.md](08-security-rbac.md).
 
@@ -143,8 +147,9 @@ Every insight requires the `INSIGHTS_READ` permission unless stated otherwise. A
 |---|---|---|
 | Headcount | `count` of the population | — |
 | Total annual payroll | Σ of each employee's amount converted to USD | USD |
-| By-country table | Per country: count, min, p25, median, mean, p75, max | Local currency **plus** USD equivalent of each statistic |
-| Headcount by country / department | `count` per key | — |
+| By-country table | Per country: count, min, p25, median, mean, p75, max | Local currency **plus** the same statistics in USD (each salary converted first) |
+| Population stats | count, min, p25, median, mean, p75, max over everyone | The population's one currency, else USD |
+| Headcount by country | `count` per country (`by_country[].local.count`); headcount by department is `GET /insights/by-department` | — |
 
 Notes: DE and FR both use EUR, but they are still separate rows, because country is the grouping key, not currency.
 
@@ -181,8 +186,9 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 **Answers:** "How much do we spend on salaries per department?"
 
 - Σ of each employee's amount converted to USD, per department (optionally per country).
-- Output also includes `share_of_total` (Decimal, 4 dp) and `headcount`.
-- Always USD unless a single-country filter is applied, in which case the local currency is returned with a USD equivalent.
+- Output also includes `share_of_total` (Decimal string, 4 dp, half-even) and `headcount` per department, and the `total` / `total_usd` with the population `headcount`.
+- Always USD unless the country filter names one currency's countries, in which case the local currency is returned (`cost`) with a USD equivalent (`cost_usd`).
+- `share_of_total` comes from the values after suppression: `null` when the department or the total is hidden (§2.8).
 
 ### 3.6 Top / bottom earners: `GET /api/v1/insights/top-earners`
 
@@ -191,8 +197,9 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 - **Requires `SALARY_READ`** (HR_MANAGER, ADMIN). It returns individuals. Viewers get `403`.
 - **`country` is required** (local-currency ranking). Parameters: `n` (default 10, max 50), `direction=top|bottom`.
 - Ties are broken by `employee_code` ascending, so results are deterministic.
-- Output: list of `{ employee_code, name, job_role, level, department, amount }`.
-- Writes an `insights.individuals_view` audit event because it exposes individual pay (see [08-security-rbac.md](08-security-rbac.md)).
+- Other filters as usual (`department_id`, `job_role_id`, `level`, `employment_type`, `status`, `comp`).
+- Output: `items` of `{ employee_id, employee_code, first_name, last_name, job_role, level, department, amount }`, with `country_code`, `currency`, `direction`, `n` and `population`.
+- Writes an `insights.individuals_view` audit event because it exposes individual pay (see [08-security-rbac.md](08-security-rbac.md)): `entity = "insights"`, `diff = { endpoint: "top-earners", filters: {...} }`, in the same transaction as the read.
 
 ### 3.7 Raises: `GET /api/v1/insights/raises`
 
@@ -232,7 +239,8 @@ compa_ratio(employee) = employee_base / band(job_role, level, country).mid
 
 - Uses **base salary only**. Bands are defined on base pay, and allowances follow country policy (for example India's HRA), not the role's market value. The `comp` toggle doesn't apply to this endpoint, and the UI disables it there with a tooltip.
 - Computed in `Decimal`. Shown rounded to 2 dp; full precision is kept for flag decisions.
-- An employee whose role + level + country has **no band** gets `compa_ratio: null` and `no_band: true`, is excluded from the rollups, and is counted in `summary.employees_without_band` (expected to be 0 with seeded data; a test asserts this).
+- An employee whose role + level + country has **no band** gets `compa_ratio: null` and `no_compa_ratio_reason: "no_band"`, is excluded from the rollups, and is counted in `summary.employees_without_band` (expected to be 0 with seeded data; a test asserts this).
+- A **non-`FULL_TIME`** employee (part-time or contractor) also gets `compa_ratio: null` and is excluded from the rollups: their pay isn't FTE-normalised, so comparing it with a full-time band would mislead. This check comes before the band check (`domain/pay_equity.py`, reason `not_full_time`).
 
 #### Flags
 
@@ -254,7 +262,7 @@ This is how the seeded story surfaces: Customer Success in DE shows a median com
 Per **job role + level + country**: `count`, base P25/median/P75, band `min/mid/max`, `median_compa_ratio`, `underpaid_count`, `overpaid_count`.
 
 **3. Employee drill-down.** `GET /api/v1/insights/pay-equity/cohort?country=DE&job_role_id=...&level=L2`
-**Requires `SALARY_READ`.** Returns flagged employees with `employee_code`, name, base, band, compa-ratio and flag.
+**Requires `SALARY_READ`.** Returns every member of the cohort (not only the flagged ones) with `employee_code`, name, base, compa-ratio and flag, plus the band ([07-api-spec.md](07-api-spec.md) §8.11).
 
 Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group with `count < 5` has its counts, ratios and monetary fields set to `null` with `suppressed: true` (small-group rule, §2.8). Band values are treated as aggregates: they aren't individual pay, so they stay visible.
 
@@ -265,13 +273,12 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
 ```json
 {
   "view": "departments",
-  "country": "DE",
-  "currency": "EUR",
+  "country_code": "DE",
   "groups": [
-    { "key": { "department": "Customer Success" }, "count": 41, "median_compa_ratio": "0.92", "mean_compa_ratio": "0.93", "pct_below_band": "0.29", "underpaid_count": 12, "overpaid_count": 0, "suppressed": false, "below_threshold": true },
-    { "key": { "department": "Engineering" }, "count": 287, "median_compa_ratio": "1.00", "mean_compa_ratio": "1.01", "pct_below_band": "0.04", "underpaid_count": 11, "overpaid_count": 9, "suppressed": false, "below_threshold": false }
+    { "department": { "id": 4, "name": "Customer Success" }, "count": 41, "median_compa_ratio": "0.92", "mean_compa_ratio": "0.93", "pct_below_band": "0.29", "underpaid_count": 12, "overpaid_count": 0, "below_threshold": true, "suppressed": false },
+    { "department": { "id": 2, "name": "Engineering" }, "count": 287, "median_compa_ratio": "1.00", "mean_compa_ratio": "1.01", "pct_below_band": "0.04", "underpaid_count": 11, "overpaid_count": 9, "below_threshold": false, "suppressed": false }
   ],
-  "summary": { "employees_evaluated": 800, "employees_without_band": 0, "employees_flagged_underpaid": 41, "employees_flagged_overpaid": 17 }
+  "summary": { "employees_evaluated": 800, "employees_without_band": 0, "employees_not_full_time": 0, "employees_flagged_underpaid": 41, "employees_flagged_overpaid": 17, "suppressed": false }
 }
 ```
 *(Numbers illustrative.)*
@@ -283,18 +290,17 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
   "view": "cohorts",
   "cohorts": [
     {
-      "key": { "country": "DE", "job_role": "Customer Success Manager", "level": "L2" },
-      "count": 18,
-      "currency": "EUR",
-      "p25": {...}, "median": {...}, "p75": {...},
-      "band": { "min": {...}, "mid": {...}, "max": {...} },
+      "job_role": { "id": 17, "title": "Customer Success Manager" }, "level": "L2", "country_code": "DE",
+      "department": { "id": 4, "name": "Customer Success" },
+      "stats": { "count": 18, "min": 3900000, "p25": 4300000, "median": 4700000, "mean": 4650000, "p75": 4900000, "max": 5400000, "currency": "EUR", "suppressed": false },
+      "band": { "min": 4176000, "mid": 5220000, "max": 6264000, "currency": "EUR" },
       "median_compa_ratio": "0.91",
       "underpaid_count": 5,
       "overpaid_count": 0,
       "suppressed": false
     }
   ],
-  "summary": { "cohorts_evaluated": 412, "employees_without_band": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61 }
+  "summary": { "employees_evaluated": 9012, "employees_without_band": 0, "employees_not_full_time": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61, "suppressed": false }
 }
 ```
 
@@ -307,7 +313,7 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
 | Filters match **no employees** | `200` with `groups: []` (or `count: 0`). Monetary fields are `null`. The UI shows an empty state, not an error |
 | Group with `count < 5` | Viewer: `suppressed: true`. HR/Admin: shown normally. Pay-equity still computes compa-ratio for every employee with a band (no minimum peer count needed) |
 | Percentile of a single value | Equals that value (the formula handles `n = 1`) |
-| Mixed currencies with no USD rate for one currency | `500`-class configuration error, logged and surfaced as a problem+json `fx_rate_missing`. Seeded and admin-managed rates prevent this, and a test asserts every currency in `countries` has a rate |
+| Mixed currencies with no USD rate for one currency | A configuration error, never a guessed rate of 0 or 1: `500` problem+json with `type: about:blank` (the glossary has no slug for it), a `detail` that names the currency and a `currency` member (e.g. `"INR"`); it is logged as `fx_rate_missing`. Only the rates of currencies in the population are needed. Seeded rates prevent this, and a test asserts every currency in `countries` has a rate |
 | Salary range filter without `currency` or `salary_basis=usd` | `422` with the message "Salary range needs a currency or USD basis" |
 | `by-job-title` / `top-earners` without `country` | `422` (single-market requirement) |
 | Employee whose currency differs from the country default | Can't happen in v1: every salary is in its country's currency (validated on write, [06-data-model.md](06-data-model.md) §4.2). So a country group is always single-currency, and compa-ratio always divides amounts in the same currency |

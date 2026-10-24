@@ -77,3 +77,51 @@ def test_openapi_documents_the_session_cookie_and_bearer_token(app: FastAPI) -> 
         {"SessionCookie": []},
         {"BearerToken": []},
     ]
+
+
+PUBLIC_OR_SESSION_ONLY = {
+    "/api/v1/health",
+    "/api/v1/auth/login",
+    "/api/v1/auth/logout",
+    "/api/v1/auth/me",
+}
+
+
+def _operations(app: FastAPI) -> list[tuple[str, str, dict[str, Any]]]:
+    return [
+        (method, path, operation["responses"])
+        for path, item in app.openapi()["paths"].items()
+        for method, operation in item.items()
+    ]
+
+
+def test_openapi_documents_401_and_403_on_every_route_that_needs_a_permission(
+    app: FastAPI,
+) -> None:
+    missing = [
+        f"{method.upper()} {path}"
+        for method, path, responses in _operations(app)
+        if path not in PUBLIC_OR_SESSION_ONLY and not {"401", "403"} <= set(responses)
+    ]
+
+    assert missing == []
+
+
+def test_openapi_documents_404_on_every_route_with_an_employee_id(app: FastAPI) -> None:
+    missing = [
+        f"{method.upper()} {path}"
+        for method, path, responses in _operations(app)
+        if "{employee_id}" in path and "404" not in responses
+    ]
+
+    assert missing == []
+
+
+def test_openapi_documents_409_on_every_change_to_an_employee(app: FastAPI) -> None:
+    missing = [
+        f"{method.upper()} {path}"
+        for method, path, responses in _operations(app)
+        if path.startswith("/api/v1/employees") and method != "get" and "409" not in responses
+    ]
+
+    assert missing == []

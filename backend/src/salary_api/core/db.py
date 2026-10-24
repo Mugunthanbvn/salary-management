@@ -13,25 +13,43 @@ from salary_api.core.config import Settings
 
 
 def create_db_engine(settings: Settings) -> Engine:
-    url = make_url(settings.database_url)
+    token = settings.database_auth_token
+    return create_engine_for_url(
+        settings.database_url,
+        auth_token=token.get_secret_value() if token else None,
+        serverless=settings.app_env == "production",
+    )
+
+
+def create_engine_for_url(
+    database_url: str, *, auth_token: str | None = None, serverless: bool = False
+) -> Engine:
+    """The engine `create_db_engine` makes, from a URL rather than the API's Settings.
+
+    For tools such as the seed, which may target a database the API itself would refuse
+    (a local SQLite file built for production). `serverless` turns pooling off.
+    """
+    url = make_url(database_url)
     connect_args: dict[str, Any] = {}
     if _is_in_memory_sqlite(url):
         connect_args["check_same_thread"] = False
-    if settings.database_auth_token and settings.database_auth_token.get_secret_value():
+    if auth_token:
         # Turso: the token goes to the driver, never into the URL or the logs.
-        connect_args["auth_token"] = settings.database_auth_token.get_secret_value()
+        connect_args["auth_token"] = auth_token
     engine = create_engine(
         url,
-        poolclass=_pool_class(settings, url),
+        poolclass=_pool_class(url, serverless=serverless),
         connect_args=connect_args,
         hide_parameters=True,  # bound values (salaries, emails) never reach errors or logs
     )
     if url.get_backend_name() == "sqlite":
+        stdlib_driver = url.get_driver_name() == "pysqlite"
         on_connect = _sqlite_on_connect(
-            local_file=_is_local_sqlite_file(url),
-            stdlib_driver=url.get_driver_name() == "pysqlite",
+            local_file=_is_local_sqlite_file(url), stdlib_driver=stdlib_driver
         )
         event.listen(engine, "connect", on_connect)
+        if stdlib_driver:
+            event.listen(engine, "begin", _begin_immediate)
     return engine
 
 
@@ -62,18 +80,17 @@ def _set_sqlite_foreign_keys(connection: Connection, *, enabled: bool) -> None:
     if connection.in_transaction():
         connection.commit()  # migrations are done (or not started): close what they left open
     dbapi_connection = connection.connection.dbapi_connection
-    if isinstance(dbapi_connection, sqlite3.Connection) and dbapi_connection.autocommit is False:
-        # PEP 249 mode keeps a transaction open, and SQLite ignores this PRAGMA inside one.
-        dbapi_connection.autocommit = True
+    if isinstance(dbapi_connection, sqlite3.Connection):
+        # Straight to the driver, which opens no transaction of its own: through SQLAlchemy
+        # the PRAGMA would run inside BEGIN IMMEDIATE, where SQLite ignores it.
         dbapi_connection.execute(statement)
-        dbapi_connection.autocommit = False
     else:
         connection.exec_driver_sql(statement)
         connection.commit()
 
 
-def _pool_class(settings: Settings, url: URL) -> type[Pool] | None:
-    if settings.app_env == "production":
+def _pool_class(url: URL, *, serverless: bool) -> type[Pool] | None:
+    if serverless:
         return NullPool  # serverless: a pool does not survive between invocations
     if _is_in_memory_sqlite(url):
         return StaticPool  # one shared connection, so every session sees the same database
@@ -99,8 +116,19 @@ def _sqlite_on_connect(*, local_file: bool, stdlib_driver: bool) -> Callable[[An
             cursor.execute("PRAGMA busy_timeout=5000")  # wait out short write locks
         cursor.close()
         if stdlib_driver:
-            # PEP 249 transactions instead of sqlite3's legacy mode, so SAVEPOINTs and
-            # DDL take part in the enclosing transaction.
-            dbapi_connection.autocommit = False
+            # The driver never begins a transaction itself; _begin_immediate does, so
+            # SAVEPOINTs and DDL always run inside the enclosing transaction.
+            dbapi_connection.isolation_level = None
 
     return on_connect
+
+
+def _begin_immediate(connection: Connection) -> None:
+    """Start every transaction with BEGIN IMMEDIATE: it takes the write lock at once.
+
+    A deferred BEGIN takes it only at the first write. In WAL mode a transaction that read
+    first then fails with "database is locked" if another write committed in between, and
+    the busy timeout cannot help. With IMMEDIATE, a second writer waits (busy_timeout)
+    for the first to finish. Transactions on one database file therefore run one at a time.
+    """
+    connection.exec_driver_sql("BEGIN IMMEDIATE")

@@ -19,7 +19,7 @@ The **source of truth** at build time is FastAPI's generated OpenAPI document (`
 | Versioning | URL prefix. Breaking changes would go to `/api/v2`; additive changes stay in v1 |
 | Format | JSON (`application/json`), UTF-8. File endpoints use `multipart/form-data` (upload) or a file response (download) |
 | Field casing | `snake_case`, matching Pydantic models and the generated TS types |
-| IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key |
+| IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key. An id in a path, query or body is 1 to 2⁶³ − 1 (a 64-bit integer); anything else is a 422 `validation`, not a 404 |
 | Dates | `YYYY-MM-DD`; timestamps ISO-8601 UTC with `Z` |
 | Auth | Session JWT in the `session` httpOnly cookie (browser) or `Authorization: Bearer <JWT>` (server-side fetches). Both are accepted; when both are sent, the Bearer header is used |
 | Request ID | Optional `X-Request-ID` in; always echoed in the response header and in error bodies |
@@ -51,7 +51,7 @@ Offset pagination (10k rows; deep-page cost is negligible, see [19-performance.m
 
 | Param | Default | Limits |
 |---|---|---|
-| `page` | `1` | ≥ 1 |
+| `page` | `1` | 1 to (2⁶³ − 1) ÷ 100, so the offset always fits a 64-bit integer |
 | `page_size` | `25` | 1–100 |
 
 ```json
@@ -122,7 +122,7 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 
 ### 1.7 Masking for users without `SALARY_READ` (VIEWER)
 
-- Individual salary fields (`current_base`, `current_total`, `components`) are returned as `null`, and the item carries `"salary_masked": true`.
+- Individual salary fields (`current_base`, `current_total`, and the detail's `current_salary` with its components) are returned as `null`, and the item carries `"salary_masked": true`. `version` is `null` too: it goes up with every salary change, so it would date them (only writers need it). The employee service masks, so exports and Ask tools that call it get the same result.
 - Endpoints that exist only to reveal individual pay (salary history, top earners, cohort member lists) return **403**.
 - Filtering or sorting by individual salary returns **403**. Otherwise repeated range queries could reveal one person's pay.
 - Aggregates are allowed, but any group with fewer than **5** people is suppressed: values and `count` are `null`, `"suppressed": true` (the small-group rule, [ADR 0009](adr/0009-permission-rbac-small-group-rule.md)).
@@ -238,7 +238,7 @@ One call for every dropdown and for validating filters. Small and cacheable per 
 {
   "countries": [ { "code": "DE", "name": "Germany", "default_currency": "EUR", "is_active": true } ],
   "departments": [ { "id": 4, "name": "Customer Success" } ],
-  "job_roles": [ { "id": 17, "title": "Customer Success Manager", "department_id": 4, "family": "G_AND_A" } ],
+  "job_roles": [ { "id": 17, "title": "Customer Success Manager", "department_id": 4, "family": "CUSTOMER_SUCCESS" } ],
   "levels": [ { "code": "L1", "label": "Associate" }, { "code": "L3", "label": "Senior" } ],
   "employment_types": ["FULL_TIME", "PART_TIME", "CONTRACTOR"],
   "currencies": [ { "code": "JPY", "exponent": 0 }, { "code": "EUR", "exponent": 2 } ],
@@ -246,7 +246,11 @@ One call for every dropdown and for validating filters. Small and cacheable per 
 }
 ```
 
+Countries are listed by name, active or not (`is_active` lets forms hide inactive ones); departments by name; job roles by title; `family` is one of the ten families of [12-seed-data.md](12-seed-data.md) §3; levels, employment types and reasons in glossary order; currencies by code.
+
 ### `GET /countries`: `EMPLOYEE_READ` · `PATCH /countries/{code}`: `REFERENCE_ADMIN`
+
+`GET` returns a JSON array of every country, `{ code, name, default_currency, is_active }`, by name. `PATCH` is cut from v1:
 
 ```json
 // PATCH request (all optional)
@@ -271,11 +275,20 @@ Writes `reference.country.update` with the diff. `default_currency` must be a su
 | `employment_type` | string[] | |
 | `status` | string[] | Default `ACTIVE` |
 | `currency` | string[] | |
-| `salary_min`, `salary_max` | int (minor units) | **Requires `SALARY_READ`.** Requires exactly one `currency`, or `salary_basis=usd` for USD-normalized comparison |
-| `salary_basis` | `local` \| `usd` | Default `local` |
-| `comp` | `base` \| `total` | Which amount the salary filter/sort uses. Default `base` |
-| `sort` | string | Whitelist: `last_name`, `first_name`, `employee_code`, `hire_date`, `country`, `level`, `current_base`*, `current_total`* (*needs `SALARY_READ`) |
+| `salary_min`, `salary_max` | int (minor units) | **Requires `SALARY_READ`.** Inclusive. In the one currency of the list (see below), or US cents with `salary_basis=usd`. `salary_min > salary_max` → 422 `invalid_range` |
+| `salary_basis` | `local` \| `usd` | Default `local`. **Requires `SALARY_READ`** when given |
+| `comp` | `base` \| `total` | Which amount the salary range uses (the sort fields name their amount). Default `base`. **Requires `SALARY_READ`** when given |
+| `sort` | string | Comma-separated, `-` for descending. Allow-list: `last_name`, `first_name`, `employee_code`, `hire_date`, `country`, `level`, `current_base`*, `current_total`* (*needs `SALARY_READ`). Unknown field → 422 `unknown_sort_field`. Ties are always broken by `last_name`, `first_name`, `id` |
 | `page`, `page_size` | int | See §1.3 |
+
+Unknown query parameters are refused with 422, like unknown body fields.
+
+**Salary ranges and salary sorts across currencies (decided in B4).** Raw minor units of two currencies are never compared (¥6,000,000 is not more than €60,000.00). So a salary range or a salary sort needs one of:
+
+- **exactly one `currency`**, or **exactly one `country`** (every salary is in its country's currency): amounts are compared in that local currency;
+- **`salary_basis=usd`**: amounts are compared by USD value. For a range, the service turns the USD bounds into exact local bounds per currency in Python with `Decimal` (`domain/money.py` `min_local_amount` / `max_local_amount`, which agree with `to_usd`'s half-even rounding at the boundary), so SQL still compares within one currency. For a sort, SQL orders by `min(amount, cap) × factor` per currency, where the integer `factor` (US cents per local minor unit × 10⁶, half-even) and `cap` (so the key fits 64 bits) come from `usd_sort_key`. It is an ordering key only; amounts in the response stay local, and no USD figure is computed in SQL. Rates are read only when `salary_basis=usd` comes with a salary range or a salary sort (`salary_basis=usd` alone compares nothing). Then every currency the list can hold (the `currency` filter, else every supported currency) needs a row in `fx_rates`; a missing rate is a configuration error (500), never a rate of 0 or 1.
+
+Otherwise the request is a 422 `validation` with code `currency_required` on `salary_min`/`salary_max` or `sort`: "choose one currency (or one country), or use salary_basis=usd".
 
 ```json
 // 200
@@ -304,9 +317,9 @@ Writes `reference.country.update` with the diff. `default_currency` must be a su
 }
 ```
 
-For a VIEWER: `current_base` and `current_total` are `null`, and `salary_masked` is `true`.
+For a VIEWER: `current_base`, `current_total` and `version` are `null`, and `salary_masked` is `true`.
 
-Errors: 403 if a salary filter/sort is used without `SALARY_READ`; 422 for a salary range without a single currency (and no `salary_basis=usd`).
+Errors: 403 if a salary filter/sort is used without `SALARY_READ` (checked in the service, so exports and Ask tools get it too); 422 for a salary range or salary sort without one currency or one country (and no `salary_basis=usd`).
 
 ### 6.2 `POST /employees`: `EMPLOYEE_WRITE` + `SALARY_WRITE`
 
@@ -336,11 +349,26 @@ Creates the employee **and** its `HIRE` salary record in one transaction.
 }
 ```
 
-`201` returns the employee detail (as §6.3) with a `Location` header. Errors: 409 `duplicate` (code/email), 422 (unknown role, inactive country, hire date in the future, too many decimals for the currency).
+`201` returns the employee detail (as §6.3) with a `Location: /api/v1/employees/{id}` header. Writes exactly one `employee.create` event (the created fields; the salary only as `salary_record_id`).
+
+- `employee_code` matches `ACME-` and six ASCII digits; when omitted it is one more than the highest code of that form in use. After `ACME-999999` a code must be given: 409 `invalid-state` otherwise.
+- `email` is stored trimmed and lowercased; names are 1–100 characters.
+- Amounts are JSON **integers** of minor units: `5400000.0`, `"5400000"` and fractions are refused, not converted. `base_minor` is 1 to `MAX_AMOUNT_MINOR` (10¹⁵ − 1); a component is 0 to `MAX_AMOUNT_MINOR`. At most 20 components, each `type` + `name` once.
+
+Errors: 409 `duplicate` (code, or email compared case-insensitively); 422 `validation` with every broken rule in one `errors[]`: `not_found` (unknown `job_role_id` or `country_code`), `inactive` (country), `future_date` (`hire_date` after today), `currency_mismatch` (`salary.currency` is not the country's), and the field errors above.
 
 ### 6.3 `GET /employees/{id}`: `EMPLOYEE_READ`
 
-Returns the list item fields plus `current_salary` (record id, effective date, components) and `termination_date`. Masked as in §1.7 for users without `SALARY_READ`.
+Returns the list item fields plus `termination_date` and `current_salary`:
+
+```json
+"current_salary": {
+  "id": 90212, "effective_date": "2023-04-01", "reason": "PROMOTION",
+  "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount": { "amount_minor": 86400000, "currency": "INR" } } ]
+}
+```
+
+Masked as in §1.7 for users without `SALARY_READ`: `current_base`, `current_total` **and the whole `current_salary`** are `null` (its date and reason are individual pay events too). 404 `not-found` for an unknown id. The path takes integer ids only (`/employees/{employee_id:int}`), so `/employees/export` (§6.8) is never read as an id.
 
 ### 6.4 `PATCH /employees/{id}`: `EMPLOYEE_WRITE`
 
@@ -352,9 +380,11 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
 ```
 
 - `version` is **required**: the value the client last read.
-- `200` returns the updated employee with `version: 8`.
-- `409 version-conflict` if the stored version differs, with `current_version`. The UI shows "This record changed, reload" ([13-frontend-ux.md](13-frontend-ux.md)).
-- Writes `employee.update` with `{field: [old, new]}`.
+- A field left out keeps its value; `null` is refused (422). Any other field (salary, role, level, country, status) is an unknown field → 422.
+- `200` returns the updated employee with `version: 8`. A PATCH that changes nothing returns the employee unchanged: no new version, no event.
+- `409 version-conflict` if the stored version differs, with `current_version`; also when another request commits between this one's read and write (the UPDATE says `WHERE version = <read version>`). The UI shows "This record changed, reload" ([13-frontend-ux.md](13-frontend-ux.md)).
+- `409 duplicate` for an email another employee uses.
+- Writes `employee.update` with `{field: [old, new]}` for the fields that changed.
 
 ### 6.5 `POST /employees/{id}/terminate` · `POST /employees/{id}/reactivate`: `EMPLOYEE_WRITE`
 
@@ -365,7 +395,7 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
 { "version": 9 }
 ```
 
-200 with the updated employee. 409 `invalid-state` if already in the target state; 409 `version-conflict`; 422 if `termination_date < hire_date`.
+200 with the updated employee (`version` + 1). `termination_date` defaults to today and may be any date on or after the hire date; `note` (≤ 500 characters) is kept in the audit event only. Terminate writes `employee.terminate` with `status` and `termination_date` as `[old, new]` plus `note`; reactivate writes `employee.reactivate` the same way and clears the date. 409 `invalid-state` if already in the target state; 409 `version-conflict`; 422 `before_hire_date` if `termination_date < hire_date`.
 
 ### 6.6 `GET /employees/{id}/salary-history`: `SALARY_READ`
 
@@ -378,7 +408,7 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
       "job_role": { "id": 3, "title": "Software Engineer" }, "level": "L2",
       "base":  { "amount_minor": 180000000, "currency": "INR" },
       "total": { "amount_minor": 270000000, "currency": "INR" },
-      "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount_minor": 72000000 } ],
+      "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount": { "amount_minor": 72000000, "currency": "INR" } } ],
       "base_change_pct": null,
       "changed_by": null, "note": null, "created_at": "2026-10-20T10:00:00Z"
     },
@@ -393,7 +423,7 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
 }
 ```
 
-Records are ordered by `(effective_date, id)`. `base_change_pct` is a decimal string computed in `domain/` (and `null` when the currency changed).
+Records are ordered by `(effective_date, id)`, each with the role and level of that time. `base_change_pct` is the change of base from the previous record in percent, a decimal string with two places rounded half-even (`domain/salary_change.py`), `null` for the first record and when the currency changed. `changed_by` is `null` for seeded history. Component amounts are money objects in the record's currency. 403 without `SALARY_READ`, checked by the router and again by the service; 404 for an unknown employee.
 
 ### 6.7 `POST /employees/{id}/salary-changes`: `SALARY_WRITE`
 
@@ -413,13 +443,22 @@ Records are ordered by `(effective_date, id)`. `base_change_pct` is a decimal st
 }
 ```
 
-Rules (from [06-data-model.md](06-data-model.md) §4.6):
-- `effective_date` ≤ today, ≥ `hire_date`, ≥ the latest existing effective date.
-- `PROMOTION` requires a higher `level` or a different `job_role_id` (422 otherwise).
-- The employee must be `ACTIVE` (409 `invalid-state`).
-- `components` replaces the component set for the new record. Components are **not** inherited implicitly; the UI pre-fills them from the current record.
+Rules (from [06-data-model.md](06-data-model.md) §4.6), each broken one an entry of one 422:
+- `effective_date` ≤ today (`future_date`), ≥ `hire_date` (`before_hire_date`), ≥ the latest existing effective date (`before_latest_record`). The same date as the latest record is allowed; the new record (greater id) becomes current.
+- `PROMOTION` requires a higher `level` or a different `job_role_id` (`not_a_promotion`). An unknown `job_role_id` is `not_found`.
+- A new `country_code` must be a known (`not_found`), active (`inactive`) country. The salary is always in the (new) country's currency; a different `currency` is `currency_mismatch`.
+- The employee must be `ACTIVE` (409 `invalid-state`); `version` must be current (409 `version-conflict`).
+- `components` replaces the component set for the new record. Components are **not** inherited implicitly; the UI pre-fills them from the current record. Amounts follow §6.2.
+- The role, level and country move with the change, and the record keeps the role and level as a snapshot.
 
-201 returns the new record and the updated employee `version`. Writes `salary.change`.
+201 returns the new record (the §6.6 shape) and the employee's new version:
+
+```json
+{ "record": { "id": 90213, "effective_date": "2026-10-01", "reason": "PROMOTION", "level": "L4", "base_change_pct": "20.37", "...": "..." },
+  "employee_version": 10 }
+```
+
+Writes exactly one `salary.change` event: `salary_record_id`, `reason`, `effective_date`, `base_minor: [old, new]`, and `[old, new]` for `job_role_id`, `level`, `country_code` and `currency` when they change.
 
 ### 6.8 `GET /employees/export`: `EXPORT`
 
@@ -488,15 +527,15 @@ Returns the stored job (same shape). Only the creator or an ADMIN can see it (40
 
 | Param | Default | Notes |
 |---|---|---|
-| `country` | — | ISO alpha-2. When set, statistics are in that country's **local currency** |
-| `department_id`, `job_role_id`, `level` | — | Narrow the population |
+| `country` | — | ISO alpha-2, repeatable. When the countries share one currency (one country, or DE + FR), statistics are in that **local currency**; otherwise in USD. An unknown country is a 422 (`not_found`) |
+| `department_id`, `job_role_id`, `level` | — | Narrow the population (repeatable) |
 | `employment_type` | `FULL_TIME` | Part-timers would distort averages; the override is explicit ([09-insights-pay-equity.md](09-insights-pay-equity.md)) |
 | `status` | `ACTIVE` | |
 | `comp` | `base` | `base` or `total` (base + allowances + bonus target) |
 
 There is **no** `period` parameter: annual is returned and the UI divides by 12 for the monthly toggle.
 
-Every response includes a `population` echo (the filters actually applied) and `fx_as_of` whenever USD appears.
+Every response includes a `population` echo (the filters actually applied: `country`, `department_id`, `job_role_id`, `level`, `employment_type`, `status` as lists, and `comp`) and `fx_as_of` whenever USD appears (`null` when no rate was used). Unknown query parameters are a 422. A missing USD rate is a `500` problem (`about:blank`) with a `currency` member, never a guessed rate.
 
 ### 8.2 Stats object
 
@@ -509,21 +548,25 @@ Every response includes a `population` echo (the filters actually applied) and `
 }
 ```
 
-All values are integers in minor units of `currency`. Percentiles use **linear interpolation** (the same result as SQL `PERCENTILE_CONT`); interpolated and mean values are rounded **half-even** to the minor unit. Full definitions are in [09-insights-pay-equity.md](09-insights-pay-equity.md). For callers without `SALARY_READ`, a group with `count < 5` returns `"suppressed": true` and nulls every value **including `count`**, to avoid confirming that one person exists in a narrow slice.
+All values are integers in minor units of `currency`. Percentiles use **linear interpolation** (the same result as SQL `PERCENTILE_CONT`); interpolated and mean values are rounded **half-even** to the minor unit. Full definitions are in [09-insights-pay-equity.md](09-insights-pay-equity.md). For callers without `SALARY_READ`, a group with `count < 5` returns `"suppressed": true` and nulls every value **including `count`**, to avoid confirming that one person exists in a narrow slice. For them `min` and `max` are always `null` (each is one person's pay), and complementary suppression hides one more group when a breakdown would otherwise hide exactly one ([09](09-insights-pay-equity.md) §2.8). An empty group shown to HR has `count: 0` and `null` values.
 
 ### 8.3 `GET /insights/overview`
 
+`stats` covers the whole population in the response `currency` (local for one currency, else USD); `by_country` gives each country in its own currency (`local`) and in USD (`usd`, each salary converted first). `headcount` and `total_payroll_usd` are `null` when the population is suppressed.
+
 ```json
 {
-  "population": { "employment_type": ["FULL_TIME"], "status": ["ACTIVE"], "comp": "base" },
+  "population": { "country": [], "department_id": [], "job_role_id": [], "level": [], "employment_type": ["FULL_TIME"], "status": ["ACTIVE"], "comp": "base" },
+  "currency": "USD",
+  "fx_as_of": "2026-10-01",
   "headcount": 9012,
   "total_payroll_usd": { "amount_minor": 82345600000, "currency": "USD" },
-  "fx_as_of": "2026-10-01",
+  "stats": { "count": 9012, "min": 1200000, "p25": 4100000, "median": 6900000, "mean": 7400000, "p75": 9800000, "max": 41000000, "currency": "USD", "suppressed": false },
   "by_country": [
     {
       "country_code": "DE",
       "local": { "count": 702, "min": 3600000, "p25": 4800000, "median": 5400000, "mean": 5523000, "p75": 6300000, "max": 14500000, "currency": "EUR", "suppressed": false },
-      "usd":   { "median": 5832000, "mean": 5964840, "currency": "USD" }
+      "usd":   { "count": 702, "min": 3906000, "p25": 5208000, "median": 5859000, "mean": 5992455, "p75": 6835500, "max": 15732500, "currency": "USD", "suppressed": false }
     }
   ]
 }
@@ -531,15 +574,15 @@ All values are integers in minor units of `currency`. Percentiles use **linear i
 
 ### 8.4 `GET /insights/by-department`
 
-Optional `country`. With a country: stats in local currency per department. Without: stats in USD per department (each employee converted at read time) and `fx_as_of`.
+Optional `country`. With one currency's countries: stats in that currency per department. Otherwise: stats in USD per department (each employee converted at read time) and `fx_as_of`. Groups are sorted by department name.
 
 ```json
-{ "currency": "EUR", "groups": [ { "department": { "id": 4, "name": "Customer Success" }, "stats": { "...": "Stats object" } } ] }
+{ "population": { "...": "..." }, "currency": "EUR", "fx_as_of": null, "groups": [ { "department": { "id": 4, "name": "Customer Success" }, "stats": { "...": "Stats object" } } ] }
 ```
 
 ### 8.5 `GET /insights/by-job-title`
 
-`country` **required** (titles are compared within one labour market). Returns `groups[]` keyed by `job_role` with stats, optionally split by `level` (`split_by_level=true`).
+`country` **required**, one value (titles are compared within one labour market and currency). Returns `{ population, currency, split_by_level, groups[] }`; each group is `{ job_role: { id, title }, level, stats }`, sorted by title then level. `level` is `null` unless `split_by_level=true`.
 
 ### 8.6 `GET /insights/distribution`
 
@@ -553,11 +596,23 @@ For callers without `SALARY_READ`, buckets with `count < 5` are merged into neig
 
 ### 8.7 `GET /insights/department-cost`
 
-Total compensation cost per department in **USD** (sum of converted amounts), with `fx_as_of`. Optional `country`.
+Total pay per department: the sum of each person's amount (`comp`), with `fx_as_of`. Optional `country`. In the response `currency` (local for one currency, else USD), with a USD equivalent next to it.
+
+```json
+{
+  "population": { "...": "..." }, "currency": "EUR", "fx_as_of": "2026-10-01",
+  "headcount": 702, "total": { "amount_minor": 3877146000, "currency": "EUR" }, "total_usd": { "amount_minor": 4206703410, "currency": "USD" }, "suppressed": false,
+  "groups": [
+    { "department": { "id": 4, "name": "Customer Success" }, "headcount": 41, "cost": { "amount_minor": 198000000, "currency": "EUR" }, "cost_usd": { "amount_minor": 214830000, "currency": "USD" }, "share_of_total": "0.0511", "suppressed": false }
+  ]
+}
+```
+
+`share_of_total` = `cost / total`, 4 decimals half-even, computed from the values after suppression: `null` when the department or the total is hidden.
 
 ### 8.8 `GET /insights/top-earners`: requires `SALARY_READ`
 
-`country` required; `n` (default 10, max 50); `direction=top|bottom`. Returns employee summaries with local amounts. 403 for VIEWER. Writes an `insights.individuals_view` audit event.
+`country` required (one value); `n` (default 10, 1–50); `direction=top|bottom`; the other §8.1 filters. Returns `{ population, country_code, currency, direction, n, items[] }`; each item is `{ employee_id, employee_code, first_name, last_name, job_role, level, department, amount }` with the local amount. Ties are broken by `employee_code`. 403 for VIEWER. Writes an `insights.individuals_view` audit event (`diff = { endpoint: "top-earners", filters }`).
 
 ### 8.9 `GET /insights/raises`
 
@@ -569,38 +624,43 @@ Total compensation cost per department in **USD** (sum of converted amounts), wi
 
 ### 8.10 `GET /insights/pay-equity`
 
-Compa-ratio = employee **base** ÷ **pay band midpoint** for their job role + level + country (local currency). See [09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8 and `pay_bands` in [06-data-model.md](06-data-model.md). The `comp` parameter is not accepted here (bands are base-only). Params: `view=cohorts|departments` (default `cohorts`), `country`, `department_id`.
+Compa-ratio = employee **base** ÷ **pay band midpoint** for their job role + level + country (local currency). See [09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8 and `pay_bands` in [06-data-model.md](06-data-model.md). The `comp` parameter is not accepted here (422: bands are base-only). Params: `view=cohorts|departments` (default `cohorts`) and the other §8.1 filters. The band used is the one in force today (the latest `effective_from` on or before today). The response is one of two shapes, told apart by `view`.
 
 `view=cohorts`:
 
 ```json
 {
   "view": "cohorts",
-  "thresholds": { "low": "0.80", "high": "1.20" },
+  "population": { "...": "...", "comp": "base" },
+  "thresholds": { "low": "0.80", "high": "1.20", "rollup": "0.95" },
   "cohorts": [
     {
       "job_role": { "id": 17, "title": "Customer Success Manager" }, "level": "L2", "country_code": "DE",
-      "stats": { "count": 41, "p25": 4300000, "median": 4800000, "p75": 5300000, "currency": "EUR", "suppressed": false },
+      "department": { "id": 4, "name": "Customer Success" },
+      "stats": { "count": 41, "min": 3600000, "p25": 4300000, "median": 4800000, "mean": 4790000, "p75": 5300000, "max": 6100000, "currency": "EUR", "suppressed": false },
       "band": { "min": 4176000, "mid": 5220000, "max": 6264000, "currency": "EUR" },
       "median_compa_ratio": "0.92",
-      "underpaid_count": 14, "overpaid_count": 1
+      "underpaid_count": 14, "overpaid_count": 1,
+      "suppressed": false
     }
   ],
-  "summary": { "employees_evaluated": 9012, "employees_without_band": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61 }
+  "summary": { "employees_evaluated": 9012, "employees_without_band": 0, "employees_not_full_time": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61, "suppressed": false }
 }
 ```
 
-`view=departments` (systemic-gap view; `country` required): `groups[]` keyed by department with `count`, `median_compa_ratio`, `mean_compa_ratio`, `pct_below_band`, `underpaid_count`, `overpaid_count`, `below_threshold` (median compa-ratio < 0.95, **proposed**), `suppressed`.
+Cohorts are sorted by job role id, level and country. `stats` covers the members with a compa-ratio. A cohort without a band is not listed; its people count in `employees_without_band`. Part-timers and contractors (only there when `employment_type` asks for them) get no ratio and count in `employees_not_full_time`.
 
-Flags: `underpaid` = compa-ratio < 0.80 (below band minimum); `overpaid` = compa-ratio > 1.20 (above band maximum). Values exactly 0.80 or 1.20 count as within band, and the comparison uses the unrounded ratio. Thresholds are server settings matching the band width (`min = 0.8 × mid`, `max = 1.2 × mid`), not request parameters. For a VIEWER, groups with `count < 5` return counts, ratios and stats as `null` with `suppressed: true`; band values stay visible.
+`view=departments` (systemic-gap view; exactly one `country`, else 422): `{ view, population, country_code, thresholds, groups[], summary }`; each group is `{ department: { id, name }, count, median_compa_ratio, mean_compa_ratio, pct_below_band, underpaid_count, overpaid_count, below_threshold, suppressed }`, sorted by department name. `below_threshold` is median compa-ratio < 0.95 on the unrounded median. Ratios and `pct_below_band` (0 to 1) are 2-decimal strings.
+
+Flags: `underpaid` = compa-ratio < 0.80 (below band minimum); `overpaid` = compa-ratio > 1.20 (above band maximum). Values exactly 0.80 or 1.20 count as within band, and the comparison uses the unrounded ratio. Thresholds are server settings matching the band width (`min = 0.8 × mid`, `max = 1.2 × mid`), not request parameters. For a VIEWER, groups with `count < 5` return counts, ratios and stats as `null` with `suppressed: true` (plus complementary suppression); band values stay visible. The summary is `null` with `suppressed: true` when fewer than 5 were evaluated.
 
 ### 8.11 `GET /insights/pay-equity/cohort`: requires `SALARY_READ`
 
-`job_role_id`, `level`, `country` required. Returns the band and each cohort member with `employee_code`, name, base, `compa_ratio` (decimal string, 2 dp) and flag `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20). 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event.
+`job_role_id`, `level`, `country` required (one of each); `employment_type` and `status` as in §8.1. Returns the cohort's `job_role`, `level`, `country_code`, `department`, `currency`, `band` (`null` if the cohort has no band), `thresholds`, and `members[]`, each with `employee_id`, `employee_code`, `first_name`, `last_name`, `employment_type`, `base`, `compa_ratio` (decimal string, 2 dp), `flag` `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20), and `no_compa_ratio_reason` (`not_full_time` or `no_band` when `compa_ratio` is `null`). Members are listed lowest ratio first, then those without one, ties by `employee_code`. 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event (`diff = { endpoint: "pay-equity/cohort", filters }`).
 
 ### 8.12 `GET /pay-bands`: `INSIGHTS_READ`
 
-Read-only list of bands, filterable by `country`, `job_role_id`, `level`: `{ job_role_id, level, country_code, currency, min, mid, max, effective_from }`. Bands are seeded; editing them is out of scope for v1.
+Read-only list of the bands in force today, filterable by `country`, `job_role_id`, `level` (repeatable): `{ "bands": [ { job_role_id, level, country_code, currency, min, mid, max, effective_from } ] }`, sorted by country, job role id and level. Bands are seeded; editing them is out of scope for v1.
 
 ---
 
@@ -611,6 +671,8 @@ Read-only list of bands, filterable by `country`, `job_role_id`, `level`: `{ job
 ```json
 { "rates": [ { "currency": "INR", "rate_to_usd": "0.01198", "as_of": "2026-10-01", "source": "Static snapshot (illustrative)" } ] }
 ```
+
+Sorted by currency. `rate_to_usd` is a decimal string (USD per one major unit).
 
 ### `PUT /fx-rates/{currency}`: `FX_ADMIN`
 

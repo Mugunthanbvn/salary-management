@@ -342,3 +342,15 @@ def test_me_writes_no_audit_event(
     signed_in_client(app, user, settings).get(ME)
 
     assert _committed_events(db_session) == []
+
+
+def test_a_user_saved_with_a_mixed_case_email_can_sign_in(
+    client: TestClient, db_session: Session
+) -> None:
+    make_user(db_session, email="Admin@Acme.example")
+
+    response = client.post(
+        LOGIN, json={"email": "Admin@Acme.example", "password": DEFAULT_PASSWORD}
+    )
+
+    assert response.status_code == 200

@@ -1,7 +1,10 @@
 """The audit_events table (docs/06-data-model.md section 4.9): append-only, actor optional."""
 
+from typing import Any, cast
+
 import pytest
-from sqlalchemy import select
+from fastapi.testclient import TestClient
+from sqlalchemy import String, Table, delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -81,3 +84,46 @@ def test_events_cannot_be_deleted(db_session: Session) -> None:
 
     with pytest.raises(AppendOnlyError):
         db_session.flush()
+
+
+AUDIT_TABLE = cast(Table, AuditEvent.__table__)
+
+
+@pytest.mark.parametrize(
+    "statement",
+    [
+        pytest.param(update(AuditEvent).values(action="tampered"), id="orm update"),
+        pytest.param(delete(AuditEvent), id="orm delete"),
+        pytest.param(update(AUDIT_TABLE).values(action="tampered"), id="table update"),
+        pytest.param(delete(AUDIT_TABLE), id="table delete"),
+    ],
+)
+def test_bulk_statements_cannot_change_or_delete_events(
+    db_session: Session, statement: Any
+) -> None:
+    db_session.add(_event())
+    db_session.flush()
+
+    with pytest.raises(AppendOnlyError):
+        db_session.execute(statement)
+
+
+def test_bulk_inserts_of_events_are_allowed(db_session: Session) -> None:
+    db_session.execute(
+        insert(AuditEvent).values(action="auth.logout", entity="user", at=FROZEN_NOW)
+    )
+
+    assert db_session.scalars(select(AuditEvent.action)).all() == ["auth.logout"]
+
+
+def test_the_request_id_column_fits_the_longest_request_id_the_middleware_accepts(
+    client: TestClient,
+) -> None:
+    longest = "r" * 128
+    response = client.get("/api/v1/health", headers={"X-Request-ID": longest})
+    column_type = AUDIT_TABLE.c.request_id.type
+
+    assert response.headers["X-Request-ID"] == longest  # accepted as is
+    assert isinstance(column_type, String)
+    assert column_type.length is not None
+    assert column_type.length >= len(longest)

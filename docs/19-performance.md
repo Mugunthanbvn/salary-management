@@ -9,7 +9,7 @@
 
 ## 1. Philosophy
 
-The problem is small: **10,000 employees, about 30,000 salary records, about 10 MB of data.** At this scale the main performance risks are not algorithmic. They are **network round-trips** (serverless function ↔ Turso), **cold starts**, and **accidental N+1 queries**. The design keeps the system simple (no cache layer, no queues, no materialized views) and spends effort on:
+The problem is small: **10,000 employees, about 24,000 salary records, about 10 MB of data.** At this scale the main performance risks are not algorithmic. They are **network round-trips** (serverless function ↔ Turso), **cold starts**, and **accidental N+1 queries**. The design keeps the system simple (no cache layer, no queues, no materialized views) and spends effort on:
 
 1. Few queries per request (one list query + one count; one aggregate query per insight).
 2. The right indexes for every filter and sort.
@@ -23,7 +23,7 @@ The problem is small: **10,000 employees, about 30,000 salary records, about 10 
 
 | Operation | Target | Environment | Notes |
 |---|---|---|---|
-| Seed 10,000 employees (+ ~30k salary records, ~40k components) | **< 5 s** | Local SQLite file, laptop | Bulk Core `insert()` in chunks of 1,000 |
+| Seed 10,000 employees (+ ~24k salary records, ~40k components) | **< 5 s** | Local SQLite file, laptop | Bulk Core `insert()` in chunks of 1,000 |
 | Load seed into Turso | **< 60 s** **(proposed)** | `turso db create --from-file` | Avoids remote row-by-row inserts entirely |
 | `GET /employees` (list, any filter/sort, page 25) | **p95 < 300 ms** | Deployed, warm function | Measured server-side (handler time) and end-to-end |
 | `GET /employees/{id}` | **p95 < 300 ms** | Deployed, warm | |
@@ -82,7 +82,7 @@ SELECT count(*) FROM employees e JOIN ... WHERE <same filters>;
 - Joins to small reference tables are cheap (35 job roles, 9 departments).
 - **No N+1:** role and department come from the join, not lazy loads. A test with SQLAlchemy query counting asserts "≤ 3 queries" for the list endpoint (loading the current user, the page, the count) ([14-testing-strategy.md](14-testing-strategy.md)).
 - **Offset pagination** is fine: the deepest page (400 × 25) still scans at most 10k index entries. Keyset pagination is the documented upgrade path (§7).
-- **Search:** `search_text LIKE '%term%'` can't use a B-tree index, so it scans about 10k short strings, about a millisecond in SQLite. Prefix searches (`term%`) can use `ix_employees_search_text`. FTS5 is the upgrade path if search ever slows down.
+- **Search:** `search_text LIKE '%term%'` can't use a B-tree index, so it scans at most 10k short strings: about 3 ms for the page and its count (measured, SQLite in memory, 10k rows). There is no `search_text` index: SQLite would not use it even for a prefix `LIKE` (case-insensitive by default), so it would only cost writes. FTS5 is the upgrade path if search ever slows down.
 
 ### 4.2 Insights
 
@@ -120,14 +120,13 @@ Defined in [06-data-model.md](06-data-model.md); listed here with the query each
 | `ix_employees_status_employment_type` | Default insight population (ACTIVE + FULL_TIME) |
 | `ix_employees_currency_base` | Salary range filter within one currency; top/bottom earners |
 | `ix_employees_last_first` | Default list sort |
-| `ix_employees_search_text` | Prefix search |
 | `ix_salary_records_employee_effective` | Salary timeline; current-record lookup |
 | `ix_salary_records_effective_reason` | Raise statistics by period |
 | `ix_salary_components_record` | Components for a record |
 | `ix_audit_events_actor_action_at` | Ask rate limit; login failure limit |
 | `ix_audit_events_at` | Admin audit log, newest first |
 
-Rule: every filter and sort exposed by the API must have a supporting index, or a note here explaining why a scan is acceptable. `EXPLAIN QUERY PLAN` output for the main queries is captured in this doc during milestone 7.
+Rule: every filter and sort exposed by the API must have a supporting index, or a note here explaining why a scan is acceptable. Scans accepted at 10k rows (each well under the list budget): infix search (`LIKE '%term%'`), sorts by `first_name`, `hire_date`, `level` or `current_total`, a `comp=total` salary range, and a `salary_basis=usd` range or sort (an `OR` of one range per currency, or a `CASE` key). `employee_code` sorts use `uq_employees_employee_code`; a range on `current_base` within one currency uses `ix_employees_currency_base`. `EXPLAIN QUERY PLAN` output for the main queries is captured in this doc during milestone 7.
 
 ---
 
@@ -179,7 +178,7 @@ The trigger thresholds are estimates; the decision to act would come from measur
 
 | What | How | When | Where results go |
 |---|---|---|---|
-| Seed time | `make seed` prints elapsed time per phase (generate, insert employees, insert history) | Milestone 6 | §9 |
+| Seed time | `make seed` prints elapsed time per phase (users, migrate, generate, insert) and the total | Milestone 6 | §9 |
 | Query plans | `EXPLAIN QUERY PLAN` for list (each filter), each insight | Milestone 7 | §9 |
 | N+1 guard | pytest asserting query count per endpoint | Milestones 4–7 (permanent tests) | CI |
 | API latency (local) | Simple benchmark script (`make bench` **(proposed)**) hitting each endpoint 100× with the 10k seed, reporting p50/p95 | Milestone 7 | §9 |
@@ -197,7 +196,7 @@ To be filled in with measured values. Each row records the date, commit and envi
 
 | Metric | Target | Measured | Date / commit | Environment |
 |---|---|---|---|---|
-| Seed 10k (local) | < 5 s | TBD | | |
+| Seed 10k (local) | < 5 s | **3.2–3.4 s** with `make seed` (users 0.5–0.65 s of argon2, migrate < 0.1 s, generate 1.0–1.1 s, insert incl. reset 1.6–1.7 s); first build 2.9 s; **2.3 s** in memory (the golden test) | 2026-10-24 / after the B5 review | Linux, 4 vCPU shared with other jobs (load ≈ 4.5), Python 3.13, SQLite WAL |
 | Turso load | < 60 s | TBD | | |
 | `GET /employees` p95 | < 300 ms | TBD | | |
 | `GET /insights/overview` p95 | < 300 ms | TBD | | |
