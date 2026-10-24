@@ -13,7 +13,9 @@ from salary_api.modules.insights.schemas import (
     InsightQuery,
     JobTitleQuery,
     Overview,
+    PayEquity,
     PayEquityCohorts,
+    PayEquityDepartments,
     PayEquityQuery,
     TopEarners,
     TopEarnersQuery,
@@ -89,11 +91,11 @@ def top_earners(
 
 @router.get(
     "/pay-equity",
-    response_model=PayEquityCohorts,
+    response_model=PayEquity,
     responses=problem_responses(401, 403),
-    summary="Compa-ratios against pay bands, per cohort",
+    summary="Compa-ratios against pay bands, per cohort or per department of one country",
 )
 def pay_equity(
     query: Annotated[PayEquityQuery, Query()], principal: CanReadInsights, session: SessionDep
-) -> PayEquityCohorts:
+) -> PayEquityCohorts | PayEquityDepartments:
     return service.pay_equity(session, principal, query)

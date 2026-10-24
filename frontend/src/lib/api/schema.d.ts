@@ -268,7 +268,7 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        /** Compa-ratios against pay bands, per cohort */
+        /** Compa-ratios against pay bands, per cohort or per department of one country */
         get: operations["pay_equity_api_v1_insights_pay_equity_get"];
         put?: never;
         post?: never;
@@ -498,6 +498,29 @@ export interface components {
             suppressed: boolean;
             total: components["schemas"]["Money"] | null;
             total_usd: components["schemas"]["Money"] | null;
+        };
+        /**
+         * DepartmentEquity
+         * @description One department in one country: is the team as a whole paid below its bands?
+         */
+        DepartmentEquity: {
+            /** Below Threshold */
+            below_threshold: boolean | null;
+            /** Count */
+            count: number | null;
+            department: components["schemas"]["Department"];
+            /** Mean Compa Ratio */
+            mean_compa_ratio: string | null;
+            /** Median Compa Ratio */
+            median_compa_ratio: string | null;
+            /** Overpaid Count */
+            overpaid_count: number | null;
+            /** Pct Below Band */
+            pct_below_band: string | null;
+            /** Suppressed */
+            suppressed: boolean;
+            /** Underpaid Count */
+            underpaid_count: number | null;
         };
         /** DepartmentStats */
         DepartmentStats: {
@@ -807,10 +830,25 @@ export interface components {
             summary: components["schemas"]["PayEquitySummary"];
             thresholds: components["schemas"]["Thresholds"];
             /**
-             * View
-             * @constant
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
              */
             view: "cohorts";
+        };
+        /** PayEquityDepartments */
+        PayEquityDepartments: {
+            /** Country Code */
+            country_code: string;
+            /** Groups */
+            groups: components["schemas"]["DepartmentEquity"][];
+            population: components["schemas"]["Population"];
+            summary: components["schemas"]["PayEquitySummary"];
+            thresholds: components["schemas"]["Thresholds"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            view: "departments";
         };
         /**
          * PayEquitySummary
@@ -2374,7 +2412,7 @@ export interface operations {
                     [name: string]: unknown;
                 };
                 content: {
-                    "application/json": components["schemas"]["PayEquityCohorts"];
+                    "application/json": components["schemas"]["PayEquityCohorts"] | components["schemas"]["PayEquityDepartments"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */

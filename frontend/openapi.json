@@ -520,6 +520,108 @@
         "title": "DepartmentCosts",
         "type": "object"
       },
+      "DepartmentEquity": {
+        "description": "One department in one country: is the team as a whole paid below its bands?",
+        "properties": {
+          "below_threshold": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Threshold"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "mean_compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Compa Ratio"
+          },
+          "median_compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Compa Ratio"
+          },
+          "overpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overpaid Count"
+          },
+          "pct_below_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct Below Band"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "underpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underpaid Count"
+          }
+        },
+        "required": [
+          "department",
+          "count",
+          "median_compa_ratio",
+          "mean_compa_ratio",
+          "pct_below_band",
+          "underpaid_count",
+          "overpaid_count",
+          "below_threshold",
+          "suppressed"
+        ],
+        "title": "DepartmentEquity",
+        "type": "object"
+      },
       "DepartmentStats": {
         "properties": {
           "department": {
@@ -1406,6 +1508,45 @@
           "summary"
         ],
         "title": "PayEquityCohorts",
+        "type": "object"
+      },
+      "PayEquityDepartments": {
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentEquity"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PayEquitySummary"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "view": {
+            "const": "departments",
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "view",
+          "population",
+          "country_code",
+          "thresholds",
+          "groups",
+          "summary"
+        ],
+        "title": "PayEquityDepartments",
         "type": "object"
       },
       "PayEquitySummary": {
@@ -4481,7 +4622,22 @@
             "content": {
               "application/json": {
                 "schema": {
-                  "$ref": "#/components/schemas/PayEquityCohorts"
+                  "discriminator": {
+                    "mapping": {
+                      "cohorts": "#/components/schemas/PayEquityCohorts",
+                      "departments": "#/components/schemas/PayEquityDepartments"
+                    },
+                    "propertyName": "view"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PayEquityCohorts"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PayEquityDepartments"
+                    }
+                  ],
+                  "title": "Response Pay Equity Api V1 Insights Pay Equity Get"
                 }
               }
             },
@@ -4546,7 +4702,7 @@
             "BearerToken": []
           }
         ],
-        "summary": "Compa-ratios against pay bands, per cohort",
+        "summary": "Compa-ratios against pay bands, per cohort or per department of one country",
         "tags": [
           "insights"
         ]

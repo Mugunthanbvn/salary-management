@@ -33,8 +33,10 @@ from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.pay_equity import (
     CohortRollup,
+    DepartmentRollup,
     EmployeePay,
     cohort_rollup,
+    department_rollup,
     pay_equity_summary,
 )
 from salary_api.domain.pay_equity import PayEquitySummary as SummaryOfPay
@@ -52,6 +54,7 @@ from salary_api.modules.insights.schemas import (
     CountryStats,
     DepartmentCost,
     DepartmentCosts,
+    DepartmentEquity,
     DepartmentStats,
     Direction,
     Earner,
@@ -61,6 +64,7 @@ from salary_api.modules.insights.schemas import (
     JobTitleStats,
     Overview,
     PayEquityCohorts,
+    PayEquityDepartments,
     PayEquityQuery,
     PayEquitySummary,
     PayEquityView,
@@ -174,14 +178,29 @@ def _share(part: int | None, whole: int | None) -> str | None:
     return str(round_share(Decimal(part) / Decimal(whole)))
 
 
-def pay_equity(session: Session, principal: Principal, query: PayEquityQuery) -> PayEquityCohorts:
-    """Base pay against pay bands: compa-ratios per cohort (docs/09 section 3.8).
+def pay_equity(
+    session: Session, principal: Principal, query: PayEquityQuery
+) -> PayEquityCohorts | PayEquityDepartments:
+    """Base pay against pay bands (docs/09 section 3.8): per cohort, or per department.
 
     Only full-time employees with a band get a ratio; the summary counts the others.
     """
+    if query.view == PayEquityView.DEPARTMENTS and len(query.country) != 1:
+        message = "The departments view compares departments within one country: "
+        raise ValidationFailed(
+            [
+                {
+                    "loc": ["query", "country"],
+                    "code": "required",
+                    "message": message + "give exactly one country.",
+                }
+            ]
+        )
     audience = _Audience.of(principal)
     _markets(session, query.country)  # refuses an unknown country
     pays, names = _pays(session, query)
+    if query.view == PayEquityView.DEPARTMENTS:
+        return _department_view(query, pays, names, audience)
     rollups = cohort_rollup(pays)
     hidden = audience.hidden_groups(
         [rollup.base.count for rollup in rollups],
@@ -199,6 +218,58 @@ def pay_equity(session: Session, principal: Principal, query: PayEquityQuery) ->
             for index, rollup in enumerate(rollups)
         ],
         summary=_pay_equity_summary(pay_equity_summary(pays), audience),
+    )
+
+
+def _department_view(
+    query: PayEquityQuery, pays: list[EmployeePay], names: "_Names", audience: "_Audience"
+) -> PayEquityDepartments:
+    """The systemic-gap view: compa-ratios summarised per department of one country."""
+    rollups = sorted(
+        department_rollup(pays),
+        key=lambda rollup: (names.departments[rollup.department_id], rollup.department_id),
+    )
+    hidden = audience.hidden_groups([rollup.ratios.count for rollup in rollups])
+    return PayEquityDepartments(
+        view=PayEquityView.DEPARTMENTS,
+        population=_population(query, query.country, Comp.BASE),
+        country_code=query.country[0],
+        thresholds=_THRESHOLDS,
+        groups=[
+            _department_equity(rollup, names, hidden=index in hidden)
+            for index, rollup in enumerate(rollups)
+        ],
+        summary=_pay_equity_summary(pay_equity_summary(pays), audience),
+    )
+
+
+def _department_equity(
+    rollup: DepartmentRollup, names: "_Names", *, hidden: bool
+) -> DepartmentEquity:
+    department = Department(id=rollup.department_id, name=names.departments[rollup.department_id])
+    if hidden:
+        return DepartmentEquity(
+            department=department,
+            count=None,
+            median_compa_ratio=None,
+            mean_compa_ratio=None,
+            pct_below_band=None,
+            underpaid_count=None,
+            overpaid_count=None,
+            below_threshold=None,
+            suppressed=True,
+        )
+    ratios = rollup.ratios
+    return DepartmentEquity(
+        department=department,
+        count=ratios.count,
+        median_compa_ratio=str(round_ratio(ratios.median_compa_ratio)),
+        mean_compa_ratio=str(round_ratio(ratios.mean_compa_ratio)),
+        pct_below_band=str(round_ratio(ratios.pct_below_band)),
+        underpaid_count=ratios.underpaid_count,
+        overpaid_count=ratios.overpaid_count,
+        below_threshold=rollup.below_threshold,  # on the unrounded median
+        suppressed=False,
     )
 
 

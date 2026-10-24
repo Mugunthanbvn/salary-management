@@ -2,7 +2,7 @@
 
 from datetime import date
 from enum import StrEnum
-from typing import Final, Literal
+from typing import Annotated, Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -251,3 +251,29 @@ class PayEquityCohorts(BaseModel):
     thresholds: Thresholds
     cohorts: list[CohortEquity]  # by job role id, level, country
     summary: PayEquitySummary
+
+
+class DepartmentEquity(BaseModel):
+    """One department in one country: is the team as a whole paid below its bands?"""
+
+    department: Department
+    count: int | None  # employees with a compa-ratio
+    median_compa_ratio: str | None
+    mean_compa_ratio: str | None
+    pct_below_band: str | None  # the share flagged UNDERPAID, from 0 to 1
+    underpaid_count: int | None
+    overpaid_count: int | None
+    below_threshold: bool | None  # median compa-ratio below `thresholds.rollup`
+    suppressed: bool
+
+
+class PayEquityDepartments(BaseModel):
+    view: Literal[PayEquityView.DEPARTMENTS]
+    population: Population
+    country_code: str
+    thresholds: Thresholds
+    groups: list[DepartmentEquity]  # by department name
+    summary: PayEquitySummary
+
+
+PayEquity = Annotated[PayEquityCohorts | PayEquityDepartments, Field(discriminator="view")]
