@@ -4,9 +4,9 @@ from decimal import Decimal
 
 import pytest
 
-from salary_api.domain.enums import EmploymentType
+from salary_api.domain.enums import EmploymentType, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
-from salary_api.domain.pay_equity import CompaRatio, NoCompaRatioReason, compa_ratio
+from salary_api.domain.pay_equity import CompaRatio, NoCompaRatioReason, compa_ratio, flag
 
 FULL_TIME = EmploymentType.FULL_TIME
 
@@ -42,6 +42,24 @@ def test_only_full_time_employees_get_a_compa_ratio(
     result = compa_ratio(Money(2300000, "EUR"), band_mid, employment_type)
 
     assert result == CompaRatio(None, NoCompaRatioReason.NOT_FULL_TIME)
+
+
+@pytest.mark.parametrize(
+    ("ratio", "expected"),
+    [
+        (Decimal("0.5"), PayEquityFlag.UNDERPAID),
+        (Decimal("0.79999"), PayEquityFlag.UNDERPAID),  # rounds to 0.80 for display only
+        (Decimal("0.80"), PayEquityFlag.IN_BAND),
+        (Decimal("1"), PayEquityFlag.IN_BAND),
+        (Decimal("1.20"), PayEquityFlag.IN_BAND),
+        (Decimal("1.20001"), PayEquityFlag.OVERPAID),  # rounds to 1.20 for display only
+        (Decimal("1.5"), PayEquityFlag.OVERPAID),
+    ],
+)
+def test_flag_compares_the_unrounded_ratio_with_inclusive_band_edges(
+    ratio: Decimal, expected: PayEquityFlag
+) -> None:
+    assert flag(ratio) is expected
 
 
 def test_compa_ratio_refuses_a_band_in_another_currency() -> None:
