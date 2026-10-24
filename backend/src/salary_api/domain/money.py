@@ -5,6 +5,8 @@ Money is never a float. An amount always travels with its currency.
 
 from dataclasses import dataclass
 
+from salary_api.domain.currency import minor_unit_exponent
+
 
 @dataclass(frozen=True, slots=True)
 class Money:
@@ -18,3 +20,4 @@ class Money:
         if type(self.amount_minor) is not int:
             kind = type(self.amount_minor).__name__
             raise TypeError(f"amount_minor must be an int of minor units, not {kind}")
+        minor_unit_exponent(self.currency)  # raises UnknownCurrencyError
