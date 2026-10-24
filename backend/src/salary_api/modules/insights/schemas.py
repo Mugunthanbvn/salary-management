@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from salary_api.core.schemas import Comp, Id, Money
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
-from salary_api.modules.reference.schemas import CountryCode
+from salary_api.modules.reference.schemas import CountryCode, Department
 
 
 class InsightFilters(BaseModel):
@@ -82,3 +82,17 @@ class Overview(BaseModel):
     total_payroll_usd: Money | None
     stats: Stats
     by_country: list[CountryStats]
+
+
+class DepartmentStats(BaseModel):
+    department: Department
+    stats: Stats
+
+
+class ByDepartment(BaseModel):
+    """docs/09 section 3.2: in local currency for one currency's countries, else in USD."""
+
+    population: Population
+    currency: str
+    fx_as_of: date | None
+    groups: list[DepartmentStats]  # by department name

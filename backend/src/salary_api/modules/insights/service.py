@@ -28,12 +28,15 @@ from salary_api.domain.stats import InsufficientData, Summary, summarize
 from salary_api.modules.employees.service import can_see_salaries
 from salary_api.modules.insights import repository
 from salary_api.modules.insights.schemas import (
+    ByDepartment,
     CountryStats,
+    DepartmentStats,
     InsightQuery,
     Overview,
     Population,
     Stats,
 )
+from salary_api.modules.reference.schemas import Department
 
 
 def overview(session: Session, principal: Principal, query: InsightQuery) -> Overview:
@@ -83,6 +86,38 @@ def overview(session: Session, principal: Principal, query: InsightQuery) -> Ove
             )
             for index, country in enumerate(countries)
         ],
+    )
+
+
+def by_department(session: Session, principal: Principal, query: InsightQuery) -> ByDepartment:
+    """Pay statistics per department (docs/09 section 3.2)."""
+    audience = _Audience.of(principal)
+    markets = _markets(session, query.country)
+    currency = markets.currency_of_population(query.country)
+    convert = _Converter(markets.rates)
+    rows = repository.amounts_by_department(session, _where(query), query.comp)
+    departments = [
+        _Group(Department(id=key[0], name=key[1]), [(ccy, amount) for *_, ccy, amount in group])
+        for key, group in groupby(rows, key=itemgetter(0, 1))
+    ]
+    hidden = audience.hidden_groups([department.count for department in departments])
+    groups = [
+        DepartmentStats(
+            department=department.key,
+            stats=_stats(
+                summarize(convert.all(currency, department.members)),
+                currency,
+                hidden=index in hidden,
+                audience=audience,
+            ),
+        )
+        for index, department in enumerate(departments)
+    ]
+    return ByDepartment(
+        population=_population(query),
+        currency=currency,
+        fx_as_of=convert.fx_as_of,
+        groups=groups,
     )
 
 
@@ -192,6 +227,10 @@ class _Converter:
         converted = to_usd(DomainMoney(amount_minor, currency), self._rates)
         self._dates.add(converted.fx_as_of)
         return converted.amount.amount_minor
+
+    def all(self, target: str, members: Iterable[tuple[str, int]]) -> list[int]:
+        """Each member's (currency, amount) as an amount in `target`."""
+        return [self.to(target, amount, currency) for currency, amount in members]
 
     @property
     def fx_as_of(self) -> date | None:

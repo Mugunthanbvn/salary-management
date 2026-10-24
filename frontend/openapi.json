@@ -1,6 +1,45 @@
 {
   "components": {
     "schemas": {
+      "ByDepartment": {
+        "description": "docs/09 section 3.2: in local currency for one currency's countries, else in USD.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fx_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx As Of"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentStats"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          }
+        },
+        "required": [
+          "population",
+          "currency",
+          "fx_as_of",
+          "groups"
+        ],
+        "title": "ByDepartment",
+        "type": "object"
+      },
       "ChangedBy": {
         "properties": {
           "full_name": {
@@ -202,6 +241,22 @@
           "name"
         ],
         "title": "Department",
+        "type": "object"
+      },
+      "DepartmentStats": {
+        "properties": {
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          }
+        },
+        "required": [
+          "department",
+          "stats"
+        ],
+        "title": "DepartmentStats",
         "type": "object"
       },
       "EmployeeCreate": {
@@ -3116,6 +3171,173 @@
         "summary": "Health check (public)",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/insights/by-department": {
+      "get": {
+        "operationId": "by_department_api_v1_insights_by_department_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ByDepartment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Pay statistics per department",
+        "tags": [
+          "insights"
         ]
       }
     },

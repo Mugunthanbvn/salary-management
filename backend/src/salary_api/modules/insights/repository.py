@@ -15,7 +15,7 @@ from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.employees.repository import AMOUNT_COLUMNS
-from salary_api.modules.reference.models import Country, FxRate, JobRole
+from salary_api.modules.reference.models import Country, Department, FxRate, JobRole
 
 
 @dataclass(frozen=True, slots=True)
@@ -57,6 +57,19 @@ def amounts_by_country(
     amount = AMOUNT_COLUMNS[comp]
     query = _matching(select(Employee.country_code, Employee.currency, amount), where).order_by(
         Employee.country_code, amount
+    )
+    return session.execute(query).all()
+
+
+def amounts_by_department(
+    session: Session, where: PopulationFilter, comp: Comp
+) -> Sequence[Row[int, str, str, int]]:
+    """(department id, department name, currency, amount) per employee, by name then amount."""
+    amount = AMOUNT_COLUMNS[comp]
+    query = (
+        _matching(select(Department.id, Department.name, Employee.currency, amount), where)
+        .join(JobRole.department)
+        .order_by(Department.name, Department.id, amount)
     )
     return session.execute(query).all()
 

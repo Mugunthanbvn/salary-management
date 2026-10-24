@@ -6,7 +6,7 @@ from salary_api.core.deps import SessionDep, require_permission
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
 from salary_api.modules.insights import service
-from salary_api.modules.insights.schemas import InsightQuery, Overview
+from salary_api.modules.insights.schemas import ByDepartment, InsightQuery, Overview
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -23,3 +23,15 @@ def overview(
     query: Annotated[InsightQuery, Query()], principal: CanReadInsights, session: SessionDep
 ) -> Overview:
     return service.overview(session, principal, query)
+
+
+@router.get(
+    "/by-department",
+    response_model=ByDepartment,
+    responses=problem_responses(401, 403),
+    summary="Pay statistics per department",
+)
+def by_department(
+    query: Annotated[InsightQuery, Query()], principal: CanReadInsights, session: SessionDep
+) -> ByDepartment:
+    return service.by_department(session, principal, query)
