@@ -31,7 +31,9 @@ describe("LoginPage", () => {
       "Hema, HR Manager: hr@acme.example",
       "Farah, Viewer: viewer@acme.example",
     ]);
-    expect(demo).toHaveTextContent("The passwords are in the README.");
+    expect(demo).toHaveTextContent(
+      "The passwords are in the submission email.",
+    );
   });
 
   it("shows no demo accounts when the demo flag is off", () => {
