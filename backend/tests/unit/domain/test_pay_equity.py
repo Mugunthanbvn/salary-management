@@ -10,6 +10,7 @@ from salary_api.domain.money import CurrencyMismatchError, Money
 from salary_api.domain.pay_equity import (
     CohortKey,
     CompaRatio,
+    CompaRatioSummary,
     EmployeePay,
     NoCompaRatioReason,
     compa_ratio,
@@ -89,6 +90,33 @@ def test_flag_compares_the_unrounded_ratio_with_inclusive_band_edges(
     ratio: Decimal, expected: PayEquityFlag
 ) -> None:
     assert flag(ratio) is expected
+
+
+def test_a_ratio_summary_has_count_median_mean_and_flag_counts() -> None:
+    ratios = [Decimal(r) for r in ("0.70", "0.78", "0.80", "1.00", "1.20", "1.52")]
+
+    summary = CompaRatioSummary.of(ratios)
+
+    assert summary == CompaRatioSummary(
+        count=6,
+        median_compa_ratio=Decimal("0.90"),
+        mean_compa_ratio=Decimal("1.00"),
+        underpaid_count=2,  # 0.80 and 1.20 are in band
+        overpaid_count=1,
+    )
+
+
+def test_pct_below_band_is_the_unrounded_share_of_underpaid_people() -> None:
+    ratios = [Decimal("0.70")] * 12 + [Decimal("1.00")] * 29
+
+    summary = CompaRatioSummary.of(ratios)
+
+    assert summary.pct_below_band == Decimal(12) / 41  # shown as 0.29
+
+
+def test_a_ratio_summary_needs_at_least_one_ratio() -> None:
+    with pytest.raises(ValueError, match="no values"):
+        CompaRatioSummary.of([])
 
 
 def test_compa_ratio_refuses_a_band_in_another_currency() -> None:
