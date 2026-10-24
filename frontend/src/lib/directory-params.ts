@@ -81,8 +81,13 @@ export function hasFilters(
   state: DirectoryState,
   options: { canReadSalaries: boolean; reference: ReferenceData },
 ): boolean {
-  void options;
+  // Pay bounds count only when toListQuery sends them.
+  const payBounds =
+    options.canReadSalaries &&
+    salaryCurrency(state, options.reference) !== null &&
+    (state.salary_min !== null || state.salary_max !== null);
   return (
+    payBounds ||
     state.q.trim() !== "" ||
     state.country.length > 0 ||
     state.department_id.length > 0 ||
@@ -90,9 +95,7 @@ export function hasFilters(
     state.level.length > 0 ||
     state.employment_type.length > 0 ||
     state.currency.length > 0 ||
-    !isDefaultStatus(state.status) ||
-    state.salary_min !== null ||
-    state.salary_max !== null
+    !isDefaultStatus(state.status)
   );
 }
 
@@ -106,8 +109,17 @@ export function withPayBoundsChecked(
   patch: Partial<Nullable<DirectoryState>>,
   reference: ReferenceData,
 ): Partial<Nullable<DirectoryState>> {
-  void [state, reference];
-  return patch;
+  // Through the URL, so a null in the patch becomes that key's default.
+  const next = loadDirectoryParams(serializeDirectory({ ...state, ...patch }));
+  const bounded = state.salary_min !== null || state.salary_max !== null;
+  if (
+    !bounded ||
+    salaryCurrency(next, reference) === salaryCurrency(state, reference)
+  ) {
+    return patch;
+  }
+  // The bounds are minor units of the old currency: €40,000 is not ¥4,000,000.
+  return { ...patch, salary_min: null, salary_max: null };
 }
 
 /** Fields GET /employees can sort by (docs/07-api-spec.md §6.1). */

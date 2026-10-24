@@ -44,8 +44,13 @@ export function SortSelect({
 }) {
   const id = useId();
   const options = showPay ? [...SORTS, ...PAY_SORTS] : SORTS;
+  // A pay sort that no longer applies isn't sent, so the default is what the list shows.
+  const stalePaySort =
+    !payComparable && PAY_SORTS.some((o) => o.value === value);
   const current =
-    value === "last_name" || !options.some((o) => o.value === value)
+    value === "last_name" ||
+    stalePaySort ||
+    !options.some((o) => o.value === value)
       ? ""
       : (value ?? "");
   const showHint = showPay && !payComparable;

@@ -31,7 +31,7 @@ describe("hasFilters", () => {
       }),
     ).toBe(false);
     expect(
-      hasFilters(loadDirectoryParams("?currency=EUR&salary_min=1"), {
+      hasFilters(loadDirectoryParams("?salary_basis=usd&salary_min=1"), {
         canReadSalaries: false,
         reference,
       }),
