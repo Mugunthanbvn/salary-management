@@ -15,6 +15,19 @@ export function formatDate(iso: string): string {
   return DATE.format(new Date(`${iso}T00:00:00Z`));
 }
 
+const TIME = new Intl.DateTimeFormat("en-GB", {
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+  timeZone: "UTC",
+});
+
+/** `"2026-10-25T10:45:00Z"` → `"25 Oct 2026, 10:45 UTC"`: a timestamp, said in UTC. */
+export function formatDateTime(iso: string): string {
+  const instant = new Date(iso);
+  return `${DATE.format(instant)}, ${TIME.format(instant)} UTC`;
+}
+
 /** Today as `YYYY-MM-DD` in UTC, which is what the API checks "no future dates" against. */
 export function todayIso(): string {
   return new Date().toISOString().slice(0, 10);
