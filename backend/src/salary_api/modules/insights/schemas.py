@@ -1,8 +1,10 @@
 """Insight queries and responses (docs/07-api-spec.md section 8, docs/glossary.md section 6)."""
 
+from datetime import date
+
 from pydantic import BaseModel, ConfigDict, Field
 
-from salary_api.core.schemas import Comp, Id
+from salary_api.core.schemas import Comp, Id, Money
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.modules.reference.schemas import CountryCode
 
@@ -45,6 +47,38 @@ class Population(BaseModel):
     comp: Comp
 
 
+class Stats(BaseModel):
+    """One group's statistics in minor units of `currency` (docs/07 section 8.2).
+
+    Percentiles interpolate linearly; mean and percentiles are rounded half-even.
+    """
+
+    count: int | None
+    min: int | None
+    p25: int | None
+    median: int | None
+    mean: int | None
+    p75: int | None
+    max: int | None
+    currency: str
+    suppressed: bool
+
+
+class CountryStats(BaseModel):
+    """One country: in its own currency, and with each salary converted to USD."""
+
+    country_code: str
+    local: Stats
+    usd: Stats
+
+
 class Overview(BaseModel):
+    """docs/09 section 3.1. `stats` is in `currency`: the population's one currency, else USD."""
+
     population: Population
+    currency: str
+    fx_as_of: date | None  # the oldest rate used for a USD figure; None when none was needed
     headcount: int
+    total_payroll_usd: Money | None
+    stats: Stats
+    by_country: list[CountryStats]

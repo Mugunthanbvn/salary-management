@@ -279,6 +279,16 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * CountryStats
+         * @description One country: in its own currency, and with each salary converted to USD.
+         */
+        CountryStats: {
+            /** Country Code */
+            country_code: string;
+            local: components["schemas"]["Stats"];
+            usd: components["schemas"]["Stats"];
+        };
         /** CurrencyOption */
         CurrencyOption: {
             /** Code */
@@ -561,11 +571,22 @@ export interface components {
             /** Currency */
             currency: string;
         };
-        /** Overview */
+        /**
+         * Overview
+         * @description docs/09 section 3.1. `stats` is in `currency`: the population's one currency, else USD.
+         */
         Overview: {
+            /** By Country */
+            by_country: components["schemas"]["CountryStats"][];
+            /** Currency */
+            currency: string;
+            /** Fx As Of */
+            fx_as_of: string | null;
             /** Headcount */
             headcount: number;
             population: components["schemas"]["Population"];
+            stats: components["schemas"]["Stats"];
+            total_payroll_usd: components["schemas"]["Money"] | null;
         };
         /**
          * Permission
@@ -732,6 +753,32 @@ export interface components {
             /** Id */
             id: number;
             role: components["schemas"]["Role"];
+        };
+        /**
+         * Stats
+         * @description One group's statistics in minor units of `currency` (docs/07 section 8.2).
+         *
+         *     Percentiles interpolate linearly; mean and percentiles are rounded half-even.
+         */
+        Stats: {
+            /** Count */
+            count: number | null;
+            /** Currency */
+            currency: string;
+            /** Max */
+            max: number | null;
+            /** Mean */
+            mean: number | null;
+            /** Median */
+            median: number | null;
+            /** Min */
+            min: number | null;
+            /** P25 */
+            p25: number | null;
+            /** P75 */
+            p75: number | null;
+            /** Suppressed */
+            suppressed: boolean;
         };
         /** TerminateRequest */
         TerminateRequest: {

@@ -6,13 +6,16 @@ the maths (docs/19-performance.md section 4.2).
 
 from collections.abc import Sequence
 from dataclasses import dataclass
+from datetime import date
 
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Row, Select, select
 from sqlalchemy.orm import QueryableAttribute, Session
 
+from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.modules.employees.models import Employee
-from salary_api.modules.reference.models import JobRole
+from salary_api.modules.employees.repository import AMOUNT_COLUMNS
+from salary_api.modules.reference.models import Country, FxRate, JobRole
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,8 +30,35 @@ class PopulationFilter:
     statuses: Sequence[EmployeeStatus] = ()
 
 
-def headcount(session: Session, where: PopulationFilter) -> int:
-    return session.scalar(_matching(select(func.count(Employee.id)), where)) or 0
+@dataclass(frozen=True, slots=True)
+class CountryMarket:
+    """A country's salary currency and that currency's USD rate (None when it has none)."""
+
+    code: str
+    currency: str
+    rate_to_usd: str | None
+    as_of: date | None
+
+
+def countries_and_rates(session: Session) -> list[CountryMarket]:
+    """Every country with its currency's USD rate, in one query (an outer join)."""
+    query = (
+        select(Country.code, Country.default_currency, FxRate.rate_to_usd, FxRate.as_of)
+        .outerjoin(FxRate, FxRate.currency == Country.default_currency)
+        .order_by(Country.code)
+    )
+    return [CountryMarket(*row) for row in session.execute(query)]
+
+
+def amounts_by_country(
+    session: Session, where: PopulationFilter, comp: Comp
+) -> Sequence[Row[str, str, int]]:
+    """(country code, currency, amount) per employee, by country then amount."""
+    amount = AMOUNT_COLUMNS[comp]
+    query = _matching(select(Employee.country_code, Employee.currency, amount), where).order_by(
+        Employee.country_code, amount
+    )
+    return session.execute(query).all()
 
 
 def _matching[*Row](query: Select[*Row], where: PopulationFilter) -> Select[*Row]:
