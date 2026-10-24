@@ -53,6 +53,12 @@ class Money:
         sign, digits, _ = Decimal(self.amount_minor).as_tuple()
         return Decimal((sign, digits, -minor_unit_exponent(self.currency)))
 
+    def __add__(self, other: "Money") -> "Money":
+        return Money(self.amount_minor + other.amount_minor, self.currency)
+
+    def __sub__(self, other: "Money") -> "Money":
+        return Money(self.amount_minor - other.amount_minor, self.currency)
+
 
 def _parse_major(amount: str | Decimal) -> Decimal:
     """The major-unit amount as a finite Decimal. A float is refused, not converted."""
