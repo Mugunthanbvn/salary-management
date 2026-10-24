@@ -70,9 +70,22 @@ class Money:
         self._require_same_currency(other)
         return Money(self.amount_minor - other.amount_minor, self.currency)
 
+    def monthly_display(self) -> "Money":
+        """This annual amount ÷ 12, rounded half-even. For display only: never store or sum it."""
+        return Money(_divide_half_even(self.amount_minor, 12), self.currency)
+
     def _require_same_currency(self, other: "Money") -> None:
         if other.currency != self.currency:
             raise CurrencyMismatchError(self.currency, other.currency)
+
+
+def _divide_half_even(numerator: int, denominator: int) -> int:
+    """`numerator / denominator` rounded to the nearest int, ties to even, in exact int maths."""
+    quotient, remainder = divmod(numerator, denominator)
+    twice_remainder = 2 * remainder
+    if twice_remainder > denominator or (twice_remainder == denominator and quotient % 2 == 1):
+        quotient += 1
+    return quotient
 
 
 def _parse_major(amount: str | Decimal) -> Decimal:
