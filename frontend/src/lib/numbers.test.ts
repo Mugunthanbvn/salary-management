@@ -1,6 +1,26 @@
 import { describe, expect, it } from "vitest";
 
-import { formatCount, formatPercent, formatRatio } from "./numbers";
+import {
+  formatChangePct,
+  formatCount,
+  formatPercent,
+  formatRatio,
+} from "./numbers";
+
+describe("formatChangePct", () => {
+  // The salary history sends the change of base in percent, as "12.50" (two places).
+  it.each([
+    { pct: "12.50", text: "+12.5%" },
+    { pct: "4.00", text: "+4.0%" },
+    { pct: "-3.20", text: "-3.2%" },
+    { pct: "3.25", text: "+3.2%" }, // ties to even
+    { pct: "3.35", text: "+3.4%" }, // ties to even
+    { pct: "0.00", text: "0.0%" },
+    { pct: "-0.04", text: "0.0%" }, // rounds to zero: no "-0.0%"
+  ])("shows $pct as $text", ({ pct, text }) => {
+    expect(formatChangePct(pct)).toBe(text);
+  });
+});
 
 describe("formatRatio", () => {
   // Ratios such as the compa-ratio arrive from the API as decimal strings.

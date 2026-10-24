@@ -169,12 +169,12 @@ Rules: when a group mixes currencies, the section header shows a **"USD"** badge
 
 | Area | Content |
 |---|---|
-| Toolbar | Search box (name, employee code, email; debounced 300 ms; **case- and accent-insensitive**: `muller` finds `Müller` and `jose` finds `José`, via the backend's lowercased, accent-stripped `search_text`); filter chips: country, department, job role, level, status, employment type, currency, salary range (enabled only once a currency is chosen, or with "compare in USD"). **For Viewers, the salary-range filter and sorting by salary are not shown** (the API rejects them with `403`) |
-| Actions (HR/Admin) | **+ New employee** · **Import** · **Export ▾** (CSV / XLSX) |
-| Table (TanStack Table, server-side paging + sort) | Code · Name · Job role · Level · Department · Country · Type · Status · **Base salary** · **Total comp** (salary columns need `SALARY_READ`) · Hire date |
-| Row | Click → detail. Terminated rows are greyed, with a "Terminated" badge |
-| Footer | "Showing 26–50 of 9,700" · page size 25/50/100 · pagination |
-| Empty | "No employees match these filters" + Clear filters |
+| Toolbar | Search box (name, employee code, email; debounced 300 ms; searches from 2 characters, the API's minimum; **case- and accent-insensitive**: `muller` finds `Müller` and `jose` finds `José`, via the backend's lowercased, accent-stripped `search_text`); filters: country, department, job role, level, employment type, status, currency (popover buttons on a desktop, a "Filters (n)" sheet with removable chips on a phone); "Sort by" (name, employee code, hire date, country, level and, with `SALARY_READ`, base or total pay). **Pay range and pay sorts** (`SALARY_READ` only) are enabled only when the API can compare pay: one country, one currency, or "Compare pay in: US dollars" (`salary_basis=usd`); otherwise they are disabled with a short hint and never sent. **For Viewers, the pay range, pay sorts and pay toggles are not shown** (the API rejects them with `403`) |
+| Actions | **Add employee** (`EMPLOYEE_WRITE` + `SALARY_WRITE`) · **Import from Excel** (`IMPORT`). Export is added with the import/export screens (B7) |
+| Table (server-side paging and sort; a plain table, nothing is sorted or paged in the browser) | Name (employee code below) · Job role and level · Department (from 768 px) · Country · Type (from 1024 px) · **one pay column** (`SALARY_READ` only): base or total, a year or a month, following the Base/Total and Annual/Monthly toggles · Hired (from 1024 px). Below 640 px the rows become a card list |
+| Row | Click the name → detail. Terminated rows are greyed and say "Terminated" in words |
+| Footer | "Showing 26–50 of 9,700" · rows per page 25/50/100 (desktop only) · Previous / Next |
+| Empty | "No employees match these filters" + Clear filters; a page past the end offers "Go to the first page" |
 
 Export uses the **current URL filters**: what you see is what you export ([11-import-export.md](11-import-export.md) §6).
 
@@ -182,21 +182,24 @@ Export uses the **current URL filters**: what you see is what you export ([11-im
 
 | Section | Content | Permission |
 |---|---|---|
-| Header | Name, code, status badge, job role · level · department · country · type, hire date; actions: **Edit**, **Terminate / Reactivate** (confirmation dialog), **Record salary change** | actions need `EMPLOYEE_WRITE` / `SALARY_WRITE` |
-| **Current compensation** card | Base, each allowance, bonus target, **total comp**; Annual/Monthly toggle; USD equivalent with FX date; compa-ratio badge vs pay band (band min/mid/max shown on hover) | `SALARY_READ` |
-| **Salary timeline** | Vertical timeline, newest first: date, reason badge (Hire / Promotion / Merit / Market adjustment / Correction), old → new base, **% change**, level/role change ("L2 → L3"), changed by. Small line chart of base over time | `SALARY_READ` |
+| Header | Name; one sentence with job role, level, department, country, type, hire date and code; "Terminated on …" in words; actions: **Edit details**, **Terminate / Reactivate** (confirmation dialog), **Record salary change** (hidden for a terminated employee: reactivate first). On a phone, Record salary change sits in a bar fixed above the bottom navigation | actions need `EMPLOYEE_WRITE` / `SALARY_WRITE` |
+| **What is … paid?** | **Total pay** highlighted, then base and each allowance or bonus target; Annual/Monthly toggle (`period`, display only); the reason and date of the current record. Viewers see "Compensation details are restricted for your role." instead | `SALARY_READ` |
+| **How did …'s pay get here?** | Every record, newest first: date, reason in words (Hired / Promotion / Merit raise / Market adjustment / Correction), role or level change ("L2 to L3"), changed by, old → new base, **% change** (`base_change_pct` from the API) and the note. Not fetched at all without `SALARY_READ` | `SALARY_READ` |
+| **Who is …?** | Email, code, job role, level, department, country, employment type, status, hire and termination dates | all |
+| Not in v1 | A USD equivalent, the compa-ratio against the pay band and a line chart of base over time: `GET /employees/{id}` does not return a USD figure or the band, and the UI never converts or compares money itself | |
 | Activity (proposed) | Recent audit events for this employee | `AUDIT_READ` |
 
-**Record salary change** (dialog / side sheet):
-- Fields: effective date (default today; future dates not allowed, with an explanatory hint), reason (enum), new base, components editor (add/remove allowance rows; bonus target), optional new job role and level. **A Promotion must change the level or the job role**, and the form enforces this, mirroring the backend rule.
-- A live preview shows "+8.5% vs current, new total comp €61,200 · ≈ US$66,100".
-- Validation mirrors the backend (zod schemas built from the OpenAPI types).
+**Record salary change** (a dialog; full screen on a phone with a sticky title and buttons):
+- Fields: effective date (default today in UTC, the API's "today"; the date picker stops at today), reason (no "Hired"), optional new job role, level and country (a move shows the new currency and empties the amounts typed in the old one; the currency is sent so the API confirms it), new base and the components (pre-filled from the current record; add, change or remove rows; the list replaces the current one), note.
+- Amounts are typed in **major units** (`inputmode="decimal"`, commas allowed) and turned into minor units with string maths, using the currency's exponent from `GET /reference`. More decimals than the currency has are refused with the API's message ("12.345 has more decimals than EUR allows").
+- **The API checks every rule** (no future dates, not before the latest record, a promotion must change the level or the role, the currency follows the country); its `errors[]` show next to their fields. The form itself only asks for missing values and reads amounts. There is no live "+8.5%" preview: the change in percent and the totals come from the API, which the UI shows after saving.
+- A `409 version-conflict` shows "This employee was changed by someone else. Reload to see their changes." with a Reload button.
 
 **Edit employee**: profile fields only (name, email, employment type). **Salary, job role, level and country can't be edited here.** They change only through "Record salary change", so every change is captured in history with a reason. Department is derived from the job role and is not edited separately. The optimistic-lock `version` is sent in the request body.
 
 ### 4.6 Create employee (`/employees/new`)
 
-Profile fields + initial compensation (base, components, currency defaulting from country). Creates the employee and the HIRE salary record in one request. On success, redirects to the detail page.
+Needs `EMPLOYEE_WRITE` **and** `SALARY_WRITE` (like `POST /employees`), otherwise "You don't have access to this". Three questions: "Who are they?" (names, email, optional employee code), "What is their job?" (job role, level, employment type, country, hire date) and "What will they be paid?" (the currency is shown from the country and can't be chosen, base in major units, components, note). Creates the employee and the HIRE salary record in one request. On success, opens the detail page with a "… was added." toast.
 
 ### 4.7 Import (`/employees/import`)
 
