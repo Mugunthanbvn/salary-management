@@ -55,7 +55,8 @@ flowchart LR
 
 1. Import the same repo as a second project; **Root Directory = `frontend`**; framework Next.js; install command `pnpm install --frozen-lockfile`.
 2. Set `API_ORIGIN` to the API project's production URL (previews: the matching preview URL, see section 4).
-3. Verify login end to end in Chrome **and Safari**.
+3. Set `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true` so `/login` lists the demo accounts (names, emails, roles; never passwords). Like the rewrite's `API_ORIGIN`, it is inlined by `next build`, so set both before the first build and redeploy after changing them.
+4. Verify login end to end in Chrome **and Safari**.
 
 ### 3.4 Rewrite configuration
 
@@ -94,6 +95,7 @@ export default nextConfig;
 | `ASK_RATE_LIMIT_PER_HOUR` | api | `20` | — | — | `20` | no |
 | `SEED_ADMIN_PASSWORD`, `SEED_HR_PASSWORD`, `SEED_VIEWER_PASSWORD` | seed script | dev values | test values | demo values | demo values | **yes** |
 | `API_ORIGIN` | web | `http://localhost:8000` | `http://localhost:8000` | API preview URL | API prod URL | no |
+| `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | web | `false` | — | — | `true` (the demo lists the demo accounts on `/login`, never passwords) | no |
 
 Rules:
 - `.env.example` in each app lists every variable with safe placeholders and comments. Real `.env` files are git-ignored and **denied to Claude Code** ([16-claude-code-setup.md](16-claude-code-setup.md#71-permissions-outline)).
