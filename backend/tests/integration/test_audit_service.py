@@ -25,6 +25,7 @@ GLOSSARY_V1_ACTIONS = [
     "export.download",
     "insights.individuals_view",
     "ask.query",
+    "ask.answer",
 ]
 
 
