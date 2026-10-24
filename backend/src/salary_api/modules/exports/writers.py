@@ -32,16 +32,21 @@ def xlsx_bytes(title: str, header: Sequence[str], rows: Iterable[Sequence[CellVa
 
     openpyxl writes text as a formula only when it starts with `=`, which escape_formula
     never leaves, so every text cell is a string cell (`t="s"`); numbers stay numbers and
-    dates get a date format.
+    dates get a date format. Control characters that XML 1.0 cannot hold (such as \\x0b)
+    are dropped, as openpyxl refuses them.
     """
     # Imported here, not at the top: openpyxl is slow to import (docs/19 section 6.3).
     from openpyxl import Workbook  # noqa: PLC0415
+    from openpyxl.cell.cell import ILLEGAL_CHARACTERS_RE  # noqa: PLC0415
+
+    def text(value: str) -> str:
+        return escape_formula(ILLEGAL_CHARACTERS_RE.sub("", value))
 
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet(title)
-    sheet.append([escape_formula(name) for name in header])
+    sheet.append([text(name) for name in header])
     for row in rows:
-        sheet.append([escape_formula(cell) if isinstance(cell, str) else cell for cell in row])
+        sheet.append([text(cell) if isinstance(cell, str) else cell for cell in row])
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
