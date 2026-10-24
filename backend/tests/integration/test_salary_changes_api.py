@@ -16,7 +16,7 @@ from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.salaries.models import SalaryRecord
 from tests.conftest import signed_in_client
-from tests.factories import make_employee, make_job_role, make_user
+from tests.factories import make_country, make_employee, make_job_role, make_user
 
 EMPLOYEES = "/api/v1/employees"
 PROBLEMS = "https://acme.example/problems/"
@@ -311,3 +311,87 @@ def test_a_salary_change_refuses_a_false_promotion_or_an_unknown_role(
 
     assert response.status_code == 422
     assert [(e["loc"], e["code"]) for e in response.json()["errors"]] == [error]
+
+
+def test_a_relocation_moves_the_employee_and_pays_in_the_new_country_s_currency(
+    app: FastAPI,
+    client: TestClient,
+    db_session: Session,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    hr = make_user(db_session, role="HR_MANAGER")
+    employee = make_employee(db_session, country="DE", base_minor=8_000_000)
+    make_country(db_session, "US")
+    http = signed_in_client(app, hr, settings)
+
+    response = http.post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes",
+        json=salary_change(
+            reason="MARKET_ADJUSTMENT", country_code="US", base_minor=9_500_000, components=[]
+        ),
+    )
+
+    assert response.status_code == 201
+    record = response.json()["record"]
+    assert (record["base"], record["base_change_pct"]) == (
+        {"amount_minor": 9_500_000, "currency": "USD"},
+        None,  # EUR to USD: not comparable
+    )
+    detail = http.get(f"{EMPLOYEES}/{employee.id}").json()
+    assert (detail["country_code"], detail["current_base"]["currency"]) == ("US", "USD")
+    event = db_session.scalars(select(AuditEvent)).one()
+    assert event.diff is not None
+    assert (event.diff["country_code"], event.diff["currency"]) == (["DE", "US"], ["EUR", "USD"])
+
+
+@pytest.mark.parametrize(
+    ("overrides", "error"),
+    [
+        pytest.param(
+            {"currency": "USD"}, (["body", "currency"], "currency_mismatch"), id="not EUR in DE"
+        ),
+        pytest.param(
+            {"country_code": "JP", "currency": "EUR"},
+            (["body", "currency"], "currency_mismatch"),
+            id="not JPY in JP",
+        ),
+        pytest.param(
+            {"country_code": "XX"}, (["body", "country_code"], "not_found"), id="unknown country"
+        ),
+        pytest.param(
+            {"country_code": "BR"}, (["body", "country_code"], "inactive"), id="inactive country"
+        ),
+    ],
+)
+def test_a_salary_change_is_paid_in_the_currency_of_an_active_country(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    overrides: dict[str, Any],
+    error: tuple[list[str], str],
+) -> None:
+    employee = make_employee(db_session, country="DE")
+    make_country(db_session, "JP")
+    make_country(db_session, "BR", is_active=False)
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes", json=salary_change(**overrides)
+    )
+
+    assert response.status_code == 422
+    assert [(e["loc"], e["code"]) for e in response.json()["errors"]] == [error]
+
+
+def test_the_country_currency_may_be_given_explicitly(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    employee = make_employee(db_session, country="DE")
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes", json=salary_change(currency="EUR")
+    )
+
+    assert response.status_code == 201
