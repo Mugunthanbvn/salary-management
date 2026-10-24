@@ -1,0 +1,30 @@
+# Git hooks (docs/15-tooling-devex.md section 7), installed by `make setup`.
+# They format and lint staged files and check the commit message. They never run the
+# test suite, so red TDD commits stay possible; CI is the gate.
+
+pre-commit:
+  parallel: true
+  commands:
+    ruff:
+      root: "backend/"
+      glob: "*.py"
+      run: uv run --no-sync ruff format {staged_files} && uv run --no-sync ruff check --fix {staged_files}
+      stage_fixed: true
+    prettier:
+      root: "frontend/"
+      glob: "*.{ts,tsx,js,mjs,cjs,json,css,md}"
+      # Skipped until `make setup` has installed the frontend dependencies.
+      run: if [ -d node_modules ]; then pnpm exec prettier --write {staged_files}; fi
+      stage_fixed: true
+    eslint:
+      root: "frontend/"
+      glob: "*.{ts,tsx,js,mjs}"
+      run: if [ -d node_modules ]; then pnpm exec eslint {staged_files}; fi
+    gitleaks:
+      # Optional locally (CI always scans the full history).
+      run: if command -v gitleaks >/dev/null 2>&1; then gitleaks protect --staged --redact; fi
+
+commit-msg:
+  commands:
+    conventional-commit:
+      run: scripts/check-commit-msg.sh {1}
