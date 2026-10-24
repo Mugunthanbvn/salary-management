@@ -200,7 +200,7 @@ def test_employee_indexes_serve_the_list_filters_and_sorts(db_session: Session) 
         "ix_employees_status_employment_type": ["status", "employment_type"],
         "ix_employees_currency_base": ["currency", "current_base_minor"],
         "ix_employees_last_first": ["last_name", "first_name"],
-        "ix_employees_search_text": ["search_text"],
+        # No index on search_text: infix LIKE '%term%' cannot use one (a 10k-row scan).
     }
 
 
