@@ -1,7 +1,7 @@
 type ApiStatusProps = {
-  status: "ok";
+  status: "ok" | "unreachable";
 };
 
 export function ApiStatus({ status }: ApiStatusProps) {
-  return <p role="status">API: {status}</p>;
+  return <p role="status">{status === "ok" ? "API: ok" : "API unreachable"}</p>;
 }
