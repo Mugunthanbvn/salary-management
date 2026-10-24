@@ -178,7 +178,7 @@ Each skill is a `SKILL.md` with a trigger-style `description` (so Claude invokes
 1. `git status` + `git diff --staged`; if nothing is staged, propose a **single logical** change set to stage.
 2. Keep red and green separate: never mix a new failing test and its implementation into one commit when doing TDD pairing.
 3. Write a Conventional Commit message (`type(scope): subject` ≤ 72 chars, body for the why).
-4. Add the agreed attribution trailer.
+4. Add the attribution trailer lines the current session provides (default `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`); never hard-code a session link.
 5. Commit. Never `--no-verify`, never amend a pushed commit, never push unless asked.
 
 ---

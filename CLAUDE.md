@@ -61,12 +61,9 @@ Fastest TDD loop: `cd backend && uv run pytest tests/unit/domain -q` or `cd fron
 
 `type(scope): subject`, subject ≤ 72 chars, imperative. Types: feat, fix, test, refactor, docs, chore, ci,
 build, perf, style, revert. Scopes follow modules (money, auth, employees, salaries, insights, import, export,
-audit, ask, seed, ui, deploy, docs). Every commit message ends with:
-
-```
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01TeA7MkfNzAjPMWbzGMqgrL
-```
+audit, ask, seed, ui, deploy, docs). Every commit message ends with the attribution trailer lines the
+current session provides (e.g. in its system instructions). If it provides none, end with
+`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never copy a session link from an old commit.
 
 Never `--no-verify`, never force-push, never amend a pushed commit.
 
