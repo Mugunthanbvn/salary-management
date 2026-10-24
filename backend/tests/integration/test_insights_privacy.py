@@ -146,3 +146,46 @@ def test_the_extremes_scan_finds_a_min_or_max_but_not_a_band() -> None:
     body = {"groups": [{"stats": {"min": 1, "max": None}, "band": {"min": 2, "max": 3}}]}
 
     assert _extremes_in(body) == ["$.groups[0].stats.min"]
+
+
+def _shown_countries(body: dict[str, Any]) -> dict[str, int | None]:
+    return {row["country_code"]: row["local"]["count"] for row in body["by_country"]}
+
+
+@pytest.mark.parametrize(
+    ("sizes", "shown"),
+    [
+        # Hiding Germany alone would let headcount minus the others reveal it: hide France too.
+        ({"DE": 3, "FR": 6, "US": 10}, {"DE": None, "FR": None, "US": 10}),
+        # Two groups are already hidden, so nothing more is.
+        ({"DE": 3, "FR": 2, "US": 10}, {"DE": None, "FR": None, "US": 10}),
+        # A tie goes to the group listed first.
+        ({"DE": 3, "FR": 6, "GB": 6, "US": 10}, {"DE": None, "FR": None, "GB": 6, "US": 10}),
+        # Nothing hidden, nothing more to hide.
+        ({"DE": 5, "FR": 6}, {"DE": 5, "FR": 6}),
+    ],
+)
+def test_viewer_has_the_next_smallest_group_hidden_with_a_suppressed_one(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    sizes: dict[str, int],
+    shown: dict[str, int | None],
+) -> None:
+    for country, size in sizes.items():
+        _employees(db_session, country, size)
+
+    body = as_role("VIEWER").get(OVERVIEW).json()
+
+    assert _shown_countries(body) == shown
+    assert body["headcount"] == sum(sizes.values())  # the total stays visible
+
+
+def test_hr_has_no_group_hidden_by_complementary_suppression(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    for country, size in {"DE": 3, "FR": 6, "US": 10}.items():
+        _employees(db_session, country, size)
+
+    body = as_role("HR_MANAGER").get(OVERVIEW).json()
+
+    assert _shown_countries(body) == {"DE": 3, "FR": 6, "US": 10}
