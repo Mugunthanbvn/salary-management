@@ -152,7 +152,7 @@ def make_employee(session, *, country="DE", level="L3", base_minor=6_000_000,
 
 Each builder sets sensible defaults, so a test only states the fields that matter to it. That keeps the intent visible: a test about Germany says `country="DE"` and nothing else.
 
-`make_user(session, role="VIEWER", email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`.
+`make_user(session, role=..., email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`. `role` defaults to `VIEWER`, the least privilege, so a test that needs more says so. The email is unique per call unless given.
 
 ---
 

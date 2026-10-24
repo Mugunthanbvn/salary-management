@@ -56,7 +56,7 @@ _user_numbers = count(1)
 def make_user(
     session: Session,
     *,
-    role: Role | str = Role.HR_MANAGER,
+    role: Role | str = Role.VIEWER,
     email: str | None = None,
     password: str = DEFAULT_PASSWORD,
     full_name: str | None = None,
