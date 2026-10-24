@@ -94,3 +94,23 @@ def test_app_env_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
 
     with pytest.raises(ValidationError, match="app_env"):
         settings_from_environment()
+
+
+@pytest.mark.parametrize("problem", ["missing APP_ENV", "unsafe production values"])
+def test_settings_errors_never_show_secret_values(
+    monkeypatch: pytest.MonkeyPatch, problem: str
+) -> None:
+    jwt_secret, auth_token = secrets.token_urlsafe(32), secrets.token_urlsafe(24)
+    monkeypatch.setenv("JWT_SECRET", jwt_secret)
+    monkeypatch.setenv("DATABASE_AUTH_TOKEN", auth_token)
+    if problem == "missing APP_ENV":
+        monkeypatch.delenv("APP_ENV", raising=False)
+    else:
+        monkeypatch.setenv("APP_ENV", "production")  # COOKIE_SECURE and DATABASE_URL are unsafe
+
+    with pytest.raises(ValidationError) as error:
+        settings_from_environment()
+
+    shown = str(error.value) + repr(error.value.errors())
+    assert jwt_secret not in shown
+    assert auth_token not in shown
