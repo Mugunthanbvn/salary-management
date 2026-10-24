@@ -7,6 +7,7 @@ import math
 from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
 from decimal import Decimal
+from typing import Self
 
 from salary_api.domain.rounding import divide_half_even, round_half_even
 
@@ -33,27 +34,36 @@ class Summary:
     max: int
     sum: int
 
+    @classmethod
+    def of(cls, amounts: Iterable[int]) -> Self:
+        """The summary of a group known not to be empty (ValueError otherwise).
+
+        Mean and percentiles are rounded half-even to the minor unit. The order of
+        `amounts` does not matter.
+        """
+        ordered = sorted(amounts)
+        if not ordered:
+            raise ValueError("summary of no amounts")
+        total = sum(ordered)
+        return cls(
+            count=len(ordered),
+            min=ordered[0],
+            p25=round_half_even(_percentile(ordered, P25)),
+            median=round_half_even(_percentile(ordered, P50)),
+            mean=divide_half_even(total, len(ordered)),
+            p75=round_half_even(_percentile(ordered, P75)),
+            max=ordered[-1],
+            sum=total,
+        )
+
 
 def summarize(amounts: Iterable[int]) -> Summary | InsufficientData:
     """Count, min, max, sum, mean, median, P25 and P75 of `amounts`, in their minor units.
 
-    Mean and percentiles are rounded half-even to the minor unit. The order of `amounts`
-    does not matter.
+    A group that may be empty (filters can match nobody) gives InsufficientData, not zeros.
     """
     ordered = sorted(amounts)
-    if not ordered:
-        return InsufficientData()
-    total = sum(ordered)
-    return Summary(
-        count=len(ordered),
-        min=ordered[0],
-        p25=round_half_even(_percentile(ordered, P25)),
-        median=round_half_even(_percentile(ordered, P50)),
-        mean=divide_half_even(total, len(ordered)),
-        p75=round_half_even(_percentile(ordered, P75)),
-        max=ordered[-1],
-        sum=total,
-    )
+    return Summary.of(ordered) if ordered else InsufficientData()
 
 
 def median(values: Iterable[Decimal]) -> Decimal:
