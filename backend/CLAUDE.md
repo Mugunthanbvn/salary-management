@@ -26,7 +26,7 @@ New feature slice: use `/new-module`. Mirror an existing module; don't invent a 
 
 ## Rules
 
-- **Dependencies:** `uv add <pkg>`, `uv add --group test <pkg>`, `uv remove <pkg>`. Never edit `uv.lock`.
+- **Dependencies:** `uv add <pkg>`, `uv add --group dev <pkg>` (test tools live in the `dev` group), `uv remove <pkg>`. Never edit `uv.lock`.
 - **Layers:** routers import schemas, services and `core.deps` only. Services own use cases, transactions,
   masking, the small-group rule and audit writes. Repositories run SQLAlchemy queries only. Domain is pure.
 - **DB:** SQLAlchemy expressions only; never raw SQL strings with interpolation. Sort fields come from an allow-list.

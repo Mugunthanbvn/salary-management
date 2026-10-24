@@ -2,6 +2,11 @@
 # They format and lint staged files and check the commit message. They never run the
 # test suite, so red TDD commits stay possible; CI is the gate.
 
+# Print only failures so commits stay quiet.
+output:
+  - failure
+  - execution_out
+
 pre-commit:
   parallel: true
   commands:
@@ -19,7 +24,7 @@ pre-commit:
     eslint:
       root: "frontend/"
       glob: "*.{ts,tsx,js,mjs}"
-      run: if [ -d node_modules ]; then pnpm exec eslint {staged_files}; fi
+      run: if [ -d node_modules ]; then pnpm exec eslint --no-warn-ignored {staged_files}; fi
     gitleaks:
       # Optional locally (CI always scans the full history).
       run: if command -v gitleaks >/dev/null 2>&1; then gitleaks protect --staged --redact; fi

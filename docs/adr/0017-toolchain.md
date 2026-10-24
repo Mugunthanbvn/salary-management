@@ -72,6 +72,16 @@ Installed with `uv add` at scaffold time (2026-10-24) and pinned in `backend/uv.
 | dev | ruff 0.17.2, pyright 1.1.414, pytest 9.1.1, pytest-cov 7.1.0 (coverage 7.17.0), hypothesis 6.170.9, pytest-randomly 5.0.0, pytest-xdist 3.8.0, pytest-socket 0.8.1, time-machine 3.5.1, httpx 0.28.1, lefthook 2.2.2 (the PyPI package that ships the binary) |
 | seed | faker 40.43.0 |
 
+## Resolved versions (frontend)
+
+Installed with `pnpm create next-app@16.4.3` and `pnpm add` at scaffold time (2026-10-24), pinned in `frontend/pnpm-lock.yaml`.
+
+| Group | Packages |
+|---|---|
+| Runtime | Node 22, pnpm 10.28.0 (via corepack, `packageManager`) |
+| App | next 16.4.3 (Cache Components on), react 19.3.0, tailwindcss 4.3.3, shadcn 4.22.1 (radix base), openapi-fetch 0.17.0 |
+| Dev | typescript 5.9.3, eslint 9.39.5, typescript-eslint 8.72.0, prettier 3.9.10, vitest 4.1.12, vite 8.3.5, jsdom 30.1.3, msw 2.15.0, @playwright/test 1.63.0 (pinned to the pre-installed browsers), openapi-typescript 7.13.0 |
+
 Not installed yet: the Turso/libSQL SQLAlchemy driver. It is added when the API is deployed ([17-deployment.md](../17-deployment.md)).
 
 ## Consequences
