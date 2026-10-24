@@ -52,8 +52,8 @@ src = ["src", "tests"]
 select = ["E", "F", "I", "B", "UP", "SIM", "S", "PT", "RUF", "N", "PL"]
 
 [tool.ruff.lint.per-file-ignores]
-# Tests use plain asserts and literal status codes.
-"tests/**" = ["S101", "PLR2004"]
+# Tests use plain asserts, literal status codes and fake secrets.
+"tests/**" = ["S101", "S105", "S106", "PLR2004"]
 
 [tool.ruff.lint.isort]
 known-first-party = ["salary_api"]
@@ -76,7 +76,6 @@ addopts = [
     "-ra",
     "--strict-markers",
     "--strict-config",
-    "--import-mode=importlib",
     "-n", "auto",
     "--disable-socket",
     "--allow-unix-socket",
