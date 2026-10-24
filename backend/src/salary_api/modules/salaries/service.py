@@ -11,17 +11,19 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from salary_api.core.errors import InvalidState, ValidationFailed
+from salary_api.core.errors import FieldError, InvalidState, ValidationFailed
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.compensation import total_compensation
 from salary_api.domain.enums import EmployeeStatus, Level, SalaryReason
 from salary_api.domain.money import Money as DomainMoney
-from salary_api.domain.salary_change import base_change_pct
+from salary_api.domain.salary_change import base_change_pct, is_promotion
 from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees import locking
 from salary_api.modules.employees.models import Employee
+from salary_api.modules.reference import repository as reference
+from salary_api.modules.reference.models import JobRole
 from salary_api.modules.reference.schemas import JobRoleRef
 from salary_api.modules.salaries import repository
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
@@ -78,15 +80,19 @@ def record_salary_change(
     if employee.status != EmployeeStatus.ACTIVE:
         raise InvalidState(f"Employee {employee_id} is terminated: reactivate them first.")
     previous = repository.latest_record(session, employee_id)
-    _check_effective_date(request.effective_date, employee, previous)
+    role = _job_role(session, employee, request.job_role_id)
+    level = request.level or employee.level
+    errors = _broken_rules(request, employee, previous, role=role, level=level)
+    if errors or role is None:
+        raise ValidationFailed(errors)
     pay = Pay(DomainMoney(request.base_minor, employee.currency), request.components)
     record = _new_record(
         employee.id,
         pay,
         effective_date=request.effective_date,
         reason=request.reason,
-        job_role_id=employee.job_role_id,
-        level=employee.level,
+        job_role_id=role.id,
+        level=level,
         note=request.note,
         changed_by=principal.user_id,
     )
@@ -95,7 +101,13 @@ def record_salary_change(
         "effective_date": request.effective_date.isoformat(),
         "base_minor": [employee.current_base_minor, record.base_minor],
     }
+    if role.id != employee.job_role_id:
+        diff["job_role_id"] = [employee.job_role_id, role.id]
+    if level != employee.level:
+        diff["level"] = [employee.level, level]
     repository.add_record(session, record)
+    employee.job_role = role
+    employee.level = level
     _make_current(employee, record)
     employee.version += 1
     record_event(
@@ -110,9 +122,42 @@ def record_salary_change(
     return SalaryChange(record=_history_record(record, previous), employee_version=employee.version)
 
 
-def _check_effective_date(
+def _job_role(session: Session, employee: Employee, job_role_id: int | None) -> JobRole | None:
+    """The role after the change: the current one unless another is asked for."""
+    if job_role_id is None or job_role_id == employee.job_role_id:
+        return employee.job_role
+    return reference.get_job_role(session, job_role_id)
+
+
+def _broken_rules(
+    request: SalaryChangeRequest,
+    employee: Employee,
+    latest: SalaryRecord | None,
+    *,
+    role: JobRole | None,
+    level: Level,
+) -> list[FieldError]:
+    """Every rule of docs/07 section 6.7 the change breaks, as field errors."""
+    errors: list[FieldError] = []
+    if (date_error := _effective_date_error(request.effective_date, employee, latest)) is not None:
+        errors.append(date_error)
+    if role is None:
+        message = f"Unknown job role {request.job_role_id}."
+        errors.append({"loc": ["body", "job_role_id"], "code": "not_found", "message": message})
+    elif request.reason == SalaryReason.PROMOTION and not is_promotion(
+        old_level=employee.level,
+        new_level=level,
+        old_role_id=employee.job_role_id,
+        new_role_id=role.id,
+    ):
+        message = "A promotion needs a higher level or a different job role."
+        errors.append({"loc": ["body", "reason"], "code": "not_a_promotion", "message": message})
+    return errors
+
+
+def _effective_date_error(
     effective_date: date, employee: Employee, latest: SalaryRecord | None
-) -> None:
+) -> FieldError | None:
     """No future-dated changes, nothing before the hire date or the latest record (ADR 0006),
     so the latest record is always the current one."""
     if effective_date > utc_now().date():
@@ -123,8 +168,8 @@ def _check_effective_date(
         code = "before_latest_record"
         message = f"The latest salary record is effective {latest.effective_date}."
     else:
-        return
-    raise ValidationFailed([{"loc": ["body", "effective_date"], "code": code, "message": message}])
+        return None
+    return {"loc": ["body", "effective_date"], "code": code, "message": message}
 
 
 def _new_record(  # noqa: PLR0913  (one keyword per snapshot column)

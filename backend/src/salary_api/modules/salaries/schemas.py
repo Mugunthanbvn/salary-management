@@ -53,6 +53,8 @@ class SalaryChangeRequest(BaseModel):
     version: int = Field(ge=1)  # the employee version the client read
     effective_date: date
     reason: SalaryReason
+    job_role_id: int | None = None  # a new role; PROMOTION needs a new role or a higher level
+    level: Level | None = None
     base_minor: BaseMinor
     # Replaces the component set; nothing is inherited from the current record.
     components: Components = []

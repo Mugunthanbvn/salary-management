@@ -611,6 +611,9 @@ export interface components {
              * Format: date
              */
             effective_date: string;
+            /** Job Role Id */
+            job_role_id?: number | null;
+            level?: components["schemas"]["Level"] | null;
             /** Note */
             note?: string | null;
             reason: components["schemas"]["SalaryReason"];
