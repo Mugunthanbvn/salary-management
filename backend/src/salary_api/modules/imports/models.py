@@ -39,8 +39,10 @@ class ImportJob(Base):
     row_count: Mapped[int]
     valid_count: Mapped[int]
     error_count: Mapped[int]
-    # [{row, column, code, message, value}], in row order.
+    # [{row, column, code, message, value}], in row order: the first MAX_REPORTED_ERRORS.
     errors: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
+    # The valid values of each column with an unknown_value error: {column: [values]}.
+    allowed_values: Mapped[dict[str, list[str]]] = mapped_column(JSON, default=dict)
     # The first valid rows, as the UI shows them. SQL NULL (not JSON null) once cleared.
     preview: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True))
     # Every normalized row; kept only while a job without errors can still be committed.

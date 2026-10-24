@@ -57,6 +57,8 @@ def test_hr_uploads_a_csv_and_gets_a_201_dry_run_report(
         "valid_count": 2,
         "error_count": 0,
         "errors": [],
+        "errors_truncated": False,
+        "allowed_values": {},
         "preview": [
             {
                 "row": 2,

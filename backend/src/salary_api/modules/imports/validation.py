@@ -182,6 +182,20 @@ def db_duplicates(
     return errors
 
 
+def allowed_values(errors: Sequence[RowError], reference: ImportReference) -> dict[str, list[str]]:
+    """The valid values of each column with an `unknown_value` error, listed once for the
+    report rather than in every message (a bad file would repeat them thousands of times)."""
+    lists: dict[str, list[str]] = {
+        "job_role": sorted(role.title for role in reference.job_roles),
+        "level": [level.value for level in Level],
+        "employment_type": [kind.value for kind in EmploymentType],
+        "country": sorted(c.code for c in reference.countries.values() if c.is_active),
+        "currency": sorted(SUPPORTED_CURRENCIES),
+    }
+    unknown = {error.column for error in errors if error.code == RowErrorCode.UNKNOWN_VALUE}
+    return {column: values for column, values in lists.items() if column in unknown}
+
+
 def _report(
     row_count: int, rows: Sequence[ImportRow], errors: Sequence[RowError], keys: list[RowKey]
 ) -> ValidationReport:
@@ -313,8 +327,7 @@ class _RowCheck:
         try:
             return enum(value.upper())
         except ValueError:
-            allowed = ", ".join(enum)
-            message = f"'{value}' is not a known {label}. Use one of {allowed}."
+            message = f"'{value}' is not a known {label}."
             self._fail(column, RowErrorCode.UNKNOWN_VALUE, message)
             return None
 
@@ -327,8 +340,7 @@ class _RowCheck:
         if role is None:
             guess = difflib.get_close_matches(value.casefold(), list(by_title), n=1, cutoff=0.6)
             hint = f" Did you mean '{by_title[guess[0]].title}'?" if guess else ""
-            titles = ", ".join(sorted(role.title for role in self.reference.job_roles))
-            message = f"'{value}' is not a known job role.{hint} Job roles: {titles}."
+            message = f"'{value}' is not a known job role.{hint}"
             self._fail("job_role", RowErrorCode.UNKNOWN_VALUE, message)
         return role
 
@@ -338,9 +350,7 @@ class _RowCheck:
             return None
         country = self.reference.countries.get(value.upper())
         if country is None or not country.is_active:
-            active = sorted(c.code for c in self.reference.countries.values() if c.is_active)
-            countries = ", ".join(active)
-            message = f"'{value}' is not a country ACME employs people in. Countries: {countries}."
+            message = f"'{value}' is not a country ACME employs people in."
             self._fail("country", RowErrorCode.UNKNOWN_VALUE, message)
             return None
         return country
@@ -354,8 +364,7 @@ class _RowCheck:
                 self._fail("currency", RowErrorCode.CURRENCY_MISMATCH, message)
             return country.currency
         if given is not None and given.upper() not in SUPPORTED_CURRENCIES:
-            currencies = ", ".join(sorted(SUPPORTED_CURRENCIES))
-            message = f"'{given}' is not a known currency. Use one of {currencies}."
+            message = f"'{given}' is not a known currency."
             self._fail("currency", RowErrorCode.UNKNOWN_VALUE, message)
         return None
 

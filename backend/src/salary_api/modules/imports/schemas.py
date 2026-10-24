@@ -39,9 +39,9 @@ class ImportPreviewRow(BaseModel):
 
 
 class ImportJobReport(BaseModel):
-    """A dry-run report. `valid_count` rows have no error; `error_count` counts the entries
-    of `errors` (one row can have several). Only a DRY_RUN job without errors can be
-    committed, until `expires_at`."""
+    """A dry-run report. `valid_count` rows have no error; `error_count` counts every error
+    (one row can have several), of which `errors` lists the first 500. Only a DRY_RUN job
+    without errors can be committed, until `expires_at`."""
 
     id: int
     status: ImportStatus
@@ -50,7 +50,10 @@ class ImportJobReport(BaseModel):
     row_count: int
     valid_count: int
     error_count: int
-    errors: list[ImportRowError]
+    errors: list[ImportRowError]  # the first 500, in row order
+    errors_truncated: bool  # true when error_count is more than the errors listed
+    # The valid values of each column with an unknown_value error, e.g. {"level": ["L1", ...]}.
+    allowed_values: dict[str, list[str]]
     preview: list[ImportPreviewRow]  # the first 50 valid rows; empty once the job has ended
     created_at: datetime
     expires_at: datetime

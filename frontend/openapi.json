@@ -753,8 +753,18 @@
         "type": "string"
       },
       "ImportJobReport": {
-        "description": "A dry-run report. `valid_count` rows have no error; `error_count` counts the entries\nof `errors` (one row can have several). Only a DRY_RUN job without errors can be\ncommitted, until `expires_at`.",
+        "description": "A dry-run report. `valid_count` rows have no error; `error_count` counts every error\n(one row can have several), of which `errors` lists the first 500. Only a DRY_RUN job\nwithout errors can be committed, until `expires_at`.",
         "properties": {
+          "allowed_values": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Allowed Values",
+            "type": "object"
+          },
           "committed_at": {
             "anyOf": [
               {
@@ -782,6 +792,10 @@
             },
             "title": "Errors",
             "type": "array"
+          },
+          "errors_truncated": {
+            "title": "Errors Truncated",
+            "type": "boolean"
           },
           "expires_at": {
             "format": "date-time",
@@ -827,6 +841,8 @@
           "valid_count",
           "error_count",
           "errors",
+          "errors_truncated",
+          "allowed_values",
           "preview",
           "created_at",
           "expires_at",

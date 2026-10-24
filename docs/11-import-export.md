@@ -149,9 +149,11 @@ Stored in `import_jobs` and returned to the UI with `201` (a report with row err
   "row_count": 248,
   "valid_count": 245,
   "error_count": 3,
+  "errors_truncated": false,
+  "allowed_values": { "job_role": ["Account Executive", "…", "Software Engineer"] },
   "errors": [
     { "row": 12, "column": "email",       "code": "duplicate_in_file", "message": "Same email as row 4.", "value": "a.rao@acme.example" },
-    { "row": 31, "column": "job_role",    "code": "unknown_value",     "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'? Job roles: Account Executive, …", "value": "Sr Engineer" },
+    { "row": 31, "column": "job_role",    "code": "unknown_value",     "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'?", "value": "Sr Engineer" },
     { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals.", "value": "450000.5" }
   ],
   "preview": [
@@ -168,8 +170,8 @@ Stored in `import_jobs` and returned to the UI with `201` (a report with row err
 ```
 
 - `row` numbers are **spreadsheet row numbers** (header = row 1), so the user can find the row in Excel.
-- `valid_count` counts rows without any error; `error_count` counts the entries of `errors` (one row can have several). Rows with errors = `row_count − valid_count`.
-- Error codes: `required`, `invalid_format`, `unknown_value` (the message lists the allowed values), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, and, as `POST /employees` names the same rules, `future_date`, `before_hire_date` and `currency_mismatch` ([glossary](glossary.md) §6).
+- `valid_count` counts rows without any error; `error_count` counts every error (one row can have several). Rows with errors = `row_count − valid_count`. `errors` holds the first **500** errors in row order (`errors_truncated: true` when there are more), so a bad 10,000-row file still gives a small report, far below Vercel's 4.5 MB response cap.
+- Error codes: `required`, `invalid_format`, `unknown_value` (the valid values are listed once per column in `allowed_values`, not in every message), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, and, as `POST /employees` names the same rules, `future_date`, `before_hire_date` and `currency_mismatch` ([glossary](glossary.md) §6).
 - Messages are written for HR users, with a "did you mean" suggestion for near-miss job roles (case-insensitive, then Python's `difflib` closest match).
 - `preview` holds the first 50 valid rows, for a sanity check in the UI. There is no `summary` block: the UI can count the preview or the errors itself.
 - Department isn't an import column. It is **derived from `job_role`** ([06-data-model.md](06-data-model.md)).

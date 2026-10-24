@@ -112,8 +112,8 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | Insight response extras | `population` (filters applied), `fx_as_of` when USD appears |
 | Job-title split | `split_by_level=true` |
 | Pay-equity views | `view=cohorts\|departments` |
-| Import job | `id` (int), `status`, `format`, `filename`, `row_count`, `valid_count`, `error_count`, `errors[]`, `preview[]`, `created_at`, `expires_at`, `committed_at` |
-| Import row error | `{ row, column, code, message, value }`; codes `required`, `invalid_format`, `unknown_value` (the message lists the allowed values), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, plus `future_date`, `before_hire_date` and `currency_mismatch`, as `POST /employees` names the same rules |
+| Import job | `id` (int), `status`, `format`, `filename`, `row_count`, `valid_count`, `error_count`, `errors[]` (the first 500), `errors_truncated`, `allowed_values` (`{column: [values]}` for columns with an `unknown_value` error), `preview[]`, `created_at`, `expires_at`, `committed_at` |
+| Import row error | `{ row, column, code, message, value }`; codes `required`, `invalid_format`, `unknown_value` (the report's `allowed_values` lists the valid values once per column), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, plus `future_date`, `before_hire_date` and `currency_mismatch`, as `POST /employees` names the same rules |
 | Import commit response | `{ id, status: "COMMITTED", inserted }` |
 | Import job visible to (read and commit) | the job's creator, or a user with `USER_ADMIN` (the administrator's permission; checked by permission, never by role). Anyone else gets `404` |
 | Import headers | case-insensitive, trimmed, any order; unknown columns are an error |

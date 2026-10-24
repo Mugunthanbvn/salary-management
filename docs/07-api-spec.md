@@ -496,9 +496,11 @@ Runs parse → validate → duplicate checks (within the file and against the DB
   "row_count": 412,
   "valid_count": 409,
   "error_count": 3,
+  "errors_truncated": false,
+  "allowed_values": { "job_role": ["Account Executive", "…", "Software Engineer"] },
   "errors": [
     { "row": 18, "column": "email", "code": "duplicate_in_db", "message": "This email is already used by ACME-002210.", "value": "lena@acme.example" },
-    { "row": 40, "column": "job_role", "code": "unknown_value", "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'? Job roles: …", "value": "Sr Engineer" },
+    { "row": 40, "column": "job_role", "code": "unknown_value", "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'?", "value": "Sr Engineer" },
     { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals.", "value": "450000.5" }
   ],
   "preview": [ { "row": 2, "employee_code": "ACME-010002", "first_name": "Lena", "last_name": "Müller", "email": "lena.mueller@acme.example",
@@ -511,7 +513,7 @@ Runs parse → validate → duplicate checks (within the file and against the DB
 }
 ```
 
-Errors: 413 `payload-too-large`; 415 `unsupported-media-type` (not `.csv`/`.xlsx`, including `.xlsm` and `.xls`); 400 `bad-request` (unreadable file, a formula without a saved value, or a header mismatch, which adds `expected_headers`); 422 `validation` with code `too_many_rows`. Row-level problems are not an error status: they come back in `errors[]` with the 201. A user keeps at most 3 open dry-runs: a new upload marks the oldest `EXPIRED` ([11](11-import-export.md) §5.8).
+Errors: 413 `payload-too-large`; 415 `unsupported-media-type` (not `.csv`/`.xlsx`, including `.xlsm` and `.xls`); 400 `bad-request` (unreadable file, a formula without a saved value, or a header mismatch, which adds `expected_headers`); 422 `validation` with code `too_many_rows`. Row-level problems are not an error status: they come back in `errors[]` with the 201. `error_count` counts them all; `errors` lists the first 500 (`errors_truncated` says when there were more); `allowed_values` gives the valid values of each column with an `unknown_value` error, once. A user keeps at most 3 open dry-runs: a new upload marks the oldest `EXPIRED` ([11](11-import-export.md) §5.8).
 
 ### 7.3 `GET /imports/{id}`: `IMPORT`
 

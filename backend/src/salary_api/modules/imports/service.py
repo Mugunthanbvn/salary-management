@@ -64,6 +64,7 @@ from salary_api.modules.imports.validation import (
     KnownJobRole,
     RowError,
     RowKey,
+    allowed_values,
     db_duplicates,
     mark_db_duplicates,
     validate_rows,
@@ -76,6 +77,7 @@ _logger = structlog.get_logger(__name__)
 
 ENTITY = "import_job"  # audit events name the entity they change
 PREVIEW_ROWS: Final = 50
+MAX_REPORTED_ERRORS: Final = 500  # a report's errors stay far below Vercel's 4.5 MB cap
 FORMATS: Final = {".csv": ImportFormat.CSV, ".xlsx": ImportFormat.XLSX}
 MAX_FILENAME = 255
 
@@ -110,7 +112,8 @@ def dry_run(
     content = upload.read(MAX_UPLOAD_BYTES + 1)  # one byte more tells a file over the cap
     if len(content) > MAX_UPLOAD_BYTES:
         raise PayloadTooLarge(f"Upload at most {MAX_UPLOAD_BYTES // (1024 * 1024)} MB.")
-    report = validate_rows(_parse(import_format, content), _reference(session))
+    reference = _reference(session)
+    report = validate_rows(_parse(import_format, content), reference)
     report = mark_db_duplicates(
         report,
         taken_codes=repository.codes_in_use(session, report.employee_codes),
@@ -127,7 +130,8 @@ def dry_run(
         row_count=report.row_count,
         valid_count=len(report.rows),
         error_count=len(report.errors),
-        errors=[_error_json(error) for error in report.errors],
+        errors=[_error_json(error) for error in report.errors[:MAX_REPORTED_ERRORS]],
+        allowed_values=allowed_values(report.errors, reference),
         preview=[_preview(row).model_dump(mode="json") for row in report.rows[:PREVIEW_ROWS]],
         # Only a report without errors can be committed, so only then are the rows kept.
         payload=None if report.errors else [_payload_row(row) for row in report.rows],
@@ -380,6 +384,8 @@ def _job_report(job: ImportJob, now: datetime) -> ImportJobReport:
         valid_count=job.valid_count,
         error_count=job.error_count,
         errors=[ImportRowError.model_validate(error) for error in job.errors],
+        errors_truncated=job.error_count > len(job.errors),
+        allowed_values=dict(job.allowed_values),
         preview=[ImportPreviewRow.model_validate(row) for row in job.preview or []],
         created_at=job.created_at,
         expires_at=job.expires_at,

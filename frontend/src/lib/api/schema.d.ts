@@ -592,11 +592,15 @@ export interface components {
         ImportFormat: "CSV" | "XLSX";
         /**
          * ImportJobReport
-         * @description A dry-run report. `valid_count` rows have no error; `error_count` counts the entries
-         *     of `errors` (one row can have several). Only a DRY_RUN job without errors can be
-         *     committed, until `expires_at`.
+         * @description A dry-run report. `valid_count` rows have no error; `error_count` counts every error
+         *     (one row can have several), of which `errors` lists the first 500. Only a DRY_RUN job
+         *     without errors can be committed, until `expires_at`.
          */
         ImportJobReport: {
+            /** Allowed Values */
+            allowed_values: {
+                [key: string]: string[];
+            };
             /** Committed At */
             committed_at: string | null;
             /**
@@ -608,6 +612,8 @@ export interface components {
             error_count: number;
             /** Errors */
             errors: components["schemas"]["ImportRowError"][];
+            /** Errors Truncated */
+            errors_truncated: boolean;
             /**
              * Expires At
              * Format: date-time
