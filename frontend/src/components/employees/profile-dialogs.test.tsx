@@ -197,8 +197,10 @@ describe("Edit details", () => {
       within(dialog).getByRole("button", { name: "Save details" }),
     );
 
-    expect(await within(dialog).findByRole("alert")).toHaveTextContent(
-      "The email jonas@acme.example is already in use by another employee.",
+    await waitFor(() =>
+      expect(email).toHaveAccessibleDescription(
+        "The email jonas@acme.example is already in use by another employee.",
+      ),
     );
   });
 
@@ -263,7 +265,7 @@ describe("Terminate", () => {
     );
 
     expect(date).toHaveAccessibleDescription(
-      "The employee was hired on 2022-06-01.",
+      "The employee was hired on 1 Jun 2022.",
     );
     expect(screen.getByRole("dialog")).toBeVisible();
   });

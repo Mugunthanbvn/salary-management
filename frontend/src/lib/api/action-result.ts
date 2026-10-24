@@ -41,6 +41,9 @@ export function toPlainProblem(problem: ProblemError): PlainProblem {
   };
 }
 
+/** The unique fields of an employee, as the API's duplicate details name them. */
+const DUPLICATE_FIELDS = ["employee_code", "email"] as const;
+
 /**
  * Field errors by where they sit in the request body: `["body", "components", 1,
  * "amount_minor"]` is `"components.1.amount_minor"`. Two messages for one field are joined.
@@ -49,6 +52,13 @@ export function fieldErrors(
   problem: PlainProblem | null,
 ): Record<string, string> {
   const byField: Record<string, string> = {};
+  // A 409 `duplicate` names the taken value in its detail: show it at that field.
+  if (problem?.slug === "duplicate" && problem.detail) {
+    const field = DUPLICATE_FIELDS.find((name) =>
+      problem.detail?.includes(name),
+    );
+    if (field) byField[field] = problem.detail;
+  }
   for (const error of problem?.errors ?? []) {
     const [first, ...rest] = error.loc;
     const key = (first === "body" ? rest : error.loc).join(".");

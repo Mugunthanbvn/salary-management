@@ -45,6 +45,27 @@ describe("toMinorUnits", () => {
     });
   });
 
+  it.each(["1,5", "1500,50", "1,50,0", "54,00.5", ",500"])(
+    "refuses %j, where a comma is not a group separator",
+    (input) => {
+      expect(toMinorUnits(input, "EUR", 2)).toEqual({
+        ok: false,
+        message: "Use . for decimals",
+      });
+    },
+  );
+
+  it("refuses more than the API's largest amount (10^15 - 1 minor units)", () => {
+    expect(toMinorUnits("9999999999999.99", "USD", 2)).toEqual({
+      ok: true,
+      minor: 999_999_999_999_999,
+    });
+    expect(toMinorUnits("10000000000000", "USD", 2)).toEqual({
+      ok: false,
+      message: "This amount is too large",
+    });
+  });
+
   it("refuses an amount too large to send exactly", () => {
     expect(toMinorUnits("90071992547409.93", "USD", 2)).toEqual({
       ok: false,

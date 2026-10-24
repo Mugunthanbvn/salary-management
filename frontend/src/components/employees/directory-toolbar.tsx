@@ -26,6 +26,7 @@ import type { components } from "@/lib/api/schema";
 import {
   CLEARED_FILTERS,
   hasFilters,
+  withPayBoundsChecked,
   type DirectoryState,
 } from "@/lib/directory-params";
 import { formatCount } from "@/lib/numbers";
@@ -71,7 +72,9 @@ export function DirectoryToolbar({
   const showPay = me.can("SALARY_READ");
   const defs = filterDefs(reference);
   const payComparable = payCurrency(state, reference) !== null;
-  const update = (patch: DirectoryPatch) => void setState(patch);
+  // A filter that changes the pay currency also drops the pay bounds of the old one.
+  const update = (patch: DirectoryPatch) =>
+    void setState(withPayBoundsChecked(state, patch, reference));
   const clear = () => update(CLEARED_FILTERS);
 
   return (
@@ -117,7 +120,7 @@ export function DirectoryToolbar({
         {showPay ? (
           <PayPopover state={state} reference={reference} onChange={update} />
         ) : null}
-        {hasFilters(state) ? (
+        {hasFilters(state, { canReadSalaries: showPay, reference }) ? (
           <Button variant="link" className="ml-1 text-sm" onClick={clear}>
             Clear filters
           </Button>
@@ -239,10 +242,20 @@ function PayPopover({
         Pay: {range ?? "any"}
       </PopoverTrigger>
       <PopoverContent aria-label="Pay" className="w-96">
-        <PayRange state={state} reference={reference} onChange={onChange} />
+        <PayRange
+          key={payRangeKey(state, reference)}
+          state={state}
+          reference={reference}
+          onChange={onChange}
+        />
       </PopoverContent>
     </Popover>
   );
+}
+
+function payRangeKey(state: DirectoryState, reference: ReferenceData): string {
+  const currency = payCurrency(state, reference)?.code ?? "";
+  return `${currency}:${state.salary_min ?? ""}:${state.salary_max ?? ""}`;
 }
 
 type Chip = { key: string; label: string; remove: DirectoryPatch };
@@ -325,6 +338,8 @@ function PhoneFilters({
                 <section aria-label="Pay">
                   <h3 className="mb-2 text-sm font-bold text-ink-2">Pay</h3>
                   <PayRange
+                    // New fields whenever the URL's range or currency changes.
+                    key={payRangeKey(state, reference)}
                     state={state}
                     reference={reference}
                     onChange={onChange}

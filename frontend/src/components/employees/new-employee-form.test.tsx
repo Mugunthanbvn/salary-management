@@ -157,6 +157,7 @@ describe("NewEmployeeForm", () => {
       country_code: "DE",
       hire_date: "2026-10-24",
       salary: {
+        currency: "EUR",
         base_minor: 5_400_000,
         components: [
           { type: "ALLOWANCE", name: "Transport", amount_minor: 60_000 },
@@ -246,8 +247,40 @@ describe("NewEmployeeForm", () => {
       within(form).getByRole("button", { name: "Add employee" }),
     );
 
-    expect(await within(form).findByRole("alert")).toHaveTextContent(
-      "The email lena.mueller@acme.example is already in use by another employee.",
+    await waitFor(() =>
+      expect(
+        within(form).getByRole("textbox", { name: "Email" }),
+      ).toHaveAccessibleDescription(
+        "The email lena.mueller@acme.example is already in use by another employee.",
+      ),
+    );
+  });
+
+  it("puts a taken employee code next to the code field", async () => {
+    server.use(
+      http.post<never, never, Problem>(EMPLOYEES_URL, () =>
+        HttpResponse.json(
+          makeProblem("duplicate", 409, {
+            title: "Duplicate",
+            detail: "The employee_code ACME-000001 is already in use.",
+          }),
+          { status: 409 },
+        ),
+      ),
+    );
+    const form = renderForm();
+    await fillRequired(form);
+
+    await userEvent.click(
+      within(form).getByRole("button", { name: "Add employee" }),
+    );
+
+    await waitFor(() =>
+      expect(
+        within(form).getByRole("textbox", { name: "Employee code" }),
+      ).toHaveAccessibleDescription(
+        "The employee_code ACME-000001 is already in use.",
+      ),
     );
   });
 });

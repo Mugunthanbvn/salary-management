@@ -3,14 +3,71 @@ import { describe, expect, it } from "vitest";
 import { makeReference } from "@/test/fixtures";
 
 import {
+  hasFilters,
   loadDirectoryParams,
   salaryCurrency,
   serializeDirectory,
   toExportQuery,
   toListQuery,
+  withPayBoundsChecked,
 } from "./directory-params";
 
 const reference = makeReference();
+
+describe("hasFilters", () => {
+  const hr = { canReadSalaries: true, reference };
+
+  it("counts pay bounds the list is filtered by", () => {
+    expect(
+      hasFilters(loadDirectoryParams("?country=DE&salary_min=1"), hr),
+    ).toBe(true);
+    expect(hasFilters(loadDirectoryParams("?salary_min=1"), hr)).toBe(false);
+  });
+
+  it("ignores pay bounds the API isn't sent: across currencies, or for a viewer", () => {
+    expect(
+      hasFilters(loadDirectoryParams("?salary_min=1"), {
+        canReadSalaries: true,
+        reference,
+      }),
+    ).toBe(false);
+    expect(
+      hasFilters(loadDirectoryParams("?salary_basis=usd&salary_min=1"), {
+        canReadSalaries: false,
+        reference,
+      }),
+    ).toBe(false);
+  });
+});
+
+describe("withPayBoundsChecked", () => {
+  it("clears pay bounds when the pay currency would change (€40,000 is not ¥4,000,000)", () => {
+    const state = loadDirectoryParams("?country=DE&salary_min=4000000");
+
+    expect(withPayBoundsChecked(state, { country: ["JP"] }, reference)).toEqual(
+      {
+        country: ["JP"],
+        salary_min: null,
+        salary_max: null,
+      },
+    );
+  });
+
+  it("keeps them while the currency stays the same", () => {
+    const state = loadDirectoryParams("?country=DE&salary_min=4000000");
+
+    expect(
+      withPayBoundsChecked(
+        state,
+        { country: ["DE", "FR"], currency: ["EUR"] },
+        reference,
+      ),
+    ).toEqual({
+      country: ["DE", "FR"],
+      currency: ["EUR"],
+    });
+  });
+});
 
 function sortedEntries(query: string): [string, string][] {
   return [...new URLSearchParams(query).entries()].sort(([a, x], [b, y]) =>

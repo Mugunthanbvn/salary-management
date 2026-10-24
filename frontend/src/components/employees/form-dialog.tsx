@@ -14,7 +14,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import type { PlainProblem } from "@/lib/api/action-result";
+import { fieldErrors, type PlainProblem } from "@/lib/api/action-result";
 
 type FormDialogProps = {
   open: boolean;
@@ -141,7 +141,11 @@ export function FormProblem({
       </div>
     );
   }
-  if (problem.slug === "validation") {
+  // A duplicate the form can show at its field reads like a validation error.
+  const atField =
+    problem.slug === "duplicate" &&
+    Object.keys(fieldErrors(problem)).length > 0;
+  if (problem.slug === "validation" || atField) {
     return (
       <div role="alert" className={box}>
         <p className="font-bold">Some details need fixing.</p>

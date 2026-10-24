@@ -114,6 +114,16 @@ describe("EmployeeResults layout", () => {
     }
   });
 
+  it("gives the table's name link a 44 px touch target", () => {
+    renderInApp(
+      <EmployeeResults page={makeEmployeePage()} reference={reference} />,
+    );
+
+    expect(
+      within(table()).getByRole("link", { name: /Lena Müller/ }),
+    ).toHaveClass("min-h-11");
+  });
+
   it("shows the role, level, department, country and code of each employee", () => {
     renderInApp(
       <EmployeeResults page={makeEmployeePage()} reference={reference} />,

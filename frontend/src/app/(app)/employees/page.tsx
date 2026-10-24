@@ -62,7 +62,15 @@ export default async function EmployeesPage({
         title={TITLE}
         actions={<Actions me={me} reference={reference} />}
       >
-        {data ? countSentence(data.total, hasFilters(state)) : null}
+        {data
+          ? countSentence(
+              data.total,
+              hasFilters(state, {
+                canReadSalaries: can(me, "SALARY_READ"),
+                reference,
+              }),
+            )
+          : null}
       </PageTitle>
       <DirectoryProvider>
         <DirectoryToolbar reference={reference} total={data?.total ?? 0} />

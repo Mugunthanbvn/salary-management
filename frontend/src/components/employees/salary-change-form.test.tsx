@@ -148,6 +148,8 @@ describe("Record salary change", () => {
       version: 3,
       effective_date: "2026-10-24",
       reason: "MERIT",
+      // Sent so the API confirms the currency the amounts were typed in.
+      currency: "EUR",
       base_minor: 5_000_050,
       components: [
         { type: "ALLOWANCE", name: "Transport", amount_minor: 60_000 },
@@ -217,7 +219,15 @@ describe("Record salary change", () => {
 
     expect(within(form).getByText(/pay will be in INR/)).toBeVisible();
     const base = field(form, "New base pay (INR a year)");
-    await userEvent.clear(base);
+    // EUR amounts would be read as INR: the move empties every amount.
+    expect(base).toHaveValue("");
+    for (const row of within(form).getAllByRole("group", {
+      name: /^Component \d/,
+    })) {
+      expect(
+        within(row).getByRole("textbox", { name: "Amount (INR a year)" }),
+      ).toHaveValue("");
+    }
     await userEvent.type(base, "21,60,000");
     for (const row of within(form).getAllByRole("group", {
       name: /^Component \d/,
@@ -235,6 +245,7 @@ describe("Record salary change", () => {
       reason: "PROMOTION",
       level: "L3",
       country_code: "IN",
+      currency: "INR",
       base_minor: 216_000_000,
       components: [],
     });

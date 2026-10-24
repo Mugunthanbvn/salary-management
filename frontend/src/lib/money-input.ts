@@ -11,6 +11,12 @@ export type MinorUnitsResult =
 // Digits with an optional fraction ("54000", "54000.50", ".5"), once group separators are gone.
 const AMOUNT = /^(\d*)(?:\.(\d*))?$/;
 
+// Thousands ("54,000,000") or Indian lakh grouping ("2,16,00,000"), then an optional fraction.
+const GROUPED = /^(?:\d{1,3}(?:,\d{3})+|\d{1,2}(?:,\d{2})*,\d{3})(?:\.\d*)?$/;
+
+/** The API's MAX_AMOUNT_MINOR (10^15 − 1), so a too-large amount fails here, not there. */
+const MAX_AMOUNT_MINOR = BigInt(10) ** BigInt(15) - BigInt(1);
+
 /**
  * "54,000.50" EUR (exponent 2) → 5400050. Commas and spaces are group separators; "." is
  * the decimal point. More decimals than the currency allows are refused, never rounded,
@@ -21,8 +27,13 @@ export function toMinorUnits(
   currency: string,
   exponent: number,
 ): MinorUnitsResult {
-  const text = input.replace(/[\s,]/g, "");
-  if (!text) return { ok: false, message: "Enter an amount" };
+  const spaced = input.replace(/\s/g, "");
+  if (!spaced) return { ok: false, message: "Enter an amount" };
+  // A comma only groups digits: "54,000.50" or "21,60,000", never "1,5" or "1500,50".
+  if (spaced.includes(",") && !GROUPED.test(spaced)) {
+    return { ok: false, message: "Use . for decimals" };
+  }
+  const text = spaced.replace(/,/g, "");
   const match = AMOUNT.exec(text);
   const whole = match?.[1] ?? "";
   const fraction = match?.[2] ?? "";
@@ -37,7 +48,7 @@ export function toMinorUnits(
     };
   }
   const minor = BigInt(whole + significant.padEnd(exponent, "0"));
-  if (minor > BigInt(Number.MAX_SAFE_INTEGER)) {
+  if (minor > MAX_AMOUNT_MINOR) {
     return { ok: false, message: "This amount is too large" };
   }
   return { ok: true, minor: Number(minor) };
