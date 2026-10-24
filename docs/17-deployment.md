@@ -131,6 +131,10 @@ turso db create incubyte-salary-assessment --from-file build/seed.db
 
 Add `--location <region>` if the deploy spike showed it is needed. The production database is then **the deterministic seed** (only the demo users' password hashes differ between builds), already at the latest Alembic revision.
 
+### 6.1a Loading a database created in the Turso dashboard
+
+The production database `incubyte-salary-assessment` was created in the Turso web dashboard, so it started empty. It was loaded from the same `build/seed.db` with `backend/scripts/copy_seed_to_turso.py`: `alembic upgrade head` against Turso creates the tables, then the script copies every table in batches of a few hundred rows in one transaction (about 80 s for the 10k seed from a laptop; row-by-row inserts over the network would take about an hour). The script refuses to run if the migrations differ or a table already has rows.
+
 ### 6.2 Subsequent schema changes
 
 ```bash
