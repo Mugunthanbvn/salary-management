@@ -10,7 +10,7 @@ from typing import Any, TypedDict
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError
+from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -169,6 +169,10 @@ def install_problem_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        _logger.error("unhandled_error", path=request.url.path, exc_info=exc)
+        if isinstance(exc, ResponseValidationError):
+            # Its message holds the response body (salary data): log the type only.
+            _logger.error("unhandled_error", path=request.url.path, error_type=type(exc).__name__)
+        else:
+            _logger.error("unhandled_error", path=request.url.path, exc_info=exc)
         problem = ProblemError(500, None, "Internal Server Error", "An unexpected error occurred.")
         return problem_response(request, problem)
