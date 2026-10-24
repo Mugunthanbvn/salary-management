@@ -248,6 +248,92 @@ export function makeProblem(
   };
 }
 
+type ImportJobReport = components["schemas"]["ImportJobReport"];
+type ImportPreviewRow = components["schemas"]["ImportPreviewRow"];
+type ImportRowError = components["schemas"]["ImportRowError"];
+
+/** A valid row of a dry-run's preview: Ananya Rao, hired in India. */
+export function makePreviewRow(
+  overrides: Partial<ImportPreviewRow> = {},
+): ImportPreviewRow {
+  return {
+    row: 2,
+    employee_code: "ACME-010001",
+    first_name: "Ananya",
+    last_name: "Rao",
+    email: "ananya.rao@acme.example",
+    job_role: "Software Engineer",
+    department: "Engineering",
+    level: "L2",
+    employment_type: "FULL_TIME",
+    country_code: "IN",
+    hire_date: "2026-09-01",
+    salary_effective_date: "2026-09-01",
+    base: { amount_minor: 150_000_000, currency: "INR" },
+    total: { amount_minor: 162_000_000, currency: "INR" },
+    ...overrides,
+  };
+}
+
+/** One refused cell of a dry-run. */
+export function makeRowError(
+  overrides: Partial<ImportRowError> = {},
+): ImportRowError {
+  return {
+    row: 12,
+    column: "email",
+    code: "duplicate_in_file",
+    message: "Same email as row 4.",
+    value: "a.rao@acme.example",
+    ...overrides,
+  };
+}
+
+/** A POST /imports (or GET /imports/{id}) dry-run with no errors: 3 rows, all valid. */
+export function makeImportReport(
+  overrides: Partial<ImportJobReport> = {},
+): ImportJobReport {
+  return {
+    id: 31,
+    status: "DRY_RUN",
+    format: "CSV",
+    filename: "q4-new-hires.csv",
+    row_count: 3,
+    valid_count: 3,
+    error_count: 0,
+    errors: [],
+    errors_truncated: false,
+    allowed_values: {},
+    preview: [
+      makePreviewRow(),
+      makePreviewRow({
+        row: 3,
+        employee_code: "ACME-010002",
+        first_name: "Lena",
+        last_name: "Weber",
+        email: "lena.weber@acme.example",
+        country_code: "DE",
+        base: { amount_minor: 5_200_000, currency: "EUR" },
+        total: { amount_minor: 5_616_000, currency: "EUR" },
+      }),
+      makePreviewRow({
+        row: 4,
+        employee_code: "ACME-010003",
+        first_name: "Taro",
+        last_name: "Yamada",
+        email: "taro.yamada@acme.example",
+        country_code: "JP",
+        base: { amount_minor: 4_500_000, currency: "JPY" },
+        total: { amount_minor: 4_500_000, currency: "JPY" },
+      }),
+    ],
+    created_at: "2026-10-24T10:45:00Z",
+    expires_at: "2026-10-25T10:45:00Z",
+    committed_at: null,
+    ...overrides,
+  };
+}
+
 /** A 422 `validation` problem listing these field errors. */
 export function makeValidationProblem(
   errors: ValidationProblem["errors"],

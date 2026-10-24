@@ -236,3 +236,21 @@ function isSortField(field: string): field is SortField {
 function bound(value: number | null): number | null {
   return value !== null && value >= 0 ? value : null;
 }
+
+export type ExportFormat = "csv" | "xlsx";
+export type ExportQuery = NonNullable<
+  paths["/api/v1/employees/export"]["get"]["parameters"]["query"]
+>;
+
+/** The GET /employees/export query for this state: the list's filters and sort, no paging. */
+export function toExportQuery(
+  state: DirectoryState,
+  format: ExportFormat,
+  options: { canReadSalaries: boolean; reference: ReferenceData },
+): ExportQuery {
+  // The export takes no paging (the API refuses `page`): it is the whole filtered list.
+  const { page, page_size, ...query } = toListQuery(state, options);
+  void page;
+  void page_size;
+  return { ...query, format };
+}
