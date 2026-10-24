@@ -201,7 +201,10 @@ def _one_currency(members: Iterable[tuple[str, int]]) -> str:
 def _stats(
     summary: Summary | InsufficientData, currency: str, *, hidden: bool, audience: "_Audience"
 ) -> Stats:
-    """The stats object of one group; every value and the count are null when it is hidden."""
+    """The stats object of one group; every value and the count are null when it is hidden.
+
+    Without SALARY_READ, min and max are always null: each is one person's exact pay.
+    """
     if hidden or isinstance(summary, InsufficientData):
         return Stats(
             count=None if hidden else 0,
@@ -214,15 +217,16 @@ def _stats(
             currency=currency,
             suppressed=hidden,
         )
-    del audience  # min and max are masked next
+    # The smallest and largest amounts are each one person's exact pay.
+    extremes_visible = audience.salary_visible
     return Stats(
         count=summary.count,
-        min=summary.min,
+        min=summary.min if extremes_visible else None,
         p25=summary.p25,
         median=summary.median,
         mean=summary.mean,
         p75=summary.p75,
-        max=summary.max,
+        max=summary.max if extremes_visible else None,
         currency=currency,
         suppressed=False,
     )
