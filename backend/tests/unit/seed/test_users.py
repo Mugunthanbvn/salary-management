@@ -4,13 +4,12 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
-from pydantic_settings import SettingsConfigDict
 
 from salary_api.core.permissions import Role
 from salary_api.seed.errors import SeedRefused
 from salary_api.seed.settings import SeedSettings
 from salary_api.seed.users import demo_users
-from tests.factories import FAST_PASSWORD_HASHER
+from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings
 
 # Low entropy on purpose, so secret scanners (gitleaks) do not mistake them for real ones.
 REAL = {
@@ -20,14 +19,8 @@ REAL = {
 }
 
 
-class _SettingsWithoutEnvFile(SeedSettings):
-    model_config = SettingsConfigDict(env_file=None)
-
-
 def _settings(app_env: str, **passwords: Any) -> SeedSettings:
-    """Seed settings with only these passwords, whatever the shell's environment holds."""
-    values: dict[str, Any] = {"app_env": app_env, **dict.fromkeys(REAL), **passwords}
-    return _SettingsWithoutEnvFile(**values)
+    return make_seed_settings(app_env=app_env, **passwords)
 
 
 def _passwords_verify(settings: SeedSettings, passwords: list[str]) -> bool:
