@@ -91,7 +91,10 @@ def test_a_change_committed_between_read_and_write_is_a_version_conflict(
         execution_options={"synchronize_session": False},
     )
     db_session.commit()
-    hr = Principal(user_id=1, email="hr@acme.example", full_name="HR", role=Role.HR_MANAGER)
+    user = make_user(db_session, role="HR_MANAGER")
+    hr = Principal(
+        user_id=user.id, email=user.email, full_name=user.full_name, role=Role.HR_MANAGER
+    )
 
     with pytest.raises(VersionConflict) as conflict:
         service.update_employee(

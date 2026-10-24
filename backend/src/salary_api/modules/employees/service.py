@@ -134,12 +134,28 @@ def update_employee(
         session, request.email, other_than=employee_id
     ):
         raise Duplicate(f"The email {request.email} is already in use by another employee.")
-    for field, value in request.model_dump(exclude_unset=True, exclude={"version"}).items():
-        setattr(employee, field, value)
+    requested = request.model_dump(exclude_unset=True, exclude={"version"})
+    changes = {
+        field: [getattr(employee, field), value]
+        for field, value in requested.items()
+        if getattr(employee, field) != value
+    }
+    if not changes:  # nothing to write, so no new version and no audit event
+        return _detail(employee, salary_visible=can_see_salaries(principal))
+    for field, (_old, new) in changes.items():
+        setattr(employee, field, new)
     employee.search_text = employee_search_text(
         employee.first_name, employee.last_name, employee.employee_code, employee.email
     )
     employee.version += 1
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.EMPLOYEE_UPDATE,
+        entity=ENTITY,
+        entity_id=employee_id,
+        diff=changes,
+    )
     _commit_versioned(session, employee_id)
     return get_employee(session, principal, employee_id)
 
