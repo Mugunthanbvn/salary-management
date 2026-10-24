@@ -49,6 +49,34 @@ class ProblemError(Exception):
         self.headers: dict[str, str] = {}
 
 
+class BadRequest(ProblemError):
+    """400: an unreadable upload, or a header row that does not match the template."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(400, "bad-request", "Bad request", detail, **extra)
+
+
+class PayloadTooLarge(ProblemError):
+    """413: an upload over the size cap."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(413, "payload-too-large", "Payload too large", detail, **extra)
+
+
+class UnsupportedMediaType(ProblemError):
+    """415: an upload that is not CSV or XLSX."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(415, "unsupported-media-type", "Unsupported media type", detail, **extra)
+
+
+class ImportFailed(ProblemError):
+    """500: an import commit failed and was rolled back; the job is FAILED, nothing written."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(500, "import-failed", "Import failed", detail, **extra)
+
+
 class Unauthenticated(ProblemError):
     """401: missing, invalid or expired token, or an inactive user."""
 
