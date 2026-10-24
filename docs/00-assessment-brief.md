@@ -135,13 +135,13 @@ Researched in [04-research.md](04-research.md):
 
 ## 5. Submission checklist
 - [ ] Clarifying-questions email sent ([03](03-clarifications.md)) and answers logged
-- [ ] One-page requirements is the first commit ✅ (`docs: add one-page requirements`)
-- [ ] Every build block is merged with a merge commit; history shows `test:` → `feat:` pairs
-- [ ] `make verify` is green; CI is green on `main`
-- [ ] Seed runs: 10,000 employees, deterministic
+- [x] One-page requirements is the first commit (`docs: add one-page requirements`)
+- [ ] Every build block is merged with a merge commit; history shows `test:` → `feat:` pairs (blocks B0–B8 so far; the insights and Ask screens are still being merged)
+- [ ] `make verify` is green; CI is green on `main` (green locally on the release branch; CI on `main` not checked yet)
+- [x] Seed runs: 10,000 employees, deterministic
 - [ ] Deployed URL works for all three demo roles (Admin / HR Manager / Viewer)
 - [ ] Video demo recorded and linked in the root README
-- [ ] Root README: what it is, live URL, demo credentials, how to run locally, links to `docs/`
-- [ ] Artifacts committed: requirements, design notes, diagrams, ADRs, prompt log, trade-offs, performance numbers (measured, not just targets)
+- [ ] Root README: what it is, live URL, demo credentials, how to run locally, links to `docs/` (all but the live URL, which waits for the deployment)
+- [x] Artifacts committed: requirements, design notes, diagrams, ADRs, prompt log, trade-offs, performance numbers (measured, not just targets; local only, deployed numbers pending)
 - [ ] Tag `v1.0.0`
 - [ ] **Reply to the same email** with the repository link

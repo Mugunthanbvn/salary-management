@@ -2,7 +2,7 @@
 
 > Performance budgets, why the design meets them at 10,000 employees, how we will measure them, and the scaling path if the data grows.
 
-**Status:** Draft for review: budgets are **targets**; measured numbers are filled in after milestones 6, 7 and 14 · **Last updated:** 2026-10-24
+**Status:** Budgets are **targets**; local measurements are in §9, deployed numbers are pending · **Last updated:** 2026-10-24
 **Related:** [05-architecture.md](05-architecture.md) · [06-data-model.md](06-data-model.md) · [07-api-spec.md](07-api-spec.md) · [09-insights-pay-equity.md](09-insights-pay-equity.md) · [12-seed-data.md](12-seed-data.md) · [17-deployment.md](17-deployment.md) · [18-implementation-plan.md](18-implementation-plan.md) · ADRs [0002](adr/0002-sqlite-everywhere-turso.md), [0003](adr/0003-sync-sqlalchemy-serverless.md), [0007](adr/0007-pure-python-stats.md), [0016](adr/0016-deploy-vercel-turso.md)
 
 ---
@@ -181,7 +181,7 @@ The trigger thresholds are estimates; the decision to act would come from measur
 | Seed time | `make seed` prints elapsed time per phase (users, migrate, generate, insert) and the total | Milestone 6 | §9 |
 | Query plans | `EXPLAIN QUERY PLAN` for list (each filter), each insight | Milestone 7 | §9 |
 | N+1 guard | pytest asserting query count per endpoint | Milestones 4–7 (permanent tests) | CI |
-| API latency (local) | Simple benchmark script (`make bench` **(proposed)**) hitting each endpoint 100× with the 10k seed, reporting p50/p95 | Milestone 7 | §9 |
+| API latency (local) | `backend/scripts/measure_perf.py` hitting each main endpoint 30× (`-n` to change) with the 10k seed, reporting p50/p95 | B10 | §9.1 |
 | API latency (deployed) | Same script against the Vercel URL (warm), plus 10 cold-start samples | Milestone 14 | §9 |
 | Frontend | Lighthouse (desktop) on `/employees` and `/insights` | Milestone 14 | §9 |
 | Test suite time | pytest `--durations=10` in CI | Ongoing | CI logs |
@@ -192,18 +192,49 @@ Benchmarks are read-only and never run against production data other than the se
 
 ## 9. Results
 
-To be filled in with measured values. Each row records the date, commit and environment.
+Measured values; each row records the date, block and environment. TBD rows need the deployment.
 
 | Metric | Target | Measured | Date / commit | Environment |
 |---|---|---|---|---|
-| Seed 10k (local) | < 5 s | **3.2–3.4 s** with `make seed` (users 0.5–0.65 s of argon2, migrate < 0.1 s, generate 1.0–1.1 s, insert incl. reset 1.6–1.7 s); first build 2.9 s; **2.3 s** in memory (the golden test) | 2026-10-24 / after the B5 review | Linux, 4 vCPU shared with other jobs (load ≈ 4.5), Python 3.13, SQLite WAL |
+| Seed 10k (local) | < 5 s | B10 recheck: **3.75–3.80 s** with `make seed` (users 0.4–0.5 s, generate 1.5–1.6 s, insert 1.6–1.7 s) at load ≈ 4–7. Earlier: **3.2–3.4 s** with `make seed` (users 0.5–0.65 s of argon2, migrate < 0.1 s, generate 1.0–1.1 s, insert incl. reset 1.6–1.7 s); first build 2.9 s; **2.3 s** in memory (the golden test) | 2026-10-24 / after the B5 review | Linux, 4 vCPU shared with other jobs (load ≈ 4.5), Python 3.13, SQLite WAL |
 | Turso load | < 60 s | TBD | | |
-| `GET /employees` p95 | < 300 ms | TBD | | |
-| `GET /insights/overview` p95 | < 300 ms | TBD | | |
-| `GET /insights/pay-equity` p95 | < 300 ms | TBD | | |
-| Salary change p95 | < 300 ms | TBD | | |
+| `GET /employees` p95 | < 300 ms | **41–55 ms** (default, search, USD salary sort) | 2026-10-24, B10 | Local uvicorn on the 10k seed (§9.1); deployed TBD |
+| `GET /insights/overview` p95 | < 300 ms | **201–272 ms** | 2026-10-24, B10 | Same |
+| `GET /insights/pay-equity` p95 | < 300 ms | cohorts **496–527 ms (over)**; departments 53–74 ms | 2026-10-24, B10 | Same |
+| Salary change p95 | < 300 ms | **34–36 ms** | 2026-10-24, B10 | Same |
 | Export 10k CSV / XLSX | < 3 s / < 5 s | 0.7–0.9 s / 3.3–4.0 s | 2026-10-24, B7 | Local: 4-core dev container, Python 3.13, in-memory SQLite (`RUN_SLOW=1 uv run pytest -m slow -n 0 -s tests/integration/test_import_timing.py`) |
 | Import dry-run / commit 10k | < 5 s / < 30 s | CSV 0.6–1.2 s, XLSX 3.6 s / 1.3–2.1 s | 2026-10-24, B7 | Same; 1.37 MB CSV, 0.49 MB XLSX, every row with a bonus and an allowance. Turso not measured yet |
 | Cold start | ~1–2 s | TBD | | |
 | LCP `/employees` | < 2.5 s | TBD | | |
-| Backend test suite | < 30 s | TBD | | |
+| Backend test suite | < 30 s | 73–143 s for 1,270 tests with coverage (over) | 2026-10-24, B10 | `make test-backend`, pytest-xdist, 4 vCPU at load ≈ 7–13 from other jobs |
+
+### 9.1 API latency on the 10k seed (local, B10)
+
+Measured on 2026-10-24 with [`backend/scripts/measure_perf.py`](../backend/scripts/measure_perf.py)
+(httpx, one client, sequential): 2 warm-up requests, then 30 timed requests per endpoint, timed end
+to end on the client (request sent to body read). The API ran under `uvicorn` (one worker,
+`LOG_LEVEL=WARNING`) on a scratch SQLite file seeded with `--seed 42 --employees 10000`, signed in
+as the HR manager (no masking: the full-cost path). Machine: Linux container, **4 vCPU shared with
+other jobs** (load average 3–8 during the runs), Python 3.13. Two runs; each cell is the range
+over both. To rerun, follow the script's docstring.
+
+| Endpoint | p50 (ms) | p95 (ms) | Budget |
+|---|---|---|---|
+| `POST /auth/login` (argon2 verify) | 258–273 | 323–395 | none set |
+| `GET /employees` (default page of 25) | 28–30 | 41–45 | p95 < 300 ms |
+| `GET /employees?q=smith` | 19–28 | 41–42 | p95 < 300 ms |
+| `GET /employees?sort=-current_base&salary_basis=usd` | 29–40 | 51–55 | p95 < 300 ms |
+| `GET /employees/{id}` | 11–13 | 19–24 | p95 < 300 ms |
+| `GET /employees/{id}/salary-history` | 13–17 | 19–22 | p95 < 300 ms |
+| `POST /employees/{id}/salary-changes` | 19–24 | 34–36 | p95 < 300 ms |
+| `GET /insights/overview` | 109–131 | 201–272 | p95 < 300 ms |
+| `GET /insights/by-department` | 73–91 | 148–161 | p95 < 300 ms |
+| `GET /insights/pay-equity` (cohorts, whole org) | 293–347 | **496–527** | p95 < 300 ms |
+| `GET /insights/pay-equity?view=departments&country=DE` | 38–40 | 53–74 | p95 < 300 ms |
+| `GET /employees/export?format=csv` (all 9,700 active) | 967–1,074 | 1,214–1,451 | < 3 s |
+| `POST /imports` (dry-run of a 10,000-row, 1.51 MB CSV) | 1,399–1,465 | 1,894–1,944 | < 5 s |
+
+Every endpoint is inside its budget except the whole-org pay-equity cohorts view, which returns
+all 1,175 cohorts (about 500 KB of JSON) in one response and is about 1.7× over; paging the
+cohorts or loading the summary first is the fix. These are local numbers on a busy machine: the
+deployed (Vercel + Turso) numbers and the cold start are still to be measured (§8).
