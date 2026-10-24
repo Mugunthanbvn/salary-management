@@ -4,11 +4,13 @@ import Link from "next/link";
 import { DirectoryProvider } from "@/components/employees/directory-state";
 import { DirectoryToolbar } from "@/components/employees/directory-toolbar";
 import { EmployeeResults } from "@/components/employees/employee-results";
+import { ExportMenu } from "@/components/employees/export-menu";
 import { ErrorState, PageTitle } from "@/components/print";
 import { buttonVariants } from "@/components/ui/button";
 import { getMe } from "@/lib/api/me";
 import { ProblemError, toProblem } from "@/lib/api/problem";
 import { getReference } from "@/lib/api/reference";
+import type { components } from "@/lib/api/schema";
 import { serverApi } from "@/lib/api/server";
 import {
   hasFilters,
@@ -56,7 +58,10 @@ export default async function EmployeesPage({
 
   return (
     <>
-      <PageTitle title={TITLE} actions={<Actions me={me} />}>
+      <PageTitle
+        title={TITLE}
+        actions={<Actions me={me} reference={reference} />}
+      >
         {data ? countSentence(data.total, hasFilters(state)) : null}
       </PageTitle>
       <DirectoryProvider>
@@ -85,13 +90,24 @@ function countSentence(total: number, filtered: boolean): string {
   return `${count} active ${total === 1 ? "employee" : "employees"}.`;
 }
 
-/** Add needs both write permissions: a new hire comes with their first salary. */
-function Actions({ me }: { me: Me }) {
+/**
+ * Add needs both write permissions: a new hire comes with their first salary. Export needs
+ * the reference data to send only the filters the API accepts, so it waits for it.
+ */
+function Actions({
+  me,
+  reference,
+}: {
+  me: Me;
+  reference?: components["schemas"]["ReferenceData"];
+}) {
   const canAdd = can(me, "EMPLOYEE_WRITE") && can(me, "SALARY_WRITE");
   const canImport = can(me, "IMPORT");
-  if (!canAdd && !canImport) return null;
+  const canExport = can(me, "EXPORT") && reference !== undefined;
+  if (!canAdd && !canImport && !canExport) return null;
   return (
     <>
+      {canExport ? <ExportMenu reference={reference} /> : null}
       {canImport ? (
         <Link
           href="/employees/import"
