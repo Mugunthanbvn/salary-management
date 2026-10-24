@@ -114,3 +114,8 @@ def test_settings_errors_never_show_secret_values(
     shown = str(error.value) + repr(error.value.errors())
     assert jwt_secret not in shown
     assert auth_token not in shown
+
+
+def test_production_refuses_cors_origins() -> None:
+    with pytest.raises(ValidationError, match="CORS_ORIGINS"):
+        make_settings(**SAFE_PRODUCTION | {"cors_origins": ["http://localhost:3000"]})
