@@ -26,4 +26,16 @@ describe("formatMoney", () => {
 
     expect(text).toBe("€54,000.00");
   });
+
+  it.each([
+    { currency: "USD", text: "US$121,000" },
+    { currency: "CAD", text: "CA$121,000" },
+    { currency: "AUD", text: "A$121,000" },
+    { currency: "SGD", text: "S$121,000" },
+  ])(
+    "tells $currency apart from other dollars: $text",
+    ({ currency, text }) => {
+      expect(formatMoney(12_100_000, currency)).toBe(text);
+    },
+  );
 });
