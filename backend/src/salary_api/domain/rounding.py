@@ -6,6 +6,7 @@ Used for FX conversion, means, percentiles and the monthly display amount.
 from decimal import ROUND_HALF_EVEN, Decimal
 
 _HUNDREDTH = Decimal("0.01")
+_TEN_THOUSANDTH = Decimal("0.0001")
 
 
 def round_half_even(value: Decimal) -> int:
@@ -19,6 +20,14 @@ def round_ratio(ratio: Decimal) -> Decimal:
     For output only. Flags and thresholds compare the unrounded ratio.
     """
     return ratio.quantize(_HUNDREDTH, rounding=ROUND_HALF_EVEN)
+
+
+def round_share(share: Decimal) -> Decimal:
+    """A share of a total for display: four decimal places, half-even (0.12345 -> 0.1234).
+
+    Used for `share_of_total` in department cost (docs/09 section 3.5).
+    """
+    return share.quantize(_TEN_THOUSANDTH, rounding=ROUND_HALF_EVEN)
 
 
 def divide_half_even(numerator: int, denominator: int) -> int:
