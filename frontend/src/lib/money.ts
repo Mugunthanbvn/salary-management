@@ -20,7 +20,7 @@ export function formatMoney(
   // Whole amounts read like the printout ("€54,000"); any minor part shows every digit.
   const fractionDigits =
     minorUnits === "auto" && /^0*$/.test(fraction) ? 0 : fraction.length;
-  const formatter = new Intl.NumberFormat("en-US", {
+  const formatter = new Intl.NumberFormat(defaultLocale(currency), {
     style: "currency",
     currency,
     minimumFractionDigits: fractionDigits,
@@ -54,6 +54,14 @@ function withSymbol(parts: Intl.NumberFormatPart[], currency: string): string {
         : part.value;
     })
     .join("");
+}
+
+/**
+ * A fixed locale, so the server and the browser render the same text. Rupees use Indian
+ * grouping (₹18,60,000); everything else uses en-US grouping (€54,000).
+ */
+function defaultLocale(currency: string): string {
+  return currency === "INR" ? "en-IN" : "en-US";
 }
 
 /** The currency's minor-unit exponent (JPY 0, EUR 2), as Intl knows it. */
