@@ -3,6 +3,7 @@
 from collections.abc import Callable
 from datetime import date
 
+import pytest
 import time_machine
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
@@ -86,3 +87,49 @@ def test_reactivate_clears_the_termination_and_writes_one_event(
         "status": ["TERMINATED", "ACTIVE"],
         "termination_date": ["2025-06-30", None],
     }
+
+
+@pytest.mark.parametrize(
+    ("status", "action"), [("TERMINATED", "terminate"), ("ACTIVE", "reactivate")]
+)
+def test_moving_an_employee_to_the_status_they_have_is_409_invalid_state(
+    as_role: Callable[[str], TestClient], db_session: Session, status: str, action: str
+) -> None:
+    employee = make_employee(db_session, status=status)
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/{action}", json={"version": 1}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["type"] == f"{PROBLEMS}invalid-state"
+    assert db_session.scalars(select(AuditEvent)).all() == []
+
+
+def test_a_termination_date_before_the_hire_date_is_refused(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    employee = make_employee(db_session, hire_date=date(2024, 1, 15))
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/terminate",
+        json={"version": 1, "termination_date": "2024-01-14"},
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["loc"] == ["body", "termination_date"]
+
+
+@pytest.mark.parametrize(
+    ("status", "action"), [("ACTIVE", "terminate"), ("TERMINATED", "reactivate")]
+)
+def test_a_status_change_with_a_stale_version_is_a_version_conflict(
+    as_role: Callable[[str], TestClient], db_session: Session, status: str, action: str
+) -> None:
+    employee = make_employee(db_session, status=status)
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/{action}", json={"version": 7}
+    )
+
+    assert (response.status_code, response.json()["current_version"]) == (409, 1)
