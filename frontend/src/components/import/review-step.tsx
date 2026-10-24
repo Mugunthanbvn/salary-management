@@ -4,7 +4,10 @@ import { Highlight, MarginNote, PageTitle, Section } from "@/components/print";
 import { Button } from "@/components/ui/button";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/dates";
+import { saveFile } from "@/lib/download";
 import { formatCount } from "@/lib/numbers";
+
+import { errorReportName, problemsCsv } from "./error-report";
 
 import type { CommitProblem } from "./messages";
 import { PreviewRows } from "./preview-rows";
@@ -77,6 +80,20 @@ export function ReviewStep({
             then upload it again.
           </MarginNote>
           <RowErrors errors={report.errors} />
+          <Button
+            variant="link"
+            className="mt-2"
+            onClick={() =>
+              saveFile(
+                new Blob([problemsCsv(report.errors)], {
+                  type: "text/csv;charset=utf-8",
+                }),
+                errorReportName(report.filename),
+              )
+            }
+          >
+            Download the list of problems
+          </Button>
         </Section>
       ) : null}
 
