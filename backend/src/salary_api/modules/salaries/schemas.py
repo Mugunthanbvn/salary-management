@@ -88,3 +88,8 @@ class SalaryHistoryRecord(BaseModel):
 class SalaryChange(BaseModel):
     record: SalaryHistoryRecord
     employee_version: int  # send it with the employee's next change
+
+
+class SalaryHistory(BaseModel):
+    employee_id: int
+    records: list[SalaryHistoryRecord]  # oldest first: by effective_date, then id

@@ -37,6 +37,7 @@ def test_history_lists_records_by_effective_date_with_the_change_in_base(
         components=[("ALLOWANCE", "HRA", 72_000_000)],
         hire_date=date(2021, 3, 15),
     )  # a seeded HIRE record: changed_by is null
+    hire_record_id = employee.current_salary_record_id
     http = signed_in_client(app, hr, settings)
     changes = f"{EMPLOYEES}/{employee.id}/salary-changes"
     http.post(
@@ -68,7 +69,7 @@ def test_history_lists_records_by_effective_date_with_the_change_in_base(
     hire, promotion, merit = body["records"]
     inr = "INR"
     assert hire == {
-        "id": employee.current_salary_record_id,
+        "id": hire_record_id,
         "effective_date": "2021-03-15",
         "reason": "HIRE",
         "job_role": {"id": role.id, "title": "Software Engineer"},

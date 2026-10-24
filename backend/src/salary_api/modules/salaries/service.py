@@ -11,9 +11,9 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from salary_api.core.errors import FieldError, InvalidState, ValidationFailed
+from salary_api.core.errors import FieldError, Forbidden, InvalidState, ValidationFailed
 from salary_api.core.models import utc_now
-from salary_api.core.permissions import Principal
+from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.compensation import total_compensation
 from salary_api.domain.enums import EmployeeStatus, Level, SalaryReason
@@ -33,6 +33,7 @@ from salary_api.modules.salaries.schemas import (
     ComponentIn,
     SalaryChange,
     SalaryChangeRequest,
+    SalaryHistory,
     SalaryHistoryRecord,
 )
 
@@ -127,6 +128,21 @@ def record_salary_change(
     )
     locking.commit_versioned(session, employee_id)
     return SalaryChange(record=_history_record(record, previous), employee_version=employee.version)
+
+
+def salary_history(session: Session, principal: Principal, employee_id: int) -> SalaryHistory:
+    """Every salary record, oldest first. Individual pay, so SALARY_READ only (docs/08 4.1)."""
+    if not principal.has(Permission.SALARY_READ):
+        raise Forbidden("Salary history requires SALARY_READ.")
+    locking.get(session, employee_id)  # NotFound for an unknown employee
+    records = repository.history(session, employee_id)
+    return SalaryHistory(
+        employee_id=employee_id,
+        records=[
+            _history_record(record, previous)
+            for previous, record in zip([None, *records], records, strict=False)
+        ],
+    )
 
 
 @dataclass(frozen=True, slots=True)
