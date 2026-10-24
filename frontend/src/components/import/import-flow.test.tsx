@@ -1,7 +1,7 @@
 import { screen, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Toaster } from "@/components/ui/sonner";
 import type { components } from "@/lib/api/schema";
@@ -13,6 +13,7 @@ import {
 } from "@/test/fixtures";
 import { server } from "@/test/msw/server";
 import { renderInApp } from "@/test/render";
+import { makeFile, useNodeFormData } from "@/test/upload";
 
 import { ImportFlow } from "./import-flow";
 
@@ -37,8 +38,16 @@ function renderFlow(searchParams = "") {
   return urls;
 }
 
+beforeEach(async () => {
+  await useNodeFormData();
+});
+
+afterEach(() => {
+  vi.unstubAllGlobals();
+});
+
 function csvFile(name = "q4-new-hires.csv") {
-  return new File(["employee_code,first_name\n"], name, { type: "text/csv" });
+  return makeFile(name, "employee_code,first_name\n", "text/csv");
 }
 
 async function upload(file = csvFile()) {
@@ -53,7 +62,7 @@ function serveUpload(report: ImportJobReport = makeImportReport()) {
       UPLOAD_URL,
       async ({ request }) => {
         const file = (await request.formData()).get("file");
-        if (file instanceof File) received.push(file.name);
+        if (file && typeof file === "object") received.push(file.name);
         return HttpResponse.json(report, { status: 201 });
       },
     ),
