@@ -1,6 +1,7 @@
 """Reading employees: detail and list (docs/07-api-spec.md sections 6.1 and 6.3)."""
 
 from collections.abc import Callable
+from datetime import date
 from typing import Any
 
 import pytest
@@ -288,3 +289,67 @@ def test_search_needs_at_least_two_characters(as_role: Callable[[str], TestClien
 
     assert response.status_code == 422
     assert response.json()["errors"][0]["loc"] == ["query", "q"]
+
+
+@pytest.fixture
+def three_people(db_session: Session) -> None:
+    make_employee(
+        db_session,
+        first_name="Zoe",
+        last_name="Adams",
+        hire_date=date(2022, 5, 1),
+        country="FR",
+        level="L2",
+        employee_code="ACME-000003",
+    )
+    make_employee(
+        db_session,
+        first_name="Ana",
+        last_name="Becker",
+        hire_date=date(2020, 3, 1),
+        country="DE",
+        level="L4",
+        employee_code="ACME-000001",
+    )
+    make_employee(
+        db_session,
+        first_name="Ana",
+        last_name="Cruz",
+        hire_date=date(2022, 5, 1),
+        country="BR",
+        level="L2",
+        employee_code="ACME-000002",
+    )
+
+
+@pytest.mark.parametrize(
+    ("sort", "last_names"),
+    [
+        ("-hire_date", ["Adams", "Cruz", "Becker"]),
+        ("hire_date", ["Becker", "Adams", "Cruz"]),
+        ("-last_name", ["Cruz", "Becker", "Adams"]),
+        ("first_name", ["Becker", "Cruz", "Adams"]),
+        ("first_name,-last_name", ["Cruz", "Becker", "Adams"]),
+        ("country", ["Cruz", "Becker", "Adams"]),
+        ("-level", ["Becker", "Adams", "Cruz"]),
+        ("employee_code", ["Becker", "Cruz", "Adams"]),
+    ],
+)
+@pytest.mark.usefixtures("three_people")
+def test_list_sorts_by_allowed_fields_then_by_last_name_first_name_and_id(
+    as_role: Callable[[str], TestClient], sort: str, last_names: list[str]
+) -> None:
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"sort": sort})
+
+    assert [item["last_name"] for item in response.json()["items"]] == last_names
+
+
+@pytest.mark.parametrize("sort", ["salary", "-", "last_name,,first_name", "id", "search_text"])
+def test_list_refuses_a_sort_field_outside_the_allow_list(
+    as_role: Callable[[str], TestClient], sort: str
+) -> None:
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"sort": sort})
+
+    assert response.status_code == 422
+    assert response.json()["type"] == f"{PROBLEMS}validation"
+    assert response.json()["errors"][0]["loc"] == ["query", "sort"]
