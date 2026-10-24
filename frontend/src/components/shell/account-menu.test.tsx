@@ -3,7 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it } from "vitest";
 
 import type { Me } from "@/lib/permissions";
-import { makeMe } from "@/test/fixtures";
+import { makeMe, VIEWER_PERMISSIONS } from "@/test/fixtures";
 
 import { AccountMenu } from "./account-menu";
 import { MeProvider } from "./me-context";
@@ -27,6 +27,15 @@ describe("AccountMenu", () => {
     expect(
       screen.getByRole("menuitem", { name: "Import employees" }),
     ).toHaveAttribute("href", "/employees/import");
+    expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
+  });
+
+  it("leaves out Import for someone without the IMPORT permission", async () => {
+    await openMenu(makeMe({ permissions: VIEWER_PERMISSIONS }));
+
+    expect(
+      screen.queryByRole("menuitem", { name: "Import employees" }),
+    ).toBeNull();
     expect(screen.getByRole("menuitem", { name: "Sign out" })).toBeVisible();
   });
 });
