@@ -51,6 +51,7 @@ MATRIX = [
     Endpoint("POST", "/api/v1/auth/logout", (401, 204, 204, 204)),
     Endpoint("GET", "/api/v1/auth/me", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/reference", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/countries", (401, 200, 200, 200)),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

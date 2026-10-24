@@ -74,3 +74,18 @@ def test_reference_lists_every_dropdown_value_in_display_order(
         ],
         "salary_change_reasons": ["HIRE", "PROMOTION", "MERIT", "MARKET_ADJUSTMENT", "CORRECTION"],
     }
+
+
+def test_countries_lists_every_country_with_its_currency_by_name(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_country(db_session, "IN")
+    make_country(db_session, "BR", is_active=False)
+
+    response = as_role("VIEWER").get("/api/v1/countries")
+
+    assert response.status_code == 200
+    assert response.json() == [
+        {"code": "BR", "name": "Brazil", "default_currency": "BRL", "is_active": False},
+        {"code": "IN", "name": "India", "default_currency": "INR", "is_active": True},
+    ]
