@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from salary_api import __version__
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine, create_session_factory
+from salary_api.core.logging import configure_logging
 from salary_api.core.request_id import RequestIdMiddleware
 from salary_api.modules.health.router import router as health_router
 
@@ -16,6 +17,7 @@ API_PREFIX = "/api/v1"
 
 def create_app(settings: Settings | None = None) -> FastAPI:
     settings = settings or Settings()
+    configure_logging(settings.log_level)
     engine = create_db_engine(settings)
 
     @asynccontextmanager
