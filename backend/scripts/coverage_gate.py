@@ -11,7 +11,12 @@ from coverage import Coverage
 from coverage.exceptions import NoDataError
 from coverage.files import GlobMatcher
 
-GATED_FILES = ["*/salary_api/domain/*.py", "*/salary_api/modules/*/service.py"]
+# `**` crosses directories (a single `*` does not), so nested files are gated too.
+GATED_FILES = [
+    "**/salary_api/domain/**/*.py",
+    "**/salary_api/modules/*/service.py",
+    "**/salary_api/modules/*/service/**/*.py",
+]
 FAIL_UNDER = 90.0
 
 
