@@ -18,7 +18,7 @@ Built for the Incubyte take-home with FastAPI, Next.js and SQLite (Turso in prod
 
 1. **Sign in as the HR manager** (`hr@acme.example`). You land on **Insights**: headcount and
    payroll per country, in local currency and in USD, with the exchange-rate date shown.
-2. **Pay equity:** pick Germany. The Customer Success team sits at about **0.92 of its salary
+2. **Pay equity:** pick Germany. The Customer Success team sits at about **0.93 of its salary
    band** while other teams are near 1.00. This underpaid team is planted in the seed data on purpose.
 3. **Employees:** search a name, filter by country or department, and open someone. You see their
    salary history. Click **Record salary change** to add a raise; history is never overwritten.
