@@ -56,6 +56,7 @@ from salary_api.modules.salaries.schemas import Component
 
 ENTITY = "employee"  # audit events name the entity they change
 CODE_PREFIX = "ACME-"
+LAST_CODE_NUMBER = 999_999  # codes have six digits
 # After the requested sort fields; the repository ends every order with the id.
 TIEBREAK = ("last_name", "first_name")
 
@@ -470,6 +471,10 @@ def _next_employee_code(session: Session) -> str:
     """`ACME-` and six digits: one more than the highest code in use."""
     highest = repository.highest_employee_code(session)
     number = int(highest.removeprefix(CODE_PREFIX)) + 1 if highest else 1
+    if number > LAST_CODE_NUMBER:
+        raise InvalidState(
+            f"No employee code can follow {highest}: give a free employee_code (ACME-######)."
+        )
     return f"{CODE_PREFIX}{number:06d}"
 
 
