@@ -37,6 +37,13 @@ describe("printout marks", () => {
     },
   );
 
+  // DESIGN.md: 2–3 px thick, 4–6 px offset, as in the red-pen utility (globals.css).
+  it("StatusWord marks a problem with the red-pen underline", () => {
+    render(<StatusWord tone="problem">Below band</StatusWord>);
+
+    expect(screen.getByText("Below band")).toHaveClass("red-pen");
+  });
+
   it("Money shows the amount with its currency, on one line", () => {
     render(<Money amountMinor={5_400_000} currency="EUR" />);
 
