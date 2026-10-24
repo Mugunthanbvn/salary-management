@@ -43,6 +43,17 @@ def test_a_single_value_is_every_statistic() -> None:
     )
 
 
+def test_summary_of_a_group_known_to_be_non_empty_is_its_summary() -> None:
+    result = Summary.of([300, 100, 200])
+
+    assert result == summarize([300, 100, 200])
+
+
+def test_summary_of_no_amounts_is_an_error() -> None:
+    with pytest.raises(ValueError, match="no amounts"):
+        Summary.of([])
+
+
 def test_count_min_max_and_sum_describe_the_whole_group() -> None:
     result = summary_of([500, 100, 300])
 
