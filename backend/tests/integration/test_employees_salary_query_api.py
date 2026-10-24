@@ -206,3 +206,14 @@ def test_a_usd_sort_on_total_uses_total_compensation(
     )
 
     assert _last_names(response.json()) == ["With bonus", "Base only"]
+
+
+def test_salary_basis_alone_compares_nothing_and_needs_no_rates(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_employee(db_session, country="DE", last_name="Euro")  # no fx_rates rows at all
+
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"salary_basis": "usd"})
+
+    assert response.status_code == 200
+    assert _last_names(response.json()) == ["Euro"]
