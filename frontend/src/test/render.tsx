@@ -31,14 +31,20 @@ export function renderInApp(
     rateLimitFactor = 0,
   }: Options = {},
 ) {
-  return render(
+  const tree = (query: string) => (
     <NuqsTestingAdapter
-      searchParams={searchParams}
+      searchParams={query}
       onUrlUpdate={onUrlUpdate}
       rateLimitFactor={rateLimitFactor}
       hasMemory
     >
       <MeProvider me={me}>{ui}</MeProvider>
-    </NuqsTestingAdapter>,
+    </NuqsTestingAdapter>
   );
+  const result = render(tree(searchParams));
+  return {
+    ...result,
+    /** Moves the URL as the browser's Back or Forward would, keeping component state. */
+    navigate: (query: string) => result.rerender(tree(query)),
+  };
 }
