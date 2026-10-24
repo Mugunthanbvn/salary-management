@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, type FormEvent } from "react";
+import { useState, useSyncExternalStore, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
@@ -10,6 +10,20 @@ import { safeNextPath } from "@/lib/auth-redirect";
 import { hardNavigate } from "@/lib/hard-navigate";
 
 const ERROR_ID = "login-error";
+
+const noSubscription = () => () => {};
+
+/**
+ * False in the server HTML, true once React runs in the browser. Until then "Sign in" is
+ * disabled: a click would be the browser's own form submit, not the API call.
+ */
+function useHydrated(): boolean {
+  return useSyncExternalStore(
+    noSubscription,
+    () => true,
+    () => false,
+  );
+}
 
 function text(form: FormData, name: string): string {
   const value = form.get(name);
@@ -50,6 +64,7 @@ function nextPage(): string {
  * Action: the browser itself must receive FastAPI's Set-Cookie (docs/17-deployment.md §3.4).
  */
 export function LoginForm() {
+  const hydrated = useHydrated();
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -76,7 +91,9 @@ export function LoginForm() {
 
   const describedBy = error ? ERROR_ID : undefined;
   return (
+    // method="post": even a submit that slips past React never puts the password in a URL.
     <form
+      method="post"
       onSubmit={(event) => void onSubmit(event)}
       className="flex flex-col gap-5"
     >
@@ -109,7 +126,11 @@ export function LoginForm() {
           {error}
         </p>
       ) : null}
-      <Button type="submit" disabled={pending} className="w-full sm:w-auto">
+      <Button
+        type="submit"
+        disabled={!hydrated || pending}
+        className="w-full sm:w-auto"
+      >
         {pending ? "Signing in…" : "Sign in"}
       </Button>
     </form>
