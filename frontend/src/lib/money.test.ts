@@ -59,4 +59,21 @@ describe("formatMoney", () => {
   ])("refuses a $kind number, because money is never a float", ({ amount }) => {
     expect(() => formatMoney(amount, "EUR")).toThrow(RangeError);
   });
+
+  // Monthly = annual ÷ 12, rounded half-even at the minor unit (display only).
+  it.each([
+    { annual: 5_400_000, currency: "EUR", monthly: "€4,500" },
+    { annual: 100, currency: "EUR", monthly: "€0.08" }, // 8.33 rounds down
+    { annual: 5_400_010, currency: "EUR", monthly: "€4,500.01" }, // 450,000.83 rounds up
+    { annual: 18, currency: "EUR", monthly: "€0.02" }, // 1.5 ties to even 2
+    { annual: 30, currency: "EUR", monthly: "€0.02" }, // 2.5 ties to even 2
+    { annual: 7_200_006, currency: "JPY", monthly: "¥600,000" }, // 600,000.5 ties to even
+  ])(
+    "shows $annual $currency a year as $monthly a month",
+    ({ annual, currency, monthly }) => {
+      expect(formatMoney(annual, currency, { period: "monthly" })).toBe(
+        monthly,
+      );
+    },
+  );
 });
