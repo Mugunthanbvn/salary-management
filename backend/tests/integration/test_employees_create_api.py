@@ -1,6 +1,7 @@
 """POST /employees creates the employee and its HIRE salary record (docs/07-api-spec.md 6.2)."""
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 import time_machine
@@ -216,3 +217,78 @@ def test_openapi_documents_the_problems_create_can_send(app: FastAPI) -> None:
     assert responses["409"]["content"] == {
         "application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}
     }
+
+
+def _salary(**overrides: Any) -> dict[str, Any]:
+    return {"base_minor": 5_400_000, "components": []} | overrides
+
+
+@pytest.mark.parametrize(
+    ("overrides", "error"),
+    [
+        pytest.param({"job_role_id": 999}, (["body", "job_role_id"], "not_found"), id="role"),
+        pytest.param({"country_code": "XX"}, (["body", "country_code"], "not_found"), id="country"),
+        pytest.param(
+            {"country_code": "FR"}, (["body", "country_code"], "inactive"), id="inactive country"
+        ),
+        pytest.param(
+            {"hire_date": "2026-10-02"}, (["body", "hire_date"], "future_date"), id="future hire"
+        ),
+        pytest.param(
+            {"salary": _salary(currency="USD")},
+            (["body", "salary", "currency"], "currency_mismatch"),
+            id="not the country currency",
+        ),
+    ],
+)
+def test_create_refuses_values_that_break_a_business_rule(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    overrides: dict[str, Any],
+    error: tuple[list[str], str],
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "DE")
+    make_country(db_session, "FR", is_active=False)
+
+    response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id, **overrides))
+
+    assert response.status_code == 422
+    body = response.json()
+    assert body["type"] == f"{PROBLEMS}validation"
+    assert [(e["loc"], e["code"]) for e in body["errors"]] == [error]
+    assert db_session.scalar(select(func.count()).select_from(Employee)) == 0
+
+
+def test_create_reports_every_broken_rule_at_once(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    make_country(db_session, "DE")
+
+    response = as_role("HR_MANAGER").post(
+        EMPLOYEES, json=employee_request(999, hire_date="2027-01-01")
+    )
+
+    assert [error["code"] for error in response.json()["errors"]] == ["not_found", "future_date"]
+
+
+def test_create_accepts_the_country_currency_when_it_is_given(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "JP")
+
+    response = as_role("HR_MANAGER").post(
+        EMPLOYEES,
+        json=employee_request(
+            role.id, country_code="JP", salary=_salary(currency="JPY", base_minor=6_000_000)
+        ),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["current_base"] == {"amount_minor": 6_000_000, "currency": "JPY"}
