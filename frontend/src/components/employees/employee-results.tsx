@@ -1,7 +1,13 @@
 "use client";
 
+import {
+  createColumnHelper,
+  tableFeatures,
+  useTable,
+} from "@tanstack/react-table";
 import { cn } from "cn";
 import Link from "next/link";
+import { useMemo } from "react";
 
 import { EmptyState, Money } from "@/components/print";
 import { useMe } from "@/components/shell/me-context";
@@ -10,6 +16,15 @@ import {
   NativeSelect,
   NativeSelectOption,
 } from "@/components/ui/native-select";
+import {
+  Table,
+  TableBody,
+  TableCaption,
+  TableCell,
+  TableHead,
+  TableHeader,
+  TableRow,
+} from "@/components/ui/table";
 import type { components } from "@/lib/api/schema";
 import {
   PAGE_SIZES,
@@ -141,121 +156,190 @@ function sortedColumn(
   return column ? { column, descending } : null;
 }
 
+type Cell = { employee: EmployeeListItem; terminated: boolean };
+
+/** How each column's header and cells look; TanStack Table supplies the rows and order. */
+const COLUMN_STYLES: Record<
+  Column | "department" | "type",
+  { head: string; cell: string; sortable?: Column }
+> = {
+  name: { head: "pr-3", cell: "py-3.5 pr-3", sortable: "name" },
+  role: { head: "px-3", cell: "px-3", sortable: "role" },
+  department: {
+    head: "hidden px-3 md:table-cell",
+    cell: "hidden px-3 md:table-cell",
+  },
+  country: { head: "px-3", cell: "px-3", sortable: "country" },
+  type: {
+    head: "hidden px-3 lg:table-cell",
+    cell: "hidden px-3 lg:table-cell",
+  },
+  pay: {
+    head: "px-3 text-right",
+    cell: "px-3 py-3 text-right font-serif text-[18px] font-semibold",
+    sortable: "pay",
+  },
+  hired: {
+    head: "hidden pl-3 lg:table-cell",
+    cell: "hidden pl-3 whitespace-nowrap text-ink-3 lg:table-cell",
+    sortable: "hired",
+  },
+};
+
+const features = tableFeatures({});
+const helper = createColumnHelper<typeof features, Cell>();
+
+function employeeColumns(
+  reference: ReferenceData,
+  state: DirectoryState,
+  showPay: boolean,
+) {
+  return helper.columns([
+    helper.display({
+      id: "name",
+      header: "Name",
+      cell: ({ row: { original } }) => (
+        <>
+          <Link
+            href={`/employees/${original.employee.id}`}
+            className={cn(
+              // Ink names as on the printout; the underline shows the link.
+              "inline-flex min-h-11 items-center font-bold text-ink no-underline hover:text-ink hover:underline hover:underline-offset-4",
+              original.terminated && "text-ink-3 hover:text-ink-3",
+            )}
+          >
+            {fullName(original.employee)}
+          </Link>
+          <span className="mt-0.5 block text-[13px] text-ink-3">
+            {original.employee.employee_code}
+            {original.terminated ? (
+              <>
+                {" · "}
+                <span className="font-bold text-ink-2">Terminated</span>
+              </>
+            ) : null}
+          </span>
+        </>
+      ),
+    }),
+    helper.display({
+      id: "role",
+      header: "Job role and level",
+      cell: ({ row }) => roleAndLevel(row.original.employee),
+    }),
+    helper.display({
+      id: "department",
+      header: "Department",
+      cell: ({ row }) => row.original.employee.department.name,
+    }),
+    helper.display({
+      id: "country",
+      header: "Country",
+      cell: ({ row }) =>
+        countryName(row.original.employee.country_code, reference),
+    }),
+    helper.display({
+      id: "type",
+      header: "Type",
+      cell: ({ row }) =>
+        EMPLOYMENT_TYPE_LABELS[row.original.employee.employment_type],
+    }),
+    ...(showPay
+      ? [
+          helper.display({
+            id: "pay",
+            header: payHeading(state),
+            cell: ({ row }) => (
+              <PayAmount employee={row.original.employee} state={state} />
+            ),
+          }),
+        ]
+      : []),
+    helper.display({
+      id: "hired",
+      header: "Hired",
+      cell: ({ row }) => formatDate(row.original.employee.hire_date),
+    }),
+  ]);
+}
+
 function ResultsTable({ items, reference, state, showPay }: ListProps) {
   const sorted = sortedColumn(state);
-  const ariaSort = (column: Column) =>
-    sorted?.column === column
+  const ariaSort = (column: Column | undefined) =>
+    column && sorted?.column === column
       ? sorted.descending
         ? ("descending" as const)
         : ("ascending" as const)
       : undefined;
-  const th = "pb-2.5 text-left align-bottom text-[13px] font-normal text-ink-2";
+  const columns = useMemo(
+    () => employeeColumns(reference, state, showPay),
+    [reference, state, showPay],
+  );
+  const data = useMemo(
+    () =>
+      items.map((employee) => ({
+        employee,
+        terminated: employee.status === "TERMINATED",
+      })),
+    [items],
+  );
+  const table = useTable({ features, columns, data });
+  const style = (id: string) => COLUMN_STYLES[id as keyof typeof COLUMN_STYLES];
+
   return (
     <div data-slot="results-table" className="hidden overflow-x-auto sm:block">
-      <table className="w-full border-collapse text-[15px]">
-        <caption className="sr-only">Employees</caption>
-        <thead>
-          <tr className="border-b-2 border-ink">
-            <th
-              scope="col"
-              aria-sort={ariaSort("name")}
-              className={cn(th, "pr-3")}
+      <Table>
+        <TableCaption className="sr-only">Employees</TableCaption>
+        <TableHeader>
+          {table.getHeaderGroups().map((group) => (
+            <tr key={group.id} className="border-b-2 border-ink">
+              {group.headers.map((header) => (
+                <TableHead
+                  key={header.id}
+                  scope="col"
+                  aria-sort={ariaSort(style(header.column.id).sortable)}
+                  className={style(header.column.id).head}
+                >
+                  <table.FlexRender header={header} />
+                </TableHead>
+              ))}
+            </tr>
+          ))}
+        </TableHeader>
+        <TableBody>
+          {table.getRowModel().rows.map((row) => (
+            <TableRow
+              key={row.original.employee.id}
+              className={cn(
+                "align-top",
+                row.original.terminated && "text-ink-3",
+              )}
             >
-              Name
-            </th>
-            <th
-              scope="col"
-              aria-sort={ariaSort("role")}
-              className={cn(th, "px-3")}
-            >
-              Job role and level
-            </th>
-            <th scope="col" className={cn(th, "hidden px-3 md:table-cell")}>
-              Department
-            </th>
-            <th
-              scope="col"
-              aria-sort={ariaSort("country")}
-              className={cn(th, "px-3")}
-            >
-              Country
-            </th>
-            <th scope="col" className={cn(th, "hidden px-3 lg:table-cell")}>
-              Type
-            </th>
-            {showPay ? (
-              <th
-                scope="col"
-                aria-sort={ariaSort("pay")}
-                className={cn(th, "px-3 text-right")}
-              >
-                {payHeading(state)}
-              </th>
-            ) : null}
-            <th
-              scope="col"
-              aria-sort={ariaSort("hired")}
-              className={cn(th, "hidden pl-3 lg:table-cell")}
-            >
-              Hired
-            </th>
-          </tr>
-        </thead>
-        <tbody>
-          {items.map((employee) => {
-            const terminated = employee.status === "TERMINATED";
-            return (
-              <tr
-                key={employee.id}
-                className={cn(
-                  "border-b border-rule align-top",
-                  terminated && "text-ink-3",
-                )}
-              >
-                <th scope="row" className="py-3.5 pr-3 text-left font-normal">
-                  <Link
-                    href={`/employees/${employee.id}`}
+              {row.getAllCells().map((cell) =>
+                cell.column.id === "name" ? (
+                  <th
+                    key={cell.id}
+                    scope="row"
                     className={cn(
-                      // Ink names as on the printout; the underline shows the link.
-                      "inline-flex min-h-11 items-center font-bold text-ink no-underline hover:text-ink hover:underline hover:underline-offset-4",
-                      terminated && "text-ink-3 hover:text-ink-3",
+                      "text-left font-normal",
+                      style(cell.column.id).cell,
                     )}
                   >
-                    {fullName(employee)}
-                  </Link>
-                  <span className="mt-0.5 block text-[13px] text-ink-3">
-                    {employee.employee_code}
-                    {terminated ? (
-                      <>
-                        {" · "}
-                        <span className="font-bold text-ink-2">Terminated</span>
-                      </>
-                    ) : null}
-                  </span>
-                </th>
-                <td className="px-3 py-3.5">{roleAndLevel(employee)}</td>
-                <td className="hidden px-3 py-3.5 md:table-cell">
-                  {employee.department.name}
-                </td>
-                <td className="px-3 py-3.5">
-                  {countryName(employee.country_code, reference)}
-                </td>
-                <td className="hidden px-3 py-3.5 lg:table-cell">
-                  {EMPLOYMENT_TYPE_LABELS[employee.employment_type]}
-                </td>
-                {showPay ? (
-                  <td className="px-3 py-3 text-right font-serif text-[18px] font-semibold">
-                    <PayAmount employee={employee} state={state} />
-                  </td>
-                ) : null}
-                <td className="hidden py-3.5 pl-3 whitespace-nowrap text-ink-3 lg:table-cell">
-                  {formatDate(employee.hire_date)}
-                </td>
-              </tr>
-            );
-          })}
-        </tbody>
-      </table>
+                    <table.FlexRender cell={cell} />
+                  </th>
+                ) : (
+                  <TableCell
+                    key={cell.id}
+                    className={style(cell.column.id).cell}
+                  >
+                    <table.FlexRender cell={cell} />
+                  </TableCell>
+                ),
+              )}
+            </TableRow>
+          ))}
+        </TableBody>
+      </Table>
     </div>
   );
 }
