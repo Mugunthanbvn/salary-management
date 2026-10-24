@@ -3,6 +3,7 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 
+import { AccountMenu } from "./account-menu";
 import { useMe } from "./me-context";
 import { isCurrent, mainNavItems } from "./nav-items";
 
@@ -44,6 +45,9 @@ export function AppHeader() {
             })}
           </ul>
         </nav>
+        <div className="ml-auto">
+          <AccountMenu />
+        </div>
       </div>
     </header>
   );
