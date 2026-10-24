@@ -1,9 +1,9 @@
 from datetime import date
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from salary_api.core.schemas import Money
+from salary_api.core.schemas import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Money
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level, SalaryReason
 from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, Department, JobRoleRef
 from salary_api.modules.salaries.schemas import BaseMinor, Component, Components, Note
@@ -79,3 +79,20 @@ class CurrentSalary(BaseModel):
 class EmployeeDetail(EmployeeListItem):
     termination_date: date | None
     current_salary: CurrentSalary | None
+
+
+class EmployeeListQuery(BaseModel):
+    """The query of GET /employees. Unknown parameters are refused (422), so typos show."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    status: list[EmployeeStatus] = Field(default_factory=lambda: [EmployeeStatus.ACTIVE])
+    page: int = Field(default=1, ge=1)
+    page_size: int = Field(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE)
+
+
+class EmployeePage(BaseModel):
+    items: list[EmployeeListItem]
+    page: int
+    page_size: int
+    total: int  # every match, not only this page

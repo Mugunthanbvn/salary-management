@@ -5,6 +5,7 @@ directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 """
 
 from datetime import date
+from typing import Any
 
 from sqlalchemy.orm import Session
 
@@ -21,6 +22,9 @@ from salary_api.modules.employees.schemas import (
     CurrentSalary,
     EmployeeCreate,
     EmployeeDetail,
+    EmployeeListItem,
+    EmployeeListQuery,
+    EmployeePage,
 )
 from salary_api.modules.reference import repository as reference
 from salary_api.modules.reference.models import Country
@@ -97,29 +101,58 @@ def get_employee(session: Session, principal: Principal, employee_id: int) -> Em
     return _detail(employee, salary_visible=principal.has(Permission.SALARY_READ))
 
 
+def list_employees(
+    session: Session, principal: Principal, query: EmployeeListQuery
+) -> EmployeePage:
+    """One page of employees, `ACTIVE` ones by default, sorted by name."""
+    where = repository.EmployeeFilter(statuses=query.status)
+    employees = repository.page(
+        session, where, offset=(query.page - 1) * query.page_size, limit=query.page_size
+    )
+    salary_visible = principal.has(Permission.SALARY_READ)
+    return EmployeePage(
+        items=[
+            EmployeeListItem(**_list_fields(employee, salary_visible=salary_visible))
+            for employee in employees
+        ],
+        page=query.page,
+        page_size=query.page_size,
+        total=repository.count(session, where),
+    )
+
+
 def _detail(employee: Employee, *, salary_visible: bool) -> EmployeeDetail:
-    role = employee.job_role
     record = employee.current_salary_record
     return EmployeeDetail(
-        id=employee.id,
-        employee_code=employee.employee_code,
-        first_name=employee.first_name,
-        last_name=employee.last_name,
-        email=employee.email,
-        job_role=JobRoleRef(id=role.id, title=role.title),
-        department=Department(id=role.department.id, name=role.department.name),
-        level=employee.level,
-        employment_type=employee.employment_type,
-        country_code=employee.country_code,
-        status=employee.status,
-        hire_date=employee.hire_date,
+        **_list_fields(employee, salary_visible=salary_visible),
         termination_date=employee.termination_date,
-        current_base=Money(amount_minor=employee.current_base_minor, currency=employee.currency),
-        current_total=Money(amount_minor=employee.current_total_minor, currency=employee.currency),
         current_salary=_current_salary(record) if record else None,
-        salary_masked=not salary_visible,
-        version=employee.version,
     )
+
+
+def _list_fields(employee: Employee, *, salary_visible: bool) -> dict[str, Any]:
+    """The fields of a list item, which the detail repeats."""
+    role = employee.job_role
+    return {
+        "id": employee.id,
+        "employee_code": employee.employee_code,
+        "first_name": employee.first_name,
+        "last_name": employee.last_name,
+        "email": employee.email,
+        "job_role": JobRoleRef(id=role.id, title=role.title),
+        "department": Department(id=role.department.id, name=role.department.name),
+        "level": employee.level,
+        "employment_type": employee.employment_type,
+        "country_code": employee.country_code,
+        "status": employee.status,
+        "hire_date": employee.hire_date,
+        "current_base": Money(amount_minor=employee.current_base_minor, currency=employee.currency),
+        "current_total": Money(
+            amount_minor=employee.current_total_minor, currency=employee.currency
+        ),
+        "salary_masked": not salary_visible,
+        "version": employee.version,
+    }
 
 
 def _current_salary(record: SalaryRecord) -> CurrentSalary:

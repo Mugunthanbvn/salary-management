@@ -1,12 +1,17 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, Request, Response
+from fastapi import APIRouter, Depends, Query, Request, Response
 
 from salary_api.core.deps import SessionDep, require_permission
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
 from salary_api.modules.employees import service
-from salary_api.modules.employees.schemas import EmployeeCreate, EmployeeDetail
+from salary_api.modules.employees.schemas import (
+    EmployeeCreate,
+    EmployeeDetail,
+    EmployeeListQuery,
+    EmployeePage,
+)
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
@@ -14,6 +19,18 @@ CanRead = Annotated[Principal, Depends(require_permission(Permission.EMPLOYEE_RE
 CanCreate = Annotated[
     Principal, Depends(require_permission(Permission.EMPLOYEE_WRITE, Permission.SALARY_WRITE))
 ]
+
+
+@router.get(
+    "",
+    response_model=EmployeePage,
+    responses=problem_responses(401, 403),
+    summary="Search, filter, sort and page employees (salary masked without SALARY_READ)",
+)
+def list_employees(
+    query: Annotated[EmployeeListQuery, Query()], principal: CanRead, session: SessionDep
+) -> EmployeePage:
+    return service.list_employees(session, principal, query)
 
 
 @router.post(

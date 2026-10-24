@@ -346,6 +346,134 @@
         "title": "EmployeeDetail",
         "type": "object"
       },
+      "EmployeeListItem": {
+        "description": "An employee in a list. Without SALARY_READ the salary fields are null and\n`salary_masked` is true (docs/07-api-spec.md section 1.7).",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "current_base": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "employee_code": {
+            "title": "Employee Code",
+            "type": "string"
+          },
+          "employment_type": {
+            "$ref": "#/components/schemas/EmploymentType"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "hire_date": {
+            "format": "date",
+            "title": "Hire Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "salary_masked": {
+            "title": "Salary Masked",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EmployeeStatus"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "employee_code",
+          "first_name",
+          "last_name",
+          "email",
+          "job_role",
+          "department",
+          "level",
+          "employment_type",
+          "country_code",
+          "status",
+          "hire_date",
+          "current_base",
+          "current_total",
+          "salary_masked",
+          "version"
+        ],
+        "title": "EmployeeListItem",
+        "type": "object"
+      },
+      "EmployeePage": {
+        "properties": {
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeListItem"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "page": {
+            "title": "Page",
+            "type": "integer"
+          },
+          "page_size": {
+            "title": "Page Size",
+            "type": "integer"
+          },
+          "total": {
+            "title": "Total",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "items",
+          "page",
+          "page_size",
+          "total"
+        ],
+        "title": "EmployeePage",
+        "type": "object"
+      },
       "EmployeeStatus": {
         "enum": [
           "ACTIVE",
@@ -1234,6 +1362,120 @@
       }
     },
     "/api/v1/employees": {
+      "get": {
+        "operationId": "list_employees_api_v1_employees_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page",
+            "required": false,
+            "schema": {
+              "default": 1,
+              "minimum": 1,
+              "title": "Page",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "page_size",
+            "required": false,
+            "schema": {
+              "default": 25,
+              "maximum": 100,
+              "minimum": 1,
+              "title": "Page Size",
+              "type": "integer"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeePage"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Search, filter, sort and page employees (salary masked without SALARY_READ)",
+        "tags": [
+          "employees"
+        ]
+      },
       "post": {
         "operationId": "create_employee_api_v1_employees_post",
         "requestBody": {

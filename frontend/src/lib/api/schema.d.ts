@@ -79,7 +79,8 @@ export interface paths {
             path?: never;
             cookie?: never;
         };
-        get?: never;
+        /** Search, filter, sort and page employees (salary masked without SALARY_READ) */
+        get: operations["list_employees_api_v1_employees_get"];
         put?: never;
         /** Create an employee with their hire salary */
         post: operations["create_employee_api_v1_employees_post"];
@@ -265,6 +266,52 @@ export interface components {
             termination_date: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * EmployeeListItem
+         * @description An employee in a list. Without SALARY_READ the salary fields are null and
+         *     `salary_masked` is true (docs/07-api-spec.md section 1.7).
+         */
+        EmployeeListItem: {
+            /** Country Code */
+            country_code: string;
+            current_base: components["schemas"]["Money"] | null;
+            current_total: components["schemas"]["Money"] | null;
+            department: components["schemas"]["Department"];
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code: string;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Id */
+            id: number;
+            job_role: components["schemas"]["JobRoleRef"];
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            /** Salary Masked */
+            salary_masked: boolean;
+            status: components["schemas"]["EmployeeStatus"];
+            /** Version */
+            version: number;
+        };
+        /** EmployeePage */
+        EmployeePage: {
+            /** Items */
+            items: components["schemas"]["EmployeeListItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
         };
         /**
          * EmployeeStatus
@@ -692,6 +739,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Country"][];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_employees_api_v1_employees_get: {
+        parameters: {
+            query?: {
+                status?: components["schemas"]["EmployeeStatus"][];
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeePage"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */
