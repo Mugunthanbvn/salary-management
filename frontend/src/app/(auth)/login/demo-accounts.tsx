@@ -1,7 +1,7 @@
 import { ROLE_LABELS } from "@/lib/roles";
 
 // The seeded demo users (docs/12-seed-data.md §11). Their passwords come from env at seed
-// time and are shared in the README, never shown or committed here.
+// time and are shared in the submission email, never shown or committed here.
 const DEMO_ACCOUNTS = [
   { name: "Arun", role: ROLE_LABELS.ADMIN, email: "admin@acme.example" },
   { name: "Hema", role: ROLE_LABELS.HR_MANAGER, email: "hr@acme.example" },
@@ -37,7 +37,7 @@ export function DemoAccounts() {
         ))}
       </ul>
       <p className="mt-2 font-serif text-[15px] text-ink-2 italic">
-        The passwords are in the README.
+        The passwords are in the submission email.
       </p>
     </section>
   );
