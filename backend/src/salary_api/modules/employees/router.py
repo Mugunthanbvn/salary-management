@@ -11,11 +11,13 @@ from salary_api.modules.employees.schemas import (
     EmployeeDetail,
     EmployeeListQuery,
     EmployeePage,
+    EmployeeUpdate,
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
 CanRead = Annotated[Principal, Depends(require_permission(Permission.EMPLOYEE_READ))]
+CanWrite = Annotated[Principal, Depends(require_permission(Permission.EMPLOYEE_WRITE))]
 CanCreate = Annotated[
     Principal, Depends(require_permission(Permission.EMPLOYEE_WRITE, Permission.SALARY_WRITE))
 ]
@@ -61,3 +63,15 @@ def create_employee(
 )
 def get_employee(employee_id: int, principal: CanRead, session: SessionDep) -> EmployeeDetail:
     return service.get_employee(session, principal, employee_id)
+
+
+@router.patch(
+    "/{employee_id:int}",
+    response_model=EmployeeDetail,
+    responses=problem_responses(401, 403, 404, 409),
+    summary="Edit profile fields (needs the version you read)",
+)
+def update_employee(
+    employee_id: int, body: EmployeeUpdate, principal: CanWrite, session: SessionDep
+) -> EmployeeDetail:
+    return service.update_employee(session, principal, employee_id, body)

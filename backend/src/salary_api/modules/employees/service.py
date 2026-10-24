@@ -35,6 +35,7 @@ from salary_api.modules.employees.schemas import (
     EmployeeListItem,
     EmployeeListQuery,
     EmployeePage,
+    EmployeeUpdate,
 )
 from salary_api.modules.reference import repository as reference
 from salary_api.modules.reference import service as reference_service
@@ -113,10 +114,29 @@ def create_employee(
 
 
 def get_employee(session: Session, principal: Principal, employee_id: int) -> EmployeeDetail:
+    return _detail(_get(session, employee_id), salary_visible=can_see_salaries(principal))
+
+
+def update_employee(
+    session: Session, principal: Principal, employee_id: int, request: EmployeeUpdate
+) -> EmployeeDetail:
+    """Change profile fields of the version the client read; the version goes up by one."""
+    employee = _get(session, employee_id)
+    for field, value in request.model_dump(exclude_unset=True, exclude={"version"}).items():
+        setattr(employee, field, value)
+    employee.search_text = employee_search_text(
+        employee.first_name, employee.last_name, employee.employee_code, employee.email
+    )
+    employee.version += 1
+    session.commit()
+    return get_employee(session, principal, employee_id)
+
+
+def _get(session: Session, employee_id: int) -> Employee:
     employee = repository.get_detail(session, employee_id)
     if employee is None:
         raise NotFound(f"Employee {employee_id} was not found.")
-    return _detail(employee, salary_visible=can_see_salaries(principal))
+    return employee
 
 
 def list_employees(

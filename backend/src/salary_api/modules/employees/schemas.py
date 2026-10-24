@@ -53,6 +53,19 @@ class EmployeeCreate(BaseModel):
     salary: HireSalary
 
 
+class EmployeeUpdate(BaseModel):
+    """Profile fields only. Salary, role, level and country change through a salary change,
+    so history explains them; they are refused here as unknown fields."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1)  # the version the client read; 409 if it is no longer current
+    first_name: PersonName | None = None
+    last_name: PersonName | None = None
+    email: WorkEmail | None = None
+    employment_type: EmploymentType | None = None
+
+
 class EmployeeListItem(BaseModel):
     """An employee in a list. Without SALARY_READ the salary fields are null and
     `salary_masked` is true (docs/07-api-spec.md section 1.7)."""
