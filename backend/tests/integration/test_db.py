@@ -5,6 +5,7 @@ from pathlib import Path
 import pytest
 from sqlalchemy import (
     Column,
+    Engine,
     ForeignKey,
     Integer,
     MetaData,
@@ -16,10 +17,11 @@ from sqlalchemy import (
     select,
 )
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from salary_api.core.config import Settings
-from salary_api.core.db import create_db_engine
+from salary_api.core.db import create_db_engine, create_session_factory
 from tests.conftest import rolled_back_session
 from tests.factories import make_settings
 
@@ -110,3 +112,13 @@ def test_database_errors_do_not_show_bound_values() -> None:
 
     assert "ana@acme.example" not in str(error.value)
     engine.dispose()
+
+
+def test_test_sessions_use_the_same_options_as_the_app(engine: Engine, db_session: Session) -> None:
+    app_session = create_session_factory(engine)()
+
+    assert (db_session.autoflush, db_session.expire_on_commit) == (
+        app_session.autoflush,
+        app_session.expire_on_commit,
+    )
+    app_session.close()
