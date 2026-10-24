@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from salary_api.domain.currency import UnknownCurrencyError
-from salary_api.domain.money import Money, TooManyDecimalsError
+from salary_api.domain.money import InvalidAmountError, Money, TooManyDecimalsError
 
 
 def test_money_holds_integer_minor_units_and_a_currency() -> None:
@@ -77,3 +77,11 @@ def test_from_major_accepts_trailing_zeros_because_nothing_is_lost(
 def test_from_major_rejects_floats_and_other_non_text_numbers(major: object) -> None:
     with pytest.raises(TypeError, match="str or Decimal"):
         Money.from_major(major, "USD")  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    "major", ["abc", "", "1,234.56", "12 000", "NaN", "Infinity", "-inf", Decimal("NaN")]
+)
+def test_from_major_rejects_text_that_is_not_a_finite_number(major: str | Decimal) -> None:
+    with pytest.raises(InvalidAmountError, match="not a number"):
+        Money.from_major(major, "USD")
