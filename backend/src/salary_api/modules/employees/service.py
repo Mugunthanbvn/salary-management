@@ -45,6 +45,7 @@ from salary_api.modules.employees.schemas import (
     EmployeeListQuery,
     EmployeePage,
     EmployeeUpdate,
+    ReactivateRequest,
     TerminateRequest,
 )
 from salary_api.modules.reference import repository as reference
@@ -181,6 +182,30 @@ def terminate_employee(
         session,
         actor_id=principal.user_id,
         action=AuditAction.EMPLOYEE_TERMINATE,
+        entity=ENTITY,
+        entity_id=employee_id,
+        diff=diff,
+    )
+    _commit_versioned(session, employee_id)
+    return get_employee(session, principal, employee_id)
+
+
+def reactivate_employee(
+    session: Session, principal: Principal, employee_id: int, request: ReactivateRequest
+) -> EmployeeDetail:
+    employee = _get_version(session, employee_id, request.version)
+    termination_date = employee.termination_date
+    diff = {
+        "status": [employee.status, EmployeeStatus.ACTIVE],
+        "termination_date": [termination_date.isoformat() if termination_date else None, None],
+    }
+    employee.status = EmployeeStatus.ACTIVE
+    employee.termination_date = None
+    employee.version += 1
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.EMPLOYEE_REACTIVATE,
         entity=ENTITY,
         entity_id=employee_id,
         diff=diff,

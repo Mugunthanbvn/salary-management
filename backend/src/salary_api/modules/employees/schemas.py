@@ -83,6 +83,12 @@ class TerminateRequest(BaseModel):
     note: Note | None = None  # kept in the audit event
 
 
+class ReactivateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1)
+
+
 class EmployeeListItem(BaseModel):
     """An employee in a list. Without SALARY_READ the salary fields are null and
     `salary_masked` is true (docs/07-api-spec.md section 1.7)."""
