@@ -10,9 +10,15 @@ from contextlib import closing
 from pathlib import Path
 
 import pytest
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import insert
 
+from salary_api.core.db import create_engine_for_url
+from salary_api.modules.reference.models import Country
 from salary_api.seed.cli import main
 from salary_api.seed.errors import SeedRefused
+from salary_api.seed.loader import ALEMBIC_INI
 from salary_api.seed.runner import SeedOptions, run_seed
 from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings
 
@@ -108,6 +114,24 @@ def test_running_twice_needs_reset_and_reset_gives_the_same_counts(tmp_path: Pat
     _run(database, reset=True)
 
     assert _count(database, "employees") == 40
+
+
+def test_a_database_with_data_is_refused_before_it_is_migrated(tmp_path: Path) -> None:
+    database = tmp_path / "old.db"
+    engine = create_engine_for_url(_url(database))
+    config = Config(ALEMBIC_INI)
+    with engine.connect() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "0003")
+    with engine.begin() as connection:
+        connection.execute(insert(Country).values(code="US", name="US", default_currency="USD"))
+    engine.dispose()
+
+    with pytest.raises(SeedRefused, match="--reset"):
+        _run(database)
+
+    with closing(sqlite3.connect(database)) as connection:
+        assert connection.execute("SELECT version_num FROM alembic_version").fetchone() == ("0003",)
 
 
 def test_production_refuses_a_reset_unless_forced(tmp_path: Path) -> None:
