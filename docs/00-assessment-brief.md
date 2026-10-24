@@ -136,7 +136,7 @@ Researched in [04-research.md](04-research.md):
 ## 5. Submission checklist
 - [ ] Clarifying-questions email sent ([03](03-clarifications.md)) and answers logged
 - [x] One-page requirements is the first commit (`docs: add one-page requirements`)
-- [ ] Every build block is merged with a merge commit; history shows `test:` → `feat:` pairs (blocks B0–B8 so far; the insights and Ask screens are still being merged)
+- [x] Every build block is merged with a merge commit; history shows `test:` → `feat:` pairs
 - [ ] `make verify` is green; CI is green on `main` (green locally on the release branch; CI on `main` not checked yet)
 - [x] Seed runs: 10,000 employees, deterministic
 - [ ] Deployed URL works for all three demo roles (Admin / HR Manager / Viewer)

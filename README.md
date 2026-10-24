@@ -85,10 +85,10 @@ Browser → Next.js 16 (frontend/) → /api rewrite → FastAPI (backend/) → S
 
 - **TDD in the history:** each behaviour has a `test:` commit before its `feat:` commit
   (`git log --oneline`: 335 `test:` and 239 `feat:` commits so far).
-- **Backend:** 1,270 pytest tests (unit + integration on in-memory SQLite), including an
+- **Backend:** 1,390 pytest tests (unit + integration on in-memory SQLite), including an
   authorization matrix over every endpoint and role. 99 % overall coverage; a gate fails the
   build below 90 % branch coverage on `domain/` and the services (currently 100 %).
-- **Frontend:** 362 Vitest tests over 44 files.
+- **Frontend:** 448 Vitest tests over 53 files, plus a Playwright smoke flow (10 checks at desktop and phone size).
 - **End to end:** one Playwright smoke flow (`make e2e`).
 - Performance numbers on the 10k seed: [docs/19-performance.md](docs/19-performance.md) §9.
 - Strategy: [docs/14-testing-strategy.md](docs/14-testing-strategy.md).
