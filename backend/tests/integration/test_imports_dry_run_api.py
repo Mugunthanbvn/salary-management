@@ -115,7 +115,7 @@ def test_a_dry_run_with_row_errors_is_still_a_201_listing_every_error(
             "row": 3,
             "column": "level",
             "code": "unknown_value",
-            "message": "'L9' is not a known level. Use one of L1, L2, L3, L4, L5, L6.",
+            "message": "'L9' is not a known level.",
             "value": "L9",
         },
         {
@@ -127,6 +127,8 @@ def test_a_dry_run_with_row_errors_is_still_a_201_listing_every_error(
         },
     ]
     assert [row["row"] for row in body["preview"]] == [2]
+    assert body["allowed_values"] == {"level": ["L1", "L2", "L3", "L4", "L5", "L6"]}
+    assert body["errors_truncated"] is False
 
 
 def test_a_dry_run_writes_only_the_import_job_and_its_audit_event(
@@ -342,3 +344,19 @@ def test_an_upload_expires_dry_runs_past_their_24_hours(
     job = db_session.get(ImportJob, old)
     assert job is not None
     assert (job.status, job.payload, job.preview) == ("EXPIRED", None, None)
+
+
+def test_a_report_keeps_the_first_500_errors_and_counts_them_all(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    make_import_reference(db_session)
+    content = import_csv(*(hire(n, level="L9", job_role="Chef") for n in range(1, 401)))
+
+    response = as_role("HR_MANAGER").post(IMPORTS, **upload("bad.csv", content))
+
+    body = response.json()
+    assert (body["error_count"], len(body["errors"]), body["errors_truncated"]) == (800, 500, True)
+    assert len(response.content) < 200_000  # no allowed values repeated in every message
+    assert set(body["allowed_values"]) == {"job_role", "level"}
