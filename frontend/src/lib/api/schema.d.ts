@@ -261,6 +261,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/pay-equity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compa-ratios against pay bands, per cohort */
+        get: operations["pay_equity_api_v1_insights_pay_equity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insights/top-earners": {
         parameters: {
             query?: never;
@@ -300,6 +317,20 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * Band
+         * @description A pay band in minor units of `currency`. Policy, not anyone's pay: never hidden.
+         */
+        Band: {
+            /** Currency */
+            currency: string;
+            /** Max */
+            max: number;
+            /** Mid */
+            mid: number;
+            /** Min */
+            min: number;
+        };
+        /**
          * ByDepartment
          * @description docs/09 section 3.2: in local currency for one currency's countries, else in USD.
          */
@@ -331,6 +362,27 @@ export interface components {
             full_name: string;
             /** Id */
             id: number;
+        };
+        /**
+         * CohortEquity
+         * @description One job role + level + country against its band. Ratios are 2-decimal strings.
+         */
+        CohortEquity: {
+            band: components["schemas"]["Band"];
+            /** Country Code */
+            country_code: string;
+            department: components["schemas"]["Department"];
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"];
+            /** Median Compa Ratio */
+            median_compa_ratio: string | null;
+            /** Overpaid Count */
+            overpaid_count: number | null;
+            stats: components["schemas"]["Stats"];
+            /** Suppressed */
+            suppressed: boolean;
+            /** Underpaid Count */
+            underpaid_count: number | null;
         };
         /**
          * Comp
@@ -747,6 +799,44 @@ export interface components {
             stats: components["schemas"]["Stats"];
             total_payroll_usd: components["schemas"]["Money"] | null;
         };
+        /** PayEquityCohorts */
+        PayEquityCohorts: {
+            /** Cohorts */
+            cohorts: components["schemas"]["CohortEquity"][];
+            population: components["schemas"]["Population"];
+            summary: components["schemas"]["PayEquitySummary"];
+            thresholds: components["schemas"]["Thresholds"];
+            /**
+             * View
+             * @constant
+             */
+            view: "cohorts";
+        };
+        /**
+         * PayEquitySummary
+         * @description Who was evaluated, who was left out and why, and who was flagged.
+         *
+         *     For a caller without SALARY_READ, all counts are null when fewer than 5 were evaluated.
+         */
+        PayEquitySummary: {
+            /** Employees Evaluated */
+            employees_evaluated: number | null;
+            /** Employees Flagged Overpaid */
+            employees_flagged_overpaid: number | null;
+            /** Employees Flagged Underpaid */
+            employees_flagged_underpaid: number | null;
+            /** Employees Not Full Time */
+            employees_not_full_time: number | null;
+            /** Employees Without Band */
+            employees_without_band: number | null;
+            /** Suppressed */
+            suppressed: boolean;
+        };
+        /**
+         * PayEquityView
+         * @enum {string}
+         */
+        PayEquityView: "cohorts" | "departments";
         /**
          * Permission
          * @enum {string}
@@ -947,6 +1037,19 @@ export interface components {
             termination_date?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * Thresholds
+         * @description Compa-ratio limits as decimal strings: below `low` is UNDERPAID, above `high` is
+         *     OVERPAID, and a department whose median is below `rollup` is below threshold.
+         */
+        Thresholds: {
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Rollup */
+            rollup: string;
         };
         /**
          * TopEarners
@@ -2199,6 +2302,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_equity_api_v1_insights_pay_equity_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                view?: components["schemas"]["PayEquityView"];
+                country?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayEquityCohorts"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */

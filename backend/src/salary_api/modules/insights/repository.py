@@ -85,6 +85,28 @@ def amounts_by_job_role(
     return session.execute(query).all()
 
 
+def pay_rows(
+    session: Session, where: PopulationFilter
+) -> Sequence[Row[int, str, int, str, Level, str, EmploymentType, str, int]]:
+    """What pay equity needs per employee: (department id, department name, job role id,
+    title, level, country code, employment type, currency, base)."""
+    query = _matching(
+        select(
+            Department.id,
+            Department.name,
+            JobRole.id,
+            JobRole.title,
+            Employee.level,
+            Employee.country_code,
+            Employee.employment_type,
+            Employee.currency,
+            Employee.current_base_minor,
+        ),
+        where,
+    ).join(JobRole.department)
+    return session.execute(query).all()
+
+
 def ranked(
     session: Session, where: PopulationFilter, comp: Comp, *, descending: bool, limit: int
 ) -> Sequence[Employee]:

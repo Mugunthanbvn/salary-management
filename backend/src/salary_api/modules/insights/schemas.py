@@ -2,7 +2,7 @@
 
 from datetime import date
 from enum import StrEnum
-from typing import Final
+from typing import Final, Literal
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -60,6 +60,18 @@ class TopEarnersQuery(InsightFilters):
     comp: Comp = Comp.BASE
     n: int = Field(default=10, ge=1, le=MAX_TOP_EARNERS)
     direction: Direction = Direction.TOP
+
+
+class PayEquityView(StrEnum):
+    COHORTS = "cohorts"  # per job role + level + country
+    DEPARTMENTS = "departments"  # per department in one country: the systemic-gap view
+
+
+class PayEquityQuery(InsightFilters):
+    """The query of pay-equity. There is no `comp`: bands are defined on base pay."""
+
+    view: PayEquityView = PayEquityView.COHORTS
+    country: list[CountryCode] = Field(default_factory=list[CountryCode])
 
 
 class Population(BaseModel):
@@ -184,3 +196,58 @@ class TopEarners(BaseModel):
     direction: Direction
     n: int
     items: list[Earner]
+
+
+class Thresholds(BaseModel):
+    """Compa-ratio limits as decimal strings: below `low` is UNDERPAID, above `high` is
+    OVERPAID, and a department whose median is below `rollup` is below threshold."""
+
+    low: str
+    high: str
+    rollup: str
+
+
+class Band(BaseModel):
+    """A pay band in minor units of `currency`. Policy, not anyone's pay: never hidden."""
+
+    min: int
+    mid: int
+    max: int
+    currency: str
+
+
+class PayEquitySummary(BaseModel):
+    """Who was evaluated, who was left out and why, and who was flagged.
+
+    For a caller without SALARY_READ, all counts are null when fewer than 5 were evaluated.
+    """
+
+    employees_evaluated: int | None
+    employees_without_band: int | None
+    employees_not_full_time: int | None  # part-time pay is not FTE-normalised
+    employees_flagged_underpaid: int | None
+    employees_flagged_overpaid: int | None
+    suppressed: bool
+
+
+class CohortEquity(BaseModel):
+    """One job role + level + country against its band. Ratios are 2-decimal strings."""
+
+    job_role: JobRoleRef
+    level: Level
+    country_code: str
+    department: Department
+    stats: Stats  # base pay of the members with a compa-ratio, in local currency
+    band: Band
+    median_compa_ratio: str | None
+    underpaid_count: int | None
+    overpaid_count: int | None
+    suppressed: bool
+
+
+class PayEquityCohorts(BaseModel):
+    view: Literal[PayEquityView.COHORTS]
+    population: Population
+    thresholds: Thresholds
+    cohorts: list[CohortEquity]  # by job role id, level, country
+    summary: PayEquitySummary

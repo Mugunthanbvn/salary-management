@@ -1,3 +1,5 @@
+from collections.abc import Sequence
+from datetime import date
 from decimal import Decimal
 
 from sqlalchemy.orm import Session
@@ -6,7 +8,7 @@ from salary_api.domain import money
 from salary_api.domain.currency import SUPPORTED_CURRENCIES, minor_unit_exponent
 from salary_api.domain.enums import EmploymentType, Level, SalaryReason
 from salary_api.modules.reference import repository, schemas
-from salary_api.modules.reference.models import Country
+from salary_api.modules.reference.models import Country, PayBand
 
 
 def reference_data(session: Session) -> schemas.ReferenceData:
@@ -53,3 +55,20 @@ def usd_rates(session: Session) -> dict[str, money.FxRate]:
         row.currency: money.FxRate(row.currency, Decimal(row.rate_to_usd), row.as_of)
         for row in repository.list_fx_rates(session)
     }
+
+
+def current_pay_bands(
+    session: Session,
+    *,
+    today: date,
+    countries: Sequence[str] = (),
+    job_role_ids: Sequence[int] = (),
+    levels: Sequence[Level] = (),
+) -> list[PayBand]:
+    """The band in force per role + level + country: the latest one started by `today`."""
+    current: dict[tuple[int, Level, str], PayBand] = {}
+    for band in repository.list_pay_bands_started(
+        session, on=today, countries=countries, job_role_ids=job_role_ids, levels=levels
+    ):  # oldest first within a key, so the latest one stays
+        current[band.job_role_id, band.level, band.country_code] = band
+    return list(current.values())

@@ -18,21 +18,37 @@ from operator import itemgetter
 from sqlalchemy.orm import Session
 
 from salary_api.core.errors import Forbidden, ValidationFailed
+from salary_api.core.models import utc_now
 from salary_api.core.permissions import Principal
 from salary_api.core.schemas import Comp, Money
-from salary_api.domain.constants import MIN_GROUP_SIZE
+from salary_api.domain.constants import (
+    MIN_GROUP_SIZE,
+    PAY_EQUITY_HIGH,
+    PAY_EQUITY_LOW,
+    ROLLUP_THRESHOLD,
+)
 from salary_api.domain.currency import USD
+from salary_api.domain.enums import Level
 from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
 from salary_api.domain.money import Money as DomainMoney
-from salary_api.domain.rounding import round_share
+from salary_api.domain.pay_equity import (
+    CohortRollup,
+    EmployeePay,
+    cohort_rollup,
+    pay_equity_summary,
+)
+from salary_api.domain.pay_equity import PayEquitySummary as SummaryOfPay
+from salary_api.domain.rounding import round_ratio, round_share
 from salary_api.domain.stats import InsufficientData, Summary, summarize
 from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.employees.service import can_see_salaries
 from salary_api.modules.insights import repository
 from salary_api.modules.insights.schemas import (
+    Band,
     ByDepartment,
     ByJobTitle,
+    CohortEquity,
     CountryStats,
     DepartmentCost,
     DepartmentCosts,
@@ -44,11 +60,18 @@ from salary_api.modules.insights.schemas import (
     JobTitleQuery,
     JobTitleStats,
     Overview,
+    PayEquityCohorts,
+    PayEquityQuery,
+    PayEquitySummary,
+    PayEquityView,
     Population,
     Stats,
+    Thresholds,
     TopEarners,
     TopEarnersQuery,
 )
+from salary_api.modules.reference import service as reference_service
+from salary_api.modules.reference.models import PayBand
 from salary_api.modules.reference.schemas import Department, JobRoleRef
 
 
@@ -149,6 +172,128 @@ def _share(part: int | None, whole: int | None) -> str | None:
     if part is None or not whole:  # hidden, or nothing to share
         return None
     return str(round_share(Decimal(part) / Decimal(whole)))
+
+
+def pay_equity(session: Session, principal: Principal, query: PayEquityQuery) -> PayEquityCohorts:
+    """Base pay against pay bands: compa-ratios per cohort (docs/09 section 3.8).
+
+    Only full-time employees with a band get a ratio; the summary counts the others.
+    """
+    audience = _Audience.of(principal)
+    _markets(session, query.country)  # refuses an unknown country
+    pays, names = _pays(session, query)
+    rollups = cohort_rollup(pays)
+    hidden = audience.hidden_groups(
+        [rollup.base.count for rollup in rollups],
+        within=[
+            *_partitions([(names.department_of(r), r.cohort.country_code) for r in rollups]),
+            *_partitions([rollup.cohort.country_code for rollup in rollups]),
+        ],
+    )
+    return PayEquityCohorts(
+        view=PayEquityView.COHORTS,
+        population=_population(query, query.country, Comp.BASE),
+        thresholds=_THRESHOLDS,
+        cohorts=[
+            _cohort_equity(rollup, names, hidden=index in hidden, audience=audience)
+            for index, rollup in enumerate(rollups)
+        ],
+        summary=_pay_equity_summary(pay_equity_summary(pays), audience),
+    )
+
+
+_THRESHOLDS = Thresholds(
+    low=str(PAY_EQUITY_LOW), high=str(PAY_EQUITY_HIGH), rollup=str(ROLLUP_THRESHOLD)
+)
+
+
+@dataclass(frozen=True, slots=True)
+class _Names:
+    """Department and job role names from the pay rows, and the band of each cohort."""
+
+    departments: Mapping[int, str]
+    roles: Mapping[int, tuple[str, int]]  # job role id -> (title, department id)
+    bands: Mapping[tuple[int, Level, str], PayBand]  # (job role id, level, country) -> band
+
+    def department_of(self, rollup: CohortRollup) -> int:
+        return self.roles[rollup.cohort.job_role_id][1]
+
+
+def _pays(session: Session, query: PayEquityQuery) -> tuple[list[EmployeePay], _Names]:
+    """Each employee's pay with their band midpoint (two queries: employees, bands)."""
+    rows = repository.pay_rows(session, _where(query, query.country))
+    bands = {
+        (band.job_role_id, band.level, band.country_code): band
+        for band in reference_service.current_pay_bands(
+            session,
+            today=utc_now().date(),
+            countries=query.country,
+            job_role_ids=query.job_role_id,
+            levels=query.level,
+        )
+    }
+    pays: list[EmployeePay] = []
+    departments: dict[int, str] = {}
+    roles: dict[int, tuple[str, int]] = {}
+    for dept_id, dept_name, role_id, title, level, country, kind, currency, base in rows:
+        departments[dept_id] = dept_name
+        roles[role_id] = (title, dept_id)
+        band = bands.get((role_id, level, country))
+        pays.append(
+            EmployeePay(
+                department_id=dept_id,
+                job_role_id=role_id,
+                level=level,
+                country_code=country,
+                employment_type=kind,
+                base=DomainMoney(base, currency),
+                band_mid=None if band is None else DomainMoney(band.mid_minor, band.currency),
+            )
+        )
+    return pays, _Names(departments, roles, bands)
+
+
+def _cohort_equity(
+    rollup: CohortRollup, names: _Names, *, hidden: bool, audience: "_Audience"
+) -> CohortEquity:
+    key = rollup.cohort
+    title, department_id = names.roles[key.job_role_id]
+    band = names.bands[key.job_role_id, key.level, key.country_code]
+    ratios = rollup.ratios
+    return CohortEquity(
+        job_role=JobRoleRef(id=key.job_role_id, title=title),
+        level=key.level,
+        country_code=key.country_code,
+        department=Department(id=department_id, name=names.departments[department_id]),
+        stats=_stats(rollup.base, rollup.currency, hidden=hidden, audience=audience),
+        band=Band(
+            min=band.min_minor, mid=band.mid_minor, max=band.max_minor, currency=band.currency
+        ),
+        median_compa_ratio=None if hidden else str(round_ratio(ratios.median_compa_ratio)),
+        underpaid_count=None if hidden else ratios.underpaid_count,
+        overpaid_count=None if hidden else ratios.overpaid_count,
+        suppressed=hidden,
+    )
+
+
+def _pay_equity_summary(summary: SummaryOfPay, audience: "_Audience") -> PayEquitySummary:
+    if audience.hides(summary.employees_evaluated):
+        return PayEquitySummary(
+            employees_evaluated=None,
+            employees_without_band=None,
+            employees_not_full_time=None,
+            employees_flagged_underpaid=None,
+            employees_flagged_overpaid=None,
+            suppressed=True,
+        )
+    return PayEquitySummary(
+        employees_evaluated=summary.employees_evaluated,
+        employees_without_band=summary.employees_without_band,
+        employees_not_full_time=summary.employees_not_full_time,
+        employees_flagged_underpaid=summary.employees_flagged_underpaid,
+        employees_flagged_overpaid=summary.employees_flagged_overpaid,
+        suppressed=False,
+    )
 
 
 def top_earners(session: Session, principal: Principal, query: TopEarnersQuery) -> TopEarners:

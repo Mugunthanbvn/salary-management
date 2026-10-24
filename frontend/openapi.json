@@ -1,6 +1,35 @@
 {
   "components": {
     "schemas": {
+      "Band": {
+        "description": "A pay band in minor units of `currency`. Policy, not anyone's pay: never hidden.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "mid": {
+            "title": "Mid",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "mid",
+          "max",
+          "currency"
+        ],
+        "title": "Band",
+        "type": "object"
+      },
       "ByDepartment": {
         "description": "docs/09 section 3.2: in local currency for one currency's countries, else in USD.",
         "properties": {
@@ -87,6 +116,81 @@
           "full_name"
         ],
         "title": "ChangedBy",
+        "type": "object"
+      },
+      "CohortEquity": {
+        "description": "One job role + level + country against its band. Ratios are 2-decimal strings.",
+        "properties": {
+          "band": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "median_compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Compa Ratio"
+          },
+          "overpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overpaid Count"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "underpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underpaid Count"
+          }
+        },
+        "required": [
+          "job_role",
+          "level",
+          "country_code",
+          "department",
+          "stats",
+          "band",
+          "median_compa_ratio",
+          "underpaid_count",
+          "overpaid_count",
+          "suppressed"
+        ],
+        "title": "CohortEquity",
         "type": "object"
       },
       "Comp": {
@@ -1270,6 +1374,122 @@
         "title": "Overview",
         "type": "object"
       },
+      "PayEquityCohorts": {
+        "properties": {
+          "cohorts": {
+            "items": {
+              "$ref": "#/components/schemas/CohortEquity"
+            },
+            "title": "Cohorts",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PayEquitySummary"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "view": {
+            "const": "cohorts",
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "view",
+          "population",
+          "thresholds",
+          "cohorts",
+          "summary"
+        ],
+        "title": "PayEquityCohorts",
+        "type": "object"
+      },
+      "PayEquitySummary": {
+        "description": "Who was evaluated, who was left out and why, and who was flagged.\n\nFor a caller without SALARY_READ, all counts are null when fewer than 5 were evaluated.",
+        "properties": {
+          "employees_evaluated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Evaluated"
+          },
+          "employees_flagged_overpaid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Flagged Overpaid"
+          },
+          "employees_flagged_underpaid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Flagged Underpaid"
+          },
+          "employees_not_full_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Not Full Time"
+          },
+          "employees_without_band": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Without Band"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "employees_evaluated",
+          "employees_without_band",
+          "employees_not_full_time",
+          "employees_flagged_underpaid",
+          "employees_flagged_overpaid",
+          "suppressed"
+        ],
+        "title": "PayEquitySummary",
+        "type": "object"
+      },
+      "PayEquityView": {
+        "enum": [
+          "cohorts",
+          "departments"
+        ],
+        "title": "PayEquityView",
+        "type": "string"
+      },
       "Permission": {
         "enum": [
           "EMPLOYEE_READ",
@@ -1905,6 +2125,30 @@
           "version"
         ],
         "title": "TerminateRequest",
+        "type": "object"
+      },
+      "Thresholds": {
+        "description": "Compa-ratio limits as decimal strings: below `low` is UNDERPAID, above `high` is\nOVERPAID, and a department whose median is below `rollup` is below threshold.",
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "string"
+          },
+          "low": {
+            "title": "Low",
+            "type": "string"
+          },
+          "rollup": {
+            "title": "Rollup",
+            "type": "string"
+          }
+        },
+        "required": [
+          "low",
+          "high",
+          "rollup"
+        ],
+        "title": "Thresholds",
         "type": "object"
       },
       "TopEarners": {
@@ -4136,6 +4380,173 @@
           }
         ],
         "summary": "Headcount, payroll and pay by country",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/pay-equity": {
+      "get": {
+        "operationId": "pay_equity_api_v1_insights_pay_equity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PayEquityView",
+              "default": "cohorts"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayEquityCohorts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Compa-ratios against pay bands, per cohort",
         "tags": [
           "insights"
         ]
