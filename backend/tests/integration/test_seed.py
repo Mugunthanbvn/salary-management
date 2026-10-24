@@ -4,6 +4,7 @@ A 200-employee seed is loaded once per module into its own in-memory database; t
 """
 
 from collections.abc import Iterator
+from contextlib import contextmanager
 from datetime import UTC, datetime, time
 from typing import Any
 
@@ -16,6 +17,7 @@ from salary_api.core.db import create_db_engine, create_session_factory
 from salary_api.core.permissions import Principal, Role
 from salary_api.domain.enums import EmployeeStatus, SalaryReason
 from salary_api.modules.audit.models import AuditEvent
+from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import Country, Department, FxRate, JobRole, PayBand
 from salary_api.modules.salaries import repository as salary_history
@@ -37,10 +39,15 @@ def _users() -> list[UserRow]:
     return demo_users(make_seed_settings(), FAST_PASSWORD_HASHER)
 
 
-def _fresh_engine() -> Engine:
+@contextmanager
+def _fresh_engine() -> Iterator[Engine]:
+    """A new, migrated in-memory database of its own, disposed afterwards."""
     engine = create_db_engine(make_settings())
-    upgrade_to_head(engine)
-    return engine
+    try:
+        upgrade_to_head(engine)
+        yield engine
+    finally:
+        engine.dispose()
 
 
 def _count(session: Session, model: type[Any]) -> int:
@@ -49,11 +56,16 @@ def _count(session: Session, model: type[Any]) -> int:
 
 @pytest.fixture(scope="module")
 def seeded() -> Iterator[Engine]:
-    engine = _fresh_engine()
-    with engine.begin() as connection:
-        load(connection, DATASET, _users())
-    yield engine
-    engine.dispose()
+    with _fresh_engine() as engine:
+        with engine.begin() as connection:
+            load(connection, DATASET, _users())
+        yield engine
+
+
+@pytest.fixture
+def fresh() -> Iterator[Engine]:
+    with _fresh_engine() as engine:
+        yield engine
 
 
 @pytest.fixture
@@ -164,45 +176,43 @@ def test_loading_into_a_database_that_has_data_is_refused_without_reset(seeded: 
         load(connection, DATASET, _users())
 
 
-def test_reset_replaces_everything_including_users_and_audit_events() -> None:
-    engine = _fresh_engine()
-    with engine.begin() as connection:
+def test_reset_replaces_everything_including_users_and_audit_events(fresh: Engine) -> None:
+    with fresh.begin() as connection:
         load(connection, generate(seed=1, employees=50), _users())
-    with create_session_factory(engine)() as session:
-        session.add(AuditEvent(actor_id=1, action="auth.login", entity="auth"))
+    with create_session_factory(fresh)() as session:
+        record_event(
+            session, actor_id=1, action=AuditAction.AUTH_LOGIN, entity="auth", entity_id=None
+        )
         session.commit()
     replacement = generate(seed=2, employees=30)
 
-    with engine.begin() as connection:
+    with fresh.begin() as connection:
         load(connection, replacement, _users(), reset=True)
 
-    with create_session_factory(engine)() as session:
+    with create_session_factory(fresh)() as session:
         codes = list(session.scalars(select(Employee.employee_code).order_by(Employee.id)))
         assert codes == [e.employee_code for e in replacement.employees]
         assert _count(session, SalaryRecord) == len(replacement.salary_records)
         assert _count(session, User) == 3
         assert _count(session, AuditEvent) == 0
-    engine.dispose()
 
 
-def test_rows_are_inserted_in_chunks() -> None:
-    engine = _fresh_engine()
+def test_rows_are_inserted_in_chunks(fresh: Engine) -> None:
     batches: list[int] = []
 
-    @event.listens_for(engine, "before_cursor_execute")
+    @event.listens_for(fresh, "before_cursor_execute")
     def count_batches(
         _conn: Any, _cursor: Any, statement: str, parameters: Any, _context: Any, many: bool
     ) -> None:
         if many and statement.startswith("INSERT INTO salary_components"):
             batches.append(len(parameters))
 
-    with engine.begin() as connection:
+    with fresh.begin() as connection:
         load(connection, DATASET, _users(), chunk_size=100)
 
     assert sum(batches) == len(DATASET.salary_components)
     assert max(batches) == 100
     assert len(batches) == -(-len(DATASET.salary_components) // 100)
-    engine.dispose()
 
 
 def test_a_seeded_hr_manager_signs_in_and_finds_employees(
