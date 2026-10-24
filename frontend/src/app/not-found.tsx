@@ -8,7 +8,7 @@ export default function NotFound() {
   return (
     <>
       <BrandBar />
-      <main className="mx-auto max-w-[1280px] px-4 pt-8 pb-16 sm:px-8 sm:pt-12">
+      <main className="mx-auto max-w-[1280px] pt-8 page-gutter pb-16 sm:pt-12">
         <PageTitle title="This page doesn't exist">
           Check the address, or start again from Insights.
         </PageTitle>

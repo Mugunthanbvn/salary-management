@@ -82,6 +82,26 @@
   text-underline-offset: 5px;
 }
 
+/*
+ * A page's side padding: 16 px on phones, 32 px from 640 px, and never under a notch or
+ * rounded corner in landscape (viewport-fit=cover in app/layout.tsx).
+ */
+@utility page-gutter {
+  padding-left: max(1rem, env(safe-area-inset-left));
+  padding-right: max(1rem, env(safe-area-inset-right));
+
+  @media (width >= 40rem) {
+    padding-left: max(2rem, env(safe-area-inset-left));
+    padding-right: max(2rem, env(safe-area-inset-right));
+  }
+}
+
+/* For full-width bars whose content has no gutter of its own (the phone bottom bar). */
+@utility safe-x {
+  padding-left: env(safe-area-inset-left);
+  padding-right: env(safe-area-inset-right);
+}
+
 @layer base {
   *,
   ::before,

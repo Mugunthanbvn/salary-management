@@ -38,7 +38,7 @@ export async function AppShell({ children }: { children: ReactNode }) {
       {/* On phones, the bottom padding keeps the end of the page above the fixed bottom bar. */}
       <main
         id="main"
-        className="mx-auto w-full max-w-[1280px] px-4 pt-6 pb-[calc(3.5rem+env(safe-area-inset-bottom)+2rem)] sm:px-8 sm:pt-12 sm:pb-20"
+        className="mx-auto w-full max-w-[1280px] pt-6 page-gutter pb-[calc(3.5rem+env(safe-area-inset-bottom)+2rem)] sm:pt-12 sm:pb-20"
       >
         {children}
       </main>
@@ -51,7 +51,7 @@ function ShellProblem({ problem }: { problem: ProblemError }) {
   return (
     <>
       <BrandBar />
-      <main className="mx-auto max-w-[1280px] px-4 pt-8 pb-16 sm:px-8 sm:pt-12">
+      <main className="mx-auto max-w-[1280px] pt-8 page-gutter pb-16 sm:pt-12">
         <ErrorState
           title={problem.title}
           detail={problem.detail}

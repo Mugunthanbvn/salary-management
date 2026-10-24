@@ -16,7 +16,7 @@ export function AppHeader() {
   const pathname = usePathname();
   return (
     <header className="border-b border-rule bg-paper pt-[env(safe-area-inset-top)]">
-      <div className="mx-auto flex max-w-[1280px] items-center gap-x-8 px-4 py-1 sm:px-8 sm:py-2">
+      <div className="mx-auto flex max-w-[1280px] items-center gap-x-8 py-1 page-gutter sm:py-2">
         <Link
           href="/insights"
           className="inline-flex min-h-11 items-center font-serif text-[20px] font-bold text-ink no-underline hover:text-ink sm:text-[22px]"

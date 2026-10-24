@@ -15,7 +15,7 @@ export default function LoginPage() {
   return (
     <>
       <BrandBar />
-      <main className="mx-auto max-w-[1280px] px-4 pt-8 pb-16 sm:px-8 sm:pt-12">
+      <main className="mx-auto max-w-[1280px] pt-8 page-gutter pb-16 sm:pt-12">
         <div className="flex flex-wrap gap-x-12 gap-y-10">
           <div className="min-w-0 flex-[1_1_320px] sm:max-w-[520px]">
             <PageTitle title="Sign in to ACME Pay">

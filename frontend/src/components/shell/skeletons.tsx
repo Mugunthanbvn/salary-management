@@ -38,7 +38,7 @@ export function ShellSkeleton() {
   return (
     <>
       <BrandBar />
-      <div className="mx-auto w-full max-w-[1280px] px-4 pt-6 sm:px-8 sm:pt-12">
+      <div className="mx-auto w-full max-w-[1280px] pt-6 page-gutter sm:pt-12">
         <PageSkeleton />
       </div>
     </>

@@ -17,7 +17,7 @@ export default function RootError({
   return (
     <>
       <BrandBar />
-      <main className="mx-auto max-w-[1280px] px-4 pt-8 pb-16 sm:px-8 sm:pt-12">
+      <main className="mx-auto max-w-[1280px] pt-8 page-gutter pb-16 sm:pt-12">
         <ErrorState
           title="ACME Pay couldn't load"
           detail="We couldn't reach the server. Try again, or come back in a few minutes."
