@@ -56,6 +56,7 @@ describe("safeNextPath", () => {
     "/\\evil.example",
     "https://evil.example",
     "javascript:alert(1)",
+    "/\t/evil.example", // browsers drop tabs and newlines: this reads as //evil.example
   ])("falls back to /insights for %j", (next) => {
     expect(safeNextPath(next)).toBe("/insights");
   });
