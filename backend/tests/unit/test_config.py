@@ -39,3 +39,20 @@ def test_production_refuses_a_placeholder_or_short_jwt_secret(jwt_secret: str) -
 def test_production_refuses_insecure_cookies() -> None:
     with pytest.raises(ValidationError, match="COOKIE_SECURE"):
         make_settings(**SAFE_PRODUCTION | {"cookie_secure": False})
+
+
+@pytest.mark.parametrize(
+    "database_url",
+    ["sqlite:///./dev.db", "sqlite:////var/data/app.db", "sqlite://", "sqlite:///:memory:"],
+)
+def test_production_refuses_a_local_or_in_memory_sqlite_database(database_url: str) -> None:
+    with pytest.raises(ValidationError, match="DATABASE_URL"):
+        make_settings(**SAFE_PRODUCTION | {"database_url": database_url})
+
+
+def test_production_accepts_a_hosted_postgres_database() -> None:
+    settings = make_settings(
+        **SAFE_PRODUCTION | {"database_url": "postgresql+psycopg://app@db.example.com/salary"}
+    )
+
+    assert settings.database_url.startswith("postgresql")
