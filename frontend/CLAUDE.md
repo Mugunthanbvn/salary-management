@@ -16,6 +16,8 @@ Quality: ESLint flat config (Next 16 has no `next lint`), Prettier, Vitest + Rea
 - **Data fetching:** Server Components call the API with the typed openapi-fetch client in `src/lib/api/`,
   sending `Authorization: Bearer <JWT>` (from the `session` cookie) to `API_ORIGIN`.
   Mutations use Server Actions, then `revalidatePath`. Client fetching only where interactivity needs it.
+- **Cache Components is on** (`cacheComponents` in `next.config.ts`): put uncached fetches and `cookies()` reads
+  inside `<Suspense>`; there is no `export const dynamic`. Read `node_modules/next/dist/docs/` before using a Next API.
 - **Login and file uploads use a client `fetch` to `/api/v1/...` through the rewrite**, never a Server Action
   (the cookie must reach the browser; Server Actions have a 1 MB body limit).
 - **`proxy.ts`** redirects to `/login` without a session cookie (UX only) and excludes `/api` and `/login`.
