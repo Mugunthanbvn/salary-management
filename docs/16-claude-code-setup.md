@@ -205,44 +205,47 @@ The built-in `/code-review` and `/security-review` commands are also run before 
 
 ## 7. `settings.json`: permissions and hooks
 
-### 7.1 Permissions (outline)
+### 7.1 Permissions
+
+As committed in `.claude/settings.json`:
 
 ```jsonc
 {
   "permissions": {
     "allow": [
-      "Bash(make:*)",
-      "Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)",
-      "Bash(pnpm:*)",
+      "Bash(make:*)", "Bash(uv:*)", "Bash(uvx:*)", "Bash(pnpm:*)", "Bash(npx:*)",
       "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
-      "Bash(git add:*)", "Bash(git commit:*)",
-      "Read(./**)", "Edit(./backend/**)", "Edit(./frontend/**)", "Edit(./docs/**)"
+      "Bash(git add:*)", "Bash(git commit:*)", "Bash(git checkout:*)", "Bash(git switch:*)",
+      "Bash(git branch:*)", "Bash(git merge:*)", "Bash(git worktree:*)", "Bash(git push:*)",
+      "Read(./**)", "Edit(./**)", "Write(./**)"
     ],
     "deny": [
-      "Read(./**/.env)", "Read(./**/.env.*)",
-      "Bash(git push --force:*)", "Bash(git push -f:*)",
+      "Read(./**/.env)", "Read(./**/.env.local)", "Read(./**/.env.development)",
+      "Read(./**/.env.production)", "Read(./**/.env.test)",
+      "Edit(./**/.env)", "Edit(./**/.env.local)", "Edit(./**/.env.development)",
+      "Edit(./**/.env.production)", "Edit(./**/.env.test)",
+      "Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git push --force-with-lease:*)",
       "Bash(rm -rf:*)",
       "Bash(curl:*)", "Bash(wget:*)"
     ],
     "ask": [
-      "Bash(git push:*)",
       "Bash(turso:*)", "Bash(vercel:*)"
     ]
   }
 }
 ```
 
-- **Allow:** routine, reversible, local operations so TDD loops run without prompts.
-- **Deny:** reading secrets, destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible).
-- **Ask:** anything outward-facing (push, deploy, database cloud CLI).
-- `.env.example` remains readable (it holds no secrets). The deny patterns target `.env` and `.env.<env>` **(proposed exact patterns, verified at setup)**.
+- **Allow:** routine, reversible, local operations so TDD loops run without prompts. Plain `git push` is allowed because the build is run by an autonomous orchestrator that pushes after each block.
+- **Deny:** reading or editing secrets, force pushes, destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible). Deny wins over allow.
+- **Ask:** deploy and database cloud CLIs (`vercel`, `turso`).
+- `.env.example` remains readable and editable (it holds no secrets): the deny patterns name `.env` and `.env.<env>` files explicitly instead of `.env.*`. The PreToolUse hook also blocks edits to any other `.env.<name>`.
 
 ### 7.2 Hooks
 
 | Event | Matcher | Script | Behaviour |
 |---|---|---|---|
-| **PreToolUse** | `Edit\|Write` | `.claude/hooks/block-protected-files.sh` | Exits with a blocking status and an explanation if the target path is `backend/uv.lock`, `frontend/pnpm-lock.yaml`, `frontend/src/lib/api/schema.d.ts` (generated) or any `.env` file. The message tells Claude which command to use instead (`uv add`, `pnpm add`, `make api-sync`) |
-| **PostToolUse** | `Edit\|Write` | `.claude/hooks/format-changed-file.sh` | For `*.py` under `backend/`: `uv run ruff format <file>` and `uv run ruff check --fix <file>`. For `*.ts, *.tsx, *.css, *.json, *.md` under `frontend/`: `pnpm prettier --write <file>`. Non-blocking; failures are reported back |
+| **PreToolUse** | `Edit\|Write` | `.claude/hooks/block-protected-files.sh` | Exits with a blocking status and an explanation if the target path is `backend/uv.lock`, `frontend/pnpm-lock.yaml`, `frontend/src/lib/api/schema.d.ts` or `frontend/openapi.json` (generated) or any `.env` file except `.env.example`. The message tells Claude which command to use instead (`uv add`, `pnpm add`, `make api-sync`) |
+| **PostToolUse** | `Edit\|Write` | `.claude/hooks/format-changed-file.sh` | For `*.py` under `backend/`: `uv run ruff format <file>` and `uv run ruff check --fix <file>`. For `*.ts, *.tsx, *.css, *.json, *.md` under `frontend/`: `pnpm prettier --write <file>`. Non-blocking; a no-op until the tool is installed; failures are reported back to Claude (exit 2) |
 
 Why hooks instead of instructions: formatting and protected files are "every time, no exceptions" rules, and Anthropic's guidance is to move such rules from CLAUDE.md into hooks, which are deterministic.
 
