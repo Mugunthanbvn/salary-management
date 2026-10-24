@@ -4,6 +4,8 @@
  * string maths, then Intl.NumberFormat formats the exact decimal string.
  */
 export type FormatMoneyOptions = {
+  /** Stored amounts are annual; "monthly" shows annual ÷ 12, rounded half-even. */
+  period?: "annual" | "monthly";
   /** "auto" (default) leaves out minor units that are all zero; "always" keeps them. */
   minorUnits?: "auto" | "always";
 };
@@ -11,12 +13,12 @@ export type FormatMoneyOptions = {
 export function formatMoney(
   amountMinor: number | bigint | string,
   currency: string,
-  { minorUnits = "auto" }: FormatMoneyOptions = {},
+  { period = "annual", minorUnits = "auto" }: FormatMoneyOptions = {},
 ): string {
-  const { major, fraction } = splitMinor(
-    toBigInt(amountMinor),
-    minorDigits(currency),
-  );
+  const annual = toBigInt(amountMinor);
+  const amount =
+    period === "monthly" ? divideHalfEven(annual, MONTHS_PER_YEAR) : annual;
+  const { major, fraction } = splitMinor(amount, minorDigits(currency));
   // Whole amounts read like the printout ("€54,000"); any minor part shows every digit.
   const fractionDigits =
     minorUnits === "auto" && /^0*$/.test(fraction) ? 0 : fraction.length;
@@ -64,6 +66,17 @@ function toBigInt(amountMinor: number | bigint | string): bigint {
     );
   }
   return BigInt(amountMinor);
+}
+
+const MONTHS_PER_YEAR = BigInt(12);
+
+/** Integer division of non-negative minor units, rounding half to even. */
+function divideHalfEven(dividend: bigint, divisor: bigint): bigint {
+  const quotient = dividend / divisor;
+  const twiceRemainder = (dividend % divisor) * BigInt(2);
+  if (twiceRemainder > divisor) return quotient + BigInt(1);
+  if (twiceRemainder < divisor) return quotient;
+  return quotient % BigInt(2) === BigInt(0) ? quotient : quotient + BigInt(1);
 }
 
 /**
