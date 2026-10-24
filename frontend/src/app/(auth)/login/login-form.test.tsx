@@ -141,4 +141,33 @@ describe("LoginForm", () => {
       expect(await screen.findByRole("alert")).toHaveTextContent(message);
     },
   );
+
+  it.each([
+    {
+      failure: "the API fails",
+      reply: () =>
+        HttpResponse.json<Problem>(
+          {
+            type: "about:blank",
+            title: "Internal Server Error",
+            status: 500,
+            instance: "/api/v1/auth/login",
+          },
+          { status: 500 },
+        ),
+    },
+    { failure: "the network fails", reply: () => HttpResponse.error() },
+  ])(
+    "says sign-in didn't work when $failure, and lets you retry",
+    async ({ reply }) => {
+      server.use(http.post(LOGIN_URL, reply));
+
+      await signIn();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(
+        "Couldn't sign you in. Try again in a moment.",
+      );
+      expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
+    },
+  );
 });
