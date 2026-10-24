@@ -2,9 +2,9 @@ from collections.abc import Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import ColumnElement, Select, func, select
-from sqlalchemy.orm import Session, contains_eager, joinedload
+from sqlalchemy.orm import QueryableAttribute, Session, contains_eager, joinedload
 
-from salary_api.domain.enums import EmployeeStatus
+from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import JobRole
 from salary_api.modules.salaries.models import SalaryRecord
@@ -51,7 +51,13 @@ def email_in_use(session: Session, email: str) -> bool:
 class EmployeeFilter:
     """Which employees a list shows. An empty sequence means no condition on that field."""
 
+    countries: Sequence[str] = ()
+    department_ids: Sequence[int] = ()
+    job_role_ids: Sequence[int] = ()
+    levels: Sequence[Level] = ()
+    employment_types: Sequence[EmploymentType] = ()
     statuses: Sequence[EmployeeStatus] = ()
+    currencies: Sequence[str] = ()
 
 
 def page(session: Session, where: EmployeeFilter, *, offset: int, limit: int) -> Sequence[Employee]:
@@ -76,7 +82,18 @@ def _matching[*Row](query: Select[*Row], where: EmployeeFilter) -> Select[*Row]:
 
 
 def _conditions(where: EmployeeFilter) -> list[ColumnElement[bool]]:
-    conditions: list[ColumnElement[bool]] = []
-    if where.statuses:
-        conditions.append(Employee.status.in_(where.statuses))
-    return conditions
+    candidates = [
+        _any_of(Employee.country_code, where.countries),
+        _any_of(JobRole.department_id, where.department_ids),
+        _any_of(Employee.job_role_id, where.job_role_ids),
+        _any_of(Employee.level, where.levels),
+        _any_of(Employee.employment_type, where.employment_types),
+        _any_of(Employee.status, where.statuses),
+        _any_of(Employee.currency, where.currencies),
+    ]
+    return [condition for condition in candidates if condition is not None]
+
+
+def _any_of[T](column: QueryableAttribute[T], values: Sequence[T]) -> ColumnElement[bool] | None:
+    """`column IN (values)`, or no condition when no value is asked for."""
+    return column.in_(values) if values else None

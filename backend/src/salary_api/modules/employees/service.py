@@ -105,7 +105,15 @@ def list_employees(
     session: Session, principal: Principal, query: EmployeeListQuery
 ) -> EmployeePage:
     """One page of employees, `ACTIVE` ones by default, sorted by name."""
-    where = repository.EmployeeFilter(statuses=query.status)
+    where = repository.EmployeeFilter(
+        countries=query.country,
+        department_ids=query.department_id,
+        job_role_ids=query.job_role_id,
+        levels=query.level,
+        employment_types=query.employment_type,
+        statuses=query.status,
+        currencies=query.currency,
+    )
     employees = repository.page(
         session, where, offset=(query.page - 1) * query.page_size, limit=query.page_size
     )

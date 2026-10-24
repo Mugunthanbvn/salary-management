@@ -791,7 +791,13 @@ export interface operations {
     list_employees_api_v1_employees_get: {
         parameters: {
             query?: {
+                country?: string[];
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
                 status?: components["schemas"]["EmployeeStatus"][];
+                currency?: string[];
                 page?: number;
                 page_size?: number;
             };

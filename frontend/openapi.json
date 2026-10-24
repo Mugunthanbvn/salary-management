@@ -1367,6 +1367,67 @@
         "parameters": [
           {
             "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
             "name": "status",
             "required": false,
             "schema": {
@@ -1374,6 +1435,19 @@
                 "$ref": "#/components/schemas/EmployeeStatus"
               },
               "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "currency",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{3}$",
+                "type": "string"
+              },
+              "title": "Currency",
               "type": "array"
             }
           },

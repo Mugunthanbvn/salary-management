@@ -86,7 +86,15 @@ class EmployeeListQuery(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
+    # Repeat a key for several values (?country=DE&country=FR): values of one key are ORed,
+    # different keys are ANDed.
+    country: list[CountryCode] = Field(default_factory=list[CountryCode])
+    department_id: list[int] = Field(default_factory=list[int])
+    job_role_id: list[int] = Field(default_factory=list[int])
+    level: list[Level] = Field(default_factory=list[Level])
+    employment_type: list[EmploymentType] = Field(default_factory=list[EmploymentType])
     status: list[EmployeeStatus] = Field(default_factory=lambda: [EmployeeStatus.ACTIVE])
+    currency: list[CurrencyCode] = Field(default_factory=list[CurrencyCode])
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE)
 
