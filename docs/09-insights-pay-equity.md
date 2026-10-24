@@ -308,7 +308,7 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
 | Filters match **no employees** | `200` with `groups: []` (or `count: 0`). Monetary fields are `null`. The UI shows an empty state, not an error |
 | Group with `count < 5` | Viewer: `suppressed: true`. HR/Admin: shown normally. Pay-equity still computes compa-ratio for every employee with a band (no minimum peer count needed) |
 | Percentile of a single value | Equals that value (the formula handles `n = 1`) |
-| Mixed currencies with no USD rate for one currency | `500`-class configuration error, logged and surfaced as a problem+json `fx_rate_missing`. Seeded and admin-managed rates prevent this, and a test asserts every currency in `countries` has a rate |
+| Mixed currencies with no USD rate for one currency | A configuration error, never a guessed rate of 0 or 1: `500` problem+json with `type: about:blank` (the glossary has no slug for it), a `detail` that names the currency and a `currency` member (e.g. `"INR"`); it is logged as `fx_rate_missing`. Only the rates of currencies in the population are needed. Seeded rates prevent this, and a test asserts every currency in `countries` has a rate |
 | Salary range filter without `currency` or `salary_basis=usd` | `422` with the message "Salary range needs a currency or USD basis" |
 | `by-job-title` / `top-earners` without `country` | `422` (single-market requirement) |
 | Employee whose currency differs from the country default | Can't happen in v1: every salary is in its country's currency (validated on write, [06-data-model.md](06-data-model.md) §4.2). So a country group is always single-currency, and compa-ratio always divides amounts in the same currency |
