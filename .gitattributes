@@ -1,0 +1,7 @@
+* text=auto eol=lf
+
+# Generated files: collapsed in diffs and left out of language stats.
+backend/uv.lock linguist-generated=true
+frontend/pnpm-lock.yaml linguist-generated=true
+frontend/openapi.json linguist-generated=true
+frontend/src/lib/api/schema.d.ts linguist-generated=true

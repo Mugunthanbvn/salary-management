@@ -83,7 +83,7 @@ flowchart TB
 | Container | Technology | Responsibility | Does **not** do |
 |---|---|---|---|
 | **Web** | Next.js 16 App Router, React 19, TS strict, Tailwind v4, shadcn/ui | Rendering, routing, URL-state filters (nuqs), forms (react-hook-form + zod), money **formatting** | Business rules, authorization decisions, money arithmetic |
-| **API** | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic, Python 3.14 | All business logic, validation, RBAC, masking, audit, insights, import/export, AI orchestration | Rendering |
+| **API** | FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, Python 3.13 | All business logic, validation, RBAC, masking, audit, insights, import/export, AI orchestration | Rendering |
 | **Database** | SQLite (local file / `:memory:` in tests), Turso libSQL in prod | Persistence | Business logic (no triggers or stored procedures) |
 | **LLM provider** | Gemini free tier (default), Groq free tier (alternative) | Turns a question plus tool results into an answer | Direct data access: it only ever sees tool outputs |
 
@@ -233,13 +233,16 @@ Rules (enforced by review and written into `CLAUDE.md`, see [16-claude-code-setu
 
 ```
 main.py                 app factory: routers, problem+json error handlers, request-id middleware, CORS (dev only)
+openapi.py              `python -m salary_api.openapi <path>` writes the OpenAPI JSON (used by make api-sync)
 core/
   config.py             pydantic-settings Settings (env-driven, validated; prod refuses default secrets)
-  db.py                 engine/session factory; SQLite PRAGMAs; NullPool on serverless
+  db.py                 engine/session factory; SQLite PRAGMAs; NullPool when APP_ENV=production
+  models.py             DeclarativeBase with the constraint naming convention
   security.py           pwdlib (argon2) hashing, PyJWT encode/decode
   permissions.py        Permission enum + ROLE_PERMISSIONS map
   deps.py               get_session, current_user, require_permission(...)
   errors.py             domain exceptions → RFC 9457 problem+json
+  request_id.py         X-Request-ID middleware (accept a safe incoming ID or make a UUID4)
   logging.py            structlog JSON config
 domain/
   money.py              Money value object (amount_minor:int, currency:str), FX conversion with Decimal
@@ -247,6 +250,7 @@ domain/
   stats.py              percentile/median/mean over sorted ints (pure)
   pay_equity.py         compa-ratio vs pay band, flags, rollups
 modules/
+  health/               GET /health (read-only DB check)
   auth/                 login, logout, me
   users/                admin user management
   reference/            countries, departments, job_roles (read for all; seeded; admin edit of countries)
@@ -311,17 +315,18 @@ All configuration comes from environment variables, validated at startup by `pyd
 
 | Variable | Example (dev) | Prod | Notes |
 |---|---|---|---|
-| `APP_ENV` | `development` (`test` in CI) | `production` | Switches strict checks (secure cookies, no defaults). Values per the [glossary](glossary.md) §7 |
+| `APP_ENV` | `development` (`test` in CI) | `production` | **Required** (no default), so the production checks can't be skipped by accident. Switches strict checks (secure cookies, no defaults). Values per the [glossary](glossary.md) §7 |
 | `DATABASE_URL` | `sqlite:///./dev.db` | `sqlite+libsql://<db>.turso.io?secure=true` (no token in the URL) | The only thing that changes to switch DB; Postgres fallback `postgresql+psycopg://...` |
 | `DATABASE_AUTH_TOKEN` | — | Turso token (secret) | Passed via connect args, never logged |
-| `JWT_SECRET` | `dev-only-change-me` | random ≥32 bytes (secret) | Prod rejects the dev value |
+| `JWT_SECRET` | `dev-change-me` | random ≥32 bytes (secret) | Prod rejects placeholders and anything shorter than 32 bytes |
 | `JWT_TTL_MINUTES` | `480` **(proposed)** | `480` **(proposed)** | Session length, see [08-security-rbac.md](08-security-rbac.md) |
 | `COOKIE_SECURE` | `false` | `true` | Forced `true` in production |
-| `CORS_ORIGINS` | `http://localhost:3000` | empty | Not needed in prod (same origin via rewrite) |
+| `CORS_ORIGINS` | `http://localhost:3000` | empty | Comma-separated. CORS is off when empty; not needed in prod (same origin via rewrite) |
 | `LLM_BASE_URL` | Gemini OpenAI-compatible endpoint | same or Groq | Feature flag: Ask is disabled when `LLM_API_KEY` is empty |
 | `LLM_MODEL` | Gemini Flash-class model **(TBD exact id at build time)** | same | |
 | `LLM_API_KEY` | empty | secret | |
 | `ASK_RATE_LIMIT_PER_HOUR` | `20` | `20` | Per user |
+| `ASK_MAX_STEPS` | `4` | `4` | Tool steps per question |
 | `SEED_ADMIN_PASSWORD` / `SEED_HR_PASSWORD` / `SEED_VIEWER_PASSWORD` | dev values | demo values (secret) | Seed only |
 | `LOG_LEVEL` | `DEBUG` | `INFO` | |
 
@@ -339,9 +344,9 @@ The browser never needs the API's address: it always calls the relative path `/a
 
 | Concern | Approach |
 |---|---|
-| **Errors** | Domain exceptions (`NotFound`, `Conflict`, `ValidationFailed`, `Forbidden`) map to RFC 9457 `application/problem+json` in one handler ([07-api-spec.md](07-api-spec.md)) |
-| **Logging** | structlog JSON; every log line carries `request_id` (from the `X-Request-ID` header or generated). No salary amounts or passwords in logs |
-| **Observability** | Vercel function logs; `/api/v1/health` checks a DB read and write |
+| **Errors** | Domain exceptions in `core/errors.py` (`Unauthenticated`, `Forbidden`, `NotFound`, `VersionConflict`, `Duplicate`, `InvalidState`, `ValidationFailed`, `ServiceUnavailable`) map to RFC 9457 `application/problem+json` ([07-api-spec.md](07-api-spec.md)) |
+| **Logging** | structlog JSON; every log line carries `request_id` (from a safe `X-Request-ID` header, at most 128 of `[A-Za-z0-9._-]`, or a new UUID4). Tracebacks without frame locals; SQLAlchemy hides bound parameters (`hide_parameters=True`); a response validation error is logged by type only. No bodies, salary amounts or passwords in logs |
+| **Observability** | Vercel function logs; `/api/v1/health` runs a read-only DB check (`SELECT 1`) |
 | **Time** | All timestamps UTC (`datetime` with tz). Dates (`hire_date`, `effective_date`) are plain dates. Tests freeze the clock with time-machine |
 | **IDs** | Integer surrogate primary keys internally; `employee_code` (`ACME-004217`) is the human-facing identifier |
 | **Versioning** | URL prefix `/api/v1` |

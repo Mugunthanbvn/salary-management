@@ -462,12 +462,13 @@ fold(s)     = NFKD-normalize → strip combining marks → casefold
 |---|---|
 | Foreign keys are off by default | `PRAGMA foreign_keys=ON` on every connection (SQLAlchemy `connect` event). A test asserts an orphan insert fails |
 | Concurrency | `PRAGMA journal_mode=WAL` for local file databases; Turso manages its own journaling |
-| Busy timeout | `PRAGMA busy_timeout=5000` **(proposed)** locally, to absorb short write locks |
+| Busy timeout | `PRAGMA busy_timeout=5000` for local file databases, to absorb short write locks |
+| Transactions | The stdlib `sqlite3` driver runs with `autocommit=False` (PEP 249 mode, set after the PRAGMAs on connect), so SAVEPOINTs and DDL take part in the enclosing transaction. Its legacy default would let a released SAVEPOINT commit on its own |
 | No DECIMAL | Money as integers; FX rate as a decimal string |
 | `BIGINT` | Stored as SQLite INTEGER (64-bit signed); the largest annual salary in minor units (e.g. ¥100,000,000 = 1e8, or ₹10 crore = 1e10 paise) is far below 9.2e18 |
 | Booleans | Stored as 0/1, transparent through SQLAlchemy |
 | Dates / timestamps | Stored as ISO-8601 text by SQLAlchemy; sort and compare correctly |
-| `ALTER TABLE` limits | Alembic configured with `render_as_batch=True` so migrations rebuild tables when needed |
+| `ALTER TABLE` limits | Alembic configured with `render_as_batch=True` so migrations rebuild tables when needed. `migrations/env.py` turns foreign keys off before the migration transaction (SQLite ignores the PRAGMA inside one) and back on after, so rebuilding a referenced table works |
 | `CHECK` constraints | Enforced by SQLite and Postgres alike; named via the naming convention |
 | JSON | `JSON` type → TEXT on SQLite; queried only in Python, never with JSON SQL functions |
 | Case-insensitive search | Via `search_text` (§6.4), not `COLLATE NOCASE` or `ILIKE` |
@@ -493,7 +494,7 @@ Switching is a `DATABASE_URL` change plus `alembic upgrade head` on the new data
 ## 9. Migrations
 
 - Alembic, one revision per schema change, committed with the feature that needs it.
-- Naming: `NNNN_<verb>_<object>.py` **(proposed)**, e.g. `0003_create_salary_records.py`.
+- Naming: `NNNN_<verb>_<object>.py`, e.g. `0003_create_salary_records.py`: `uv run alembic revision --autogenerate --rev-id 0003 -m "create salary_records"`.
 - Migrations never run inside a request. `make migrate` locally; a CI/manual step against Turso in prod ([17-deployment.md](17-deployment.md)).
 - A test runs `alembic upgrade head` on an empty database and compares the result with the models' metadata, catching drift.
 
