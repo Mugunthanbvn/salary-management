@@ -1,0 +1,104 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Ask about pay</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&amp;family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&amp;display=swap">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1F4FD8}a:hover{color:#173A9E}
+</style>
+</helmet>
+<div style="font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; color: #000000; background: #FFFFFF; font-variant-numeric: tabular-nums; min-height: 100vh">
+
+  <header style="border-bottom: 1px solid #E2E2E2">
+    <nav aria-label="Main" style="max-width: 1280px; margin: 0 auto; padding: 16px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 32px">
+      <a href="Main.dc.html" style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 22px; color: #000000; text-decoration: none">ACME Pay</a>
+      <div style="display: flex; gap: 24px; flex: 1 1 auto; font-size: 15px">
+        <a href="Main.dc.html" style="color: #3D3D3D; text-decoration: none">Insights</a>
+        <a href="Employees.dc.html" style="color: #3D3D3D; text-decoration: none">Employees</a>
+        <a href="Ask.dc.html" aria-current="page" style="color: #000000; font-weight: 700; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px">Ask</a>
+      </div>
+      <span style="font-size: 14px; color: #3D3D3D">Hema, HR Manager</span>
+    </nav>
+  </header>
+
+  <main style="max-width: 880px; margin: 0 auto; padding: 48px 32px 80px">
+    <h1 style="margin: 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 44px; line-height: 1.1">Ask about pay</h1>
+    <p style="margin: 12px 0 0; font-size: 17px; line-height: 1.5; color: #3D3D3D">Answers use the same numbers as the dashboard and show how they were worked out. Questions aren't saved.</p>
+
+    <div style="display: flex; flex-wrap: wrap; gap: 8px 24px; margin-top: 20px; font-size: 15px">
+      <a href="#" style="display: inline-flex; align-items: center; min-height: 44px">Which country pays L3 engineers the most?</a>
+      <a href="#" style="display: inline-flex; align-items: center; min-height: 44px">What is median total pay in Singapore?</a>
+      <a href="#" style="display: inline-flex; align-items: center; min-height: 44px">How much do we spend on Sales?</a>
+    </div>
+
+    <article aria-label="Question and answer" style="margin-top: 40px; padding-top: 32px; border-top: 2px solid #000000">
+      <p style="margin: 0; font-size: 14px; color: #3D3D3D">You asked</p>
+      <h2 style="margin: 6px 0 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 32px; line-height: 1.25">Are we underpaying anyone in Germany?</h2>
+
+      <div style="margin-top: 24px; font-family: 'Source Serif 4', serif; font-size: 22px; line-height: 1.55">
+        <p style="margin: 0">Yes, one team. <span style="background: linear-gradient(180deg, transparent 42%, {{hl}} 42%, {{hl}} 90%, transparent 90%); padding: 0 2px">Customer Success in Germany has a median compa-ratio of 0.92</span>, while the other German teams sit between 0.98 and 1.02.</p>
+        <p style="margin: 16px 0 0">Separately, <span style="text-decoration: underline; text-decoration-color: #C62828; text-decoration-thickness: 3px; text-underline-offset: 6px">41 people in Germany are paid below the bottom of their band</span>, 14 of them Customer Success Managers at L2.</p>
+      </div>
+
+      <dl style="margin: 24px 0 0; display: flex; flex-wrap: wrap; gap: 16px 40px">
+        <div>
+          <dt style="font-size: 13px; color: #3D3D3D">Customer Success median compa-ratio</dt>
+          <dd style="margin: 4px 0 0; font-family: 'Source Serif 4', serif; font-size: 28px; font-weight: 600; color: #C62828">0.92</dd>
+        </div>
+        <div>
+          <dt style="font-size: 13px; color: #3D3D3D">Below band in Germany</dt>
+          <dd style="margin: 4px 0 0; font-family: 'Source Serif 4', serif; font-size: 28px; font-weight: 600">41 people</dd>
+        </div>
+        <div>
+          <dt style="font-size: 13px; color: #3D3D3D">Customer Success median pay</dt>
+          <dd style="margin: 4px 0 0; font-family: 'Source Serif 4', serif; font-size: 28px; font-weight: 600">€48,000</dd>
+        </div>
+      </dl>
+
+      <p style="margin: 20px 0 0; font-size: 14px; color: #3D3D3D">Full-time, active employees. Base pay. Exchange rates of 1 Oct 2026.</p>
+
+      <details style="margin-top: 16px; font-size: 15px">
+        <summary style="min-height: 44px; display: flex; align-items: center; cursor: pointer; font-weight: 700">How this was worked out</summary>
+        <ol style="margin: 8px 0 0; padding-left: 20px; line-height: 1.7; color: #3D3D3D">
+          <li>Looked up pay equity by department for Germany</li>
+          <li>Listed people below band in Germany, grouped by role and level</li>
+        </ol>
+      </details>
+      <a href="PayEquity.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; margin-top: 4px; font-size: 15px; font-weight: 700">Open this in pay equity</a>
+    </article>
+
+    <article aria-label="Question in progress" style="margin-top: 40px; padding-top: 32px; border-top: 1px solid #E2E2E2">
+      <p style="margin: 0; font-size: 14px; color: #3D3D3D">You asked</p>
+      <h2 style="margin: 6px 0 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 32px; line-height: 1.25">And in India?</h2>
+      <p role="status" style="margin: 16px 0 0; font-family: 'Source Serif 4', serif; font-style: italic; font-size: 20px; color: #3D3D3D">Working it out from the pay-equity numbers…</p>
+    </article>
+
+    <form style="margin-top: 48px" onSubmit="{{noop}}">
+      <label for="ask" style="display: block; font-size: 14px; color: #3D3D3D; margin-bottom: 8px">Ask a question about pay</label>
+      <div style="display: flex; flex-wrap: wrap; gap: 12px">
+        <input id="ask" type="text" placeholder="For example: what is the median pay for L4 engineers in the UK?" style="flex: 999 1 320px; min-width: 0; box-sizing: border-box; font: inherit; font-family: 'Source Serif 4', serif; font-size: 20px; padding: 12px 0; border: 0; border-bottom: 2px solid #000000; background: transparent; color: #000000">
+        <button type="submit" style="flex: 1 0 auto; font: inherit; font-size: 15px; font-weight: 700; min-height: 48px; padding: 0 22px; border: 0; border-radius: 4px; background: #000000; color: #FFFFFF">Ask</button>
+      </div>
+    </form>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"hl":{"editor":"color","default":"#FFE45C","options":["#FFE45C","#B9F2C8","#FFD1DC","#CDE4FF"]},"$preview":{"width":1440,"height":1180}}'>
+class Component extends DCLogic {
+  renderVals() {
+    return {
+      hl: this.props.hl ?? '#FFE45C',
+      noop: (e) => e.preventDefault()
+    };
+  }
+}
+</script>
+</body>
+</html>

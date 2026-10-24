@@ -15,7 +15,7 @@ The build budget is **1–2 days** (Incubyte prioritises fast submissions, [00](
 | Cut from v1 | What v1 does instead | Docs that describe the cut item |
 |---|---|---|
 | Postgres portability CI job (`backend-pg`, `compose.yaml`) | SQLite-only CI. Neon stays the fallback if the deploy spike fails | [14](14-testing-strategy.md) §8, [15](15-tooling-devex.md) §8, [ADR 0002](adr/0002-sqlite-everywhere-turso.md) |
-| Claude Design phase (milestone 7b) | shadcn/ui defaults guided by the frontend-design skill; a short hand-written `docs/design/DESIGN.md` if time allows | [13](13-frontend-ux.md) §5, [ADR 0018](adr/0018-design-workflow.md) |
+| Claude Design phase (milestone 7b) | One time-boxed **Claude Design** canvas instead of a phase: 6 desktop + 3 phone screens ([design/claude](design/claude/README.md)), rules in [design/DESIGN.md](design/DESIGN.md), then shadcn/ui | [13](13-frontend-ux.md) §5, [ADR 0018](adr/0018-design-workflow.md) |
 | The whole admin UI (users, FX rates, countries, audit log viewer) | Users, FX rates and countries are seeded. Audit events are still written and tested | [13](13-frontend-ux.md) §4.9, [07](07-api-spec.md) §9–11 |
 | Raises insight | Not built | [09](09-insights-pay-equity.md) §3.7, [07](07-api-spec.md) §8.9 |
 | Salary distribution histogram | Not built | [09](09-insights-pay-equity.md) §3.4, [07](07-api-spec.md) §8.6 |

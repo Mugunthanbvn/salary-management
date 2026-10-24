@@ -1,0 +1,35 @@
+{
+  "v": 3,
+  "createdOnFiles": { "v": 1, "at": "2026-10-24T06:30:00Z" },
+  "title": "ACME Pay — fresh direction",
+  "launch": { "view": "canvas" },
+  "pages": [],
+  "boards": {
+    "Main.dc.html": { "x": 0, "y": 0, "w": 1440, "h": 1560, "title": "Insights", "expand": "fill" },
+    "PayEquity.dc.html": { "x": 1520, "y": 0, "w": 1440, "h": 1500, "title": "Pay equity", "expand": "fill" },
+    "Employees.dc.html": { "x": 3040, "y": 0, "w": 1440, "h": 1180, "title": "Employees", "expand": "fill" },
+    "EmployeeDetail.dc.html": { "x": 0, "y": 2000, "w": 1440, "h": 1480, "title": "Employee detail", "expand": "fill" },
+    "Import.dc.html": { "x": 1520, "y": 2000, "w": 1440, "h": 1200, "title": "Import review", "expand": "fill" },
+    "Ask.dc.html": { "x": 3040, "y": 2000, "w": 1440, "h": 1180, "title": "Ask about pay", "expand": "fill" },
+    "PhoneInsights.dc.html": { "x": 0, "y": 3920, "w": 390, "h": 844, "title": "Phone: Insights" },
+    "PhoneEmployees.dc.html": { "x": 470, "y": 3920, "w": 390, "h": 844, "title": "Phone: Employees" },
+    "PhoneDetail.dc.html": { "x": 940, "y": 3920, "w": 390, "h": 844, "title": "Phone: Employee detail" }
+  },
+  "order": [
+    "Main.dc.html",
+    "PayEquity.dc.html",
+    "Employees.dc.html",
+    "EmployeeDetail.dc.html",
+    "Import.dc.html",
+    "Ask.dc.html",
+    "PhoneInsights.dc.html",
+    "PhoneEmployees.dc.html",
+    "PhoneDetail.dc.html"
+  ],
+  "notes": {
+    "rowDesktop1": { "x": 0, "y": -300, "text": "Desktop: insights, pay equity, employees", "kind": "title1", "maxW": 4480 },
+    "rowDesktop2": { "x": 0, "y": 1700, "text": "Desktop: employee, import, ask", "kind": "title1", "maxW": 4480 },
+    "rowPhone": { "x": 0, "y": 3620, "text": "Phone", "kind": "title1", "maxW": 1330 }
+  },
+  "designSystems": []
+}

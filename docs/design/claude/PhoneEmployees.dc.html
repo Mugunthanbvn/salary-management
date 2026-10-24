@@ -1,0 +1,89 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Employees on a phone</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&amp;family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&amp;display=swap">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1F4FD8}a:hover{color:#173A9E}
+</style>
+</helmet>
+<div style="width: 390px; height: 844px; box-sizing: border-box; overflow: hidden; display: flex; flex-direction: column; font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; color: #000000; background: #FFFFFF; font-variant-numeric: tabular-nums">
+
+  <header style="display: flex; align-items: center; justify-content: space-between; padding: 8px 16px; border-bottom: 1px solid #E2E2E2">
+    <a href="PhoneInsights.dc.html" style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 20px; color: #000000; text-decoration: none">ACME Pay</a>
+    <a href="#" style="display: inline-flex; align-items: center; min-height: 44px; padding: 0 14px; border-radius: 4px; background: #000000; color: #FFFFFF; text-decoration: none; font-size: 14px; font-weight: 700">Add</a>
+  </header>
+
+  <main style="flex: 1 1 auto; overflow: hidden; padding: 20px 16px 0">
+    <h1 style="margin: 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 30px; line-height: 1.1">Who are you looking for?</h1>
+    <form role="search" style="margin-top: 16px" onSubmit="{{noop}}">
+      <label for="q" style="display: block; font-size: 13px; color: #3D3D3D; margin-bottom: 4px">Name, employee code or email</label>
+      <input id="q" type="search" value="müller" style="box-sizing: border-box; width: 100%; font: inherit; font-family: 'Source Serif 4', serif; font-size: 22px; padding: 8px 0; border: 0; border-bottom: 2px solid #000000; background: transparent; color: #000000">
+    </form>
+    <div style="display: flex; gap: 8px; align-items: center; margin: 14px 0 6px">
+      <button type="button" style="font: inherit; font-size: 14px; min-height: 44px; padding: 0 14px; border: 1px solid #000000; border-radius: 4px; background: #FFFFFF; color: #000000">Filters (2)</button>
+      <span style="font-size: 13px; color: #3D3D3D">Active, full-time. 3 matches.</span>
+    </div>
+
+    <ul style="margin: 0; padding: 0; list-style: none">
+      <sc-for list="{{rows}}" as="r" hint-placeholder-count="4">
+        <li style="border-top: 1px solid #E2E2E2">
+          <a href="PhoneDetail.dc.html" style="display: flex; justify-content: space-between; gap: 12px; padding: 14px 0; color: #000000; text-decoration: none">
+            <span style="min-width: 0">
+              <span style="display: block; font-weight: 700; font-size: 16px">{{r.name}}</span>
+              <span style="display: block; font-size: 13px; color: #5C5C5C; margin-top: 2px">{{r.role}}</span>
+              <span style="display: block; font-size: 13px; color: #5C5C5C; margin-top: 2px">{{r.country}}, {{r.code}}</span>
+            </span>
+            <span style="text-align: right; flex: 0 0 auto">
+              <span style="display: block; font-family: 'Source Serif 4', serif; font-size: 18px; font-weight: 600">{{r.pay}}</span>
+              <span style="display: block; margin-top: 4px; font-size: 13px; color: {{r.flagColor}}; font-weight: {{r.flagWeight}}; text-decoration: {{r.flagLine}}; text-decoration-color: {{r.flagColor}}; text-decoration-thickness: 2px; text-underline-offset: 3px">{{r.flag}}</span>
+            </span>
+          </a>
+        </li>
+      </sc-for>
+    </ul>
+    <div style="display: flex; justify-content: space-between; align-items: center; margin-top: 8px; font-size: 14px; color: #3D3D3D">
+      <span>1 to 3 of 3</span>
+      <a href="Import.dc.html" style="display: inline-flex; align-items: center; min-height: 44px">Import from Excel</a>
+    </div>
+  </main>
+
+  <nav aria-label="Main" style="display: flex; border-top: 1px solid #E2E2E2; background: #FFFFFF">
+    <a href="PhoneInsights.dc.html" style="flex: 1 1 0; min-height: 56px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #3D3D3D; text-decoration: none">Insights</a>
+    <a href="PhoneEmployees.dc.html" aria-current="page" style="flex: 1 1 0; min-height: 56px; display: flex; align-items: center; justify-content: center; font-size: 14px; font-weight: 700; color: #000000; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px">Employees</a>
+    <a href="Ask.dc.html" style="flex: 1 1 0; min-height: 56px; display: flex; align-items: center; justify-content: center; font-size: 14px; color: #3D3D3D; text-decoration: none">Ask</a>
+  </nav>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"$preview":{"width":390,"height":844}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const row = (name, role, country, code, pay, flag) => {
+      const below = flag === 'Below band';
+      return {
+        name, role, country, code, pay, flag,
+        flagColor: below ? '#C62828' : '#3D3D3D',
+        flagWeight: below ? 700 : 400,
+        flagLine: below ? 'underline' : 'none'
+      };
+    };
+    return {
+      noop: (e) => e.preventDefault(),
+      rows: [
+        row('Lena Müller', 'Customer Success Manager, L2', 'Germany', 'ACME-002210', '€47,500', 'Below band'),
+        row('Jonas Müller', 'Backend Engineer, L4', 'Germany', 'ACME-006114', '€98,000', 'In band'),
+        row('Sarah Müller-Lang', 'Financial Analyst, L2', 'Germany', 'ACME-001877', '€56,000', 'In band')
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>
