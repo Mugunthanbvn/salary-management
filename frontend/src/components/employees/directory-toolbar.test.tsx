@@ -29,6 +29,19 @@ describe("search", () => {
     expect(search).toHaveClass("font-serif", "border-b-2", "border-ink");
   });
 
+  it("shows focus as a thicker blue underline, not a box around the field", () => {
+    renderInApp(<DirectoryToolbar reference={reference} total={3} />);
+
+    const search = screen.getByRole("searchbox", {
+      name: "Search by name, employee code or email",
+    });
+    expect(search).toHaveClass(
+      "focus-visible:outline-none",
+      "focus-visible:border-b-[3px]",
+      "focus-visible:border-blue-pen",
+    );
+  });
+
   it("puts the search in the URL once typing pauses for 300 ms, back on page 1", async () => {
     const onUrlUpdate = vi.fn();
     renderInApp(<DirectoryToolbar reference={reference} total={3} />, {
