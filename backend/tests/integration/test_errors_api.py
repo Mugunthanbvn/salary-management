@@ -56,3 +56,25 @@ def test_invalid_request_returns_422_problem_json_with_field_errors(
         (["query", "page"], "int_parsing"),
     ]
     assert all(isinstance(error["message"], str) and error["message"] for error in errors)
+
+
+def test_unhandled_error_returns_500_problem_json_without_internal_detail(app: FastAPI) -> None:
+    @app.get("/api/v1/_test/boom")
+    def boom() -> None:
+        raise RuntimeError("connection string has password hunter2")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/_test/boom", headers={"X-Request-ID": "req-500"})
+
+    assert response.status_code == 500
+    assert response.headers["content-type"] == PROBLEM_JSON
+    assert response.headers["X-Request-ID"] == "req-500"
+    assert response.json() == {
+        "type": "about:blank",
+        "title": "Internal Server Error",
+        "status": 500,
+        "detail": "An unexpected error occurred.",
+        "instance": "/api/v1/_test/boom",
+        "request_id": "req-500",
+    }
+    assert "hunter2" not in response.text
