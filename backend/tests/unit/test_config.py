@@ -87,3 +87,10 @@ def test_env_example_documents_every_setting_with_a_valid_value() -> None:
 
     assert {name.upper() for name in Settings.model_fields} <= values.keys()
     assert settings.app_env == "development"
+
+
+def test_app_env_is_required(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.delenv("APP_ENV", raising=False)
+
+    with pytest.raises(ValidationError, match="app_env"):
+        settings_from_environment()
