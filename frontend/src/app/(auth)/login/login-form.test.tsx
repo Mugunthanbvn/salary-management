@@ -1,7 +1,7 @@
 import { render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components } from "@/lib/api/schema";
 import { makeMe } from "@/test/fixtures";
@@ -35,6 +35,10 @@ async function signIn(email = "hr@acme.example", password = "correct horse") {
   await userEvent.click(screen.getByRole("button", { name: "Sign in" }));
 }
 
+beforeEach(() => {
+  search.value = "";
+});
+
 describe("LoginForm", () => {
   it("signs in through the API and opens Insights", async () => {
     let sent: LoginRequest | undefined;
@@ -56,4 +60,24 @@ describe("LoginForm", () => {
       password: "correct horse",
     });
   });
+
+  it.each([
+    { next: "/employees?country=DE", opens: "/employees?country=DE" },
+    { next: "//evil.example/insights", opens: "/insights" },
+    { next: "https://evil.example", opens: "/insights" },
+  ])(
+    "after signing in with next=$next, opens $opens",
+    async ({ next, opens }) => {
+      search.value = new URLSearchParams({ next }).toString();
+      server.use(
+        http.post<never, LoginRequest, LoginResponse>(LOGIN_URL, () =>
+          HttpResponse.json(signedIn()),
+        ),
+      );
+
+      await signIn();
+
+      await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith(opens));
+    },
+  );
 });
