@@ -128,6 +128,25 @@ def test_adding_or_subtracting_different_currencies_raises(
         operation(Money(100, "EUR"), Money(100, "INR"))
 
 
+@pytest.mark.parametrize(
+    ("annual", "monthly"),
+    [
+        (Money(6000000, "EUR"), Money(500000, "EUR")),
+        (Money(100, "USD"), Money(8, "USD")),
+        (Money(11, "USD"), Money(1, "USD")),
+        (Money(1000000, "JPY"), Money(83333, "JPY")),
+        (Money(6, "GBP"), Money(0, "GBP")),
+        (Money(18, "GBP"), Money(2, "GBP")),
+        (Money(30, "GBP"), Money(2, "GBP")),
+        (Money(42, "GBP"), Money(4, "GBP")),
+    ],
+)
+def test_monthly_display_is_annual_over_12_rounded_half_even(annual: Money, monthly: Money) -> None:
+    result = annual.monthly_display()
+
+    assert result == monthly
+
+
 @given(amount_minor=st.integers(), currency=currencies)
 def test_from_major_of_to_major_round_trips_every_amount(amount_minor: int, currency: str) -> None:
     money = Money(amount_minor, currency)
