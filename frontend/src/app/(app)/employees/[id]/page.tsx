@@ -44,7 +44,11 @@ export default async function EmployeePage({
   const path = { employee_id: employeeId };
   const [employee, reference, history] = await Promise.all([
     api.GET("/api/v1/employees/{employee_id}", { params: { path } }),
-    getReference().catch((error: unknown) => error),
+    // Settled, so the employee's own 404 wins over a reference-data problem.
+    getReference().then(
+      (data) => ({ data, error: null }),
+      (error: unknown) => ({ data: null, error }),
+    ),
     canReadSalaries
       ? api.GET("/api/v1/employees/{employee_id}/salary-history", {
           params: { path },
@@ -60,12 +64,15 @@ export default async function EmployeePage({
     const problem = await toProblem(employee.response, employee.error);
     return <PageProblem problem={problem} />;
   }
-  if (reference instanceof ProblemError)
-    return <PageProblem problem={reference} />;
-  if (reference instanceof Error) throw reference;
+  if (!reference.data) {
+    if (reference.error instanceof ProblemError) {
+      return <PageProblem problem={reference.error} />;
+    }
+    throw reference.error;
+  }
   const data = employee.data;
   const name = data.first_name;
-  const ref = reference as ReferenceData;
+  const ref = reference.data;
   const showsPhoneBar =
     can(me, "SALARY_WRITE") &&
     data.status === "ACTIVE" &&
