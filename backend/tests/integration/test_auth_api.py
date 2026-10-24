@@ -202,3 +202,22 @@ def test_a_failed_login_is_audited_with_the_email_hash_never_the_email(
     assert event.entity_id == (str(user.id) if email_is_known else None)
     assert event.diff == {"email_hash": hashlib.sha256(email.encode()).hexdigest()}
     assert email not in str(event.diff)
+
+
+def test_login_email_is_trimmed_and_case_insensitive(
+    client: TestClient, db_session: Session
+) -> None:
+    make_user(db_session, email="hr@acme.example")
+
+    response = client.post(
+        LOGIN, json={"email": "  HR@Acme.Example ", "password": DEFAULT_PASSWORD}
+    )
+
+    assert response.status_code == 200
+
+
+def test_failed_logins_hash_the_normalised_email(client: TestClient, db_session: Session) -> None:
+    client.post(LOGIN, json={"email": "  Nobody@ACME.example ", "password": "x"})
+
+    [event] = _committed_events(db_session)
+    assert event.diff == {"email_hash": hashlib.sha256(b"nobody@acme.example").hexdigest()}
