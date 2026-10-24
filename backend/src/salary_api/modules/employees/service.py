@@ -11,6 +11,7 @@ from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.search import employee_search_text
+from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees import repository
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.employees.schemas import (
@@ -23,6 +24,8 @@ from salary_api.modules.reference.schemas import Department, JobRoleRef
 from salary_api.modules.salaries import service as salaries
 from salary_api.modules.salaries.models import SalaryRecord
 from salary_api.modules.salaries.schemas import Component
+
+ENTITY = "employee"  # audit events name the entity they change
 
 
 def create_employee(
@@ -58,8 +61,28 @@ def create_employee(
         current_total_minor=pay.total.amount_minor,
     )
     repository.add(session, employee)
-    salaries.record_hire(
+    record = salaries.record_hire(
         session, employee, pay, note=request.salary.note, changed_by=principal.user_id
+    )
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.EMPLOYEE_CREATE,
+        entity=ENTITY,
+        entity_id=employee.id,
+        # The created fields; the salary only as its record id (docs/08 section 6).
+        diff={
+            "employee_code": employee.employee_code,
+            "first_name": employee.first_name,
+            "last_name": employee.last_name,
+            "email": employee.email,
+            "job_role_id": employee.job_role_id,
+            "level": employee.level,
+            "employment_type": employee.employment_type,
+            "country_code": employee.country_code,
+            "hire_date": employee.hire_date.isoformat(),
+            "salary_record_id": record.id,
+        },
     )
     session.commit()
     return get_employee(session, principal, employee.id)
