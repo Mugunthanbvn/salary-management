@@ -80,20 +80,35 @@ expect "block-protected-files: python3 fallback allows .env.example" 0 block-pro
   "$(json Edit file_path backend/.env.example)" "$repo" "$tmp/bin-py"
 expect "block-protected-files: sed fallback blocks backend/.env" 2 block-protected-files.sh \
   "$(json Edit file_path backend/.env)" "$repo" "$tmp/bin-sed"
+# generated files in a git worktree or behind .. segments (finding 3)
+guard 2 Edit "$repo/.claude/worktrees/x/frontend/src/lib/api/schema.d.ts"
+guard 2 Write /tmp/wt/frontend/openapi.json
+guard 2 Edit ./frontend/openapi.json
+guard 2 Edit frontend/src/../src/lib/api/schema.d.ts
+guard 2 Write /tmp/wt/backend/../frontend/openapi.json
+guard 2 Edit /tmp/wt/frontend/src/lib/api/./schema.d.ts
+expect "block-protected-files: sed fallback blocks a worktree schema.d.ts" 2 block-protected-files.sh \
+  "$(json Edit file_path /tmp/wt/frontend/src/lib/api/schema.d.ts)" "$repo" "$tmp/bin-sed"
+guard 0 Edit frontend/src/lib/api/client.ts
+guard 0 Write docs/openapi.json
+guard 0 Edit frontend/../docs/schema.d.ts
 
 echo "== format-changed-file.sh =="
-# A scaffolded project: backend venv with ruff, frontend node_modules with prettier.
-proj="$tmp/proj"
-mkdir -p "$proj/backend/src" "$proj/frontend/src" "$proj/frontend/node_modules/.bin"
-printf '[project]\nname = "hooktest"\nversion = "0.0.0"\nrequires-python = ">=3.10"\ndependencies = []\n' >"$proj/backend/pyproject.toml"
-printf '{"name": "hooktest", "private": true}\n' >"$proj/frontend/package.json"
+# scaffold <dir>: a project with a backend venv holding ruff and frontend node_modules holding prettier
 have_ruff=no have_prettier=no
-if command -v ruff >/dev/null 2>&1 && python3 -m venv --without-pip "$proj/backend/.venv" 2>/dev/null; then
-  ln -sf "$(command -v ruff)" "$proj/backend/.venv/bin/ruff" && have_ruff=yes
-fi
-if command -v prettier >/dev/null 2>&1 && command -v node >/dev/null 2>&1; then
-  ln -s "$(command -v prettier)" "$proj/frontend/node_modules/.bin/prettier" && have_prettier=yes
-fi
+command -v ruff >/dev/null 2>&1 && have_ruff=yes
+command -v prettier >/dev/null 2>&1 && command -v node >/dev/null 2>&1 && have_prettier=yes
+scaffold() {
+  mkdir -p "$1/backend/src" "$1/frontend/src" "$1/frontend/node_modules/.bin"
+  printf '[project]\nname = "hooktest"\nversion = "0.0.0"\nrequires-python = ">=3.10"\ndependencies = []\n' >"$1/backend/pyproject.toml"
+  printf '{"name": "hooktest", "private": true}\n' >"$1/frontend/package.json"
+  if [ "$have_ruff" = yes ]; then
+    python3 -m venv --without-pip "$1/backend/.venv" && ln -sf "$(command -v ruff)" "$1/backend/.venv/bin/ruff" || have_ruff=no
+  fi
+  [ "$have_prettier" = no ] || ln -sf "$(command -v prettier)" "$1/frontend/node_modules/.bin/prettier"
+}
+proj="$tmp/proj"
+scaffold "$proj"
 # An unscaffolded project: no pyproject.toml, no node_modules.
 bare="$tmp/bare"
 mkdir -p "$bare/backend/src" "$bare/frontend/src"
@@ -131,6 +146,31 @@ if [ "$have_prettier" = yes ]; then
   same "frontend .ts content formatted" "$proj/frontend/src/a.ts" 'const a = { b: 1, c: 2 };'
 else
   skipped "format-changed-file: prettier cases" "prettier or node not available"
+fi
+
+# files in a git worktree are formatted with that worktree's own tools (finding 3)
+wt="$tmp/wt"
+scaffold "$wt"
+nested="$proj/.claude/worktrees/w"
+scaffold "$nested"
+toolless="$proj/.claude/worktrees/toolless"
+mkdir -p "$toolless/backend/src"
+printf '[project]\nname = "t"\nversion = "0"\n' >"$toolless/backend/pyproject.toml"
+printf 'v = [1,2]\n' >"$toolless/backend/src/t.py"
+fmt "worktree without its own ruff is a no-op" 0 "$toolless/backend/src/t.py" "$proj"
+same "worktree without its own ruff: unchanged" "$toolless/backend/src/t.py" 'v = [1,2]'
+if [ "$have_ruff" = yes ]; then
+  printf 'y = [1,2]\n' >"$wt/backend/src/w.py"
+  fmt "worktree outside the project: .py formatted -> 0" 0 "$wt/backend/src/w.py" "$repo"
+  same "worktree outside the project: .py content formatted" "$wt/backend/src/w.py" 'y = [1, 2]'
+  printf 'z = (1,2)\n' >"$nested/backend/src/n.py"
+  fmt "worktree inside the project: .py formatted -> 0" 0 "$nested/backend/src/n.py" "$proj"
+  same "worktree inside the project: .py content formatted" "$nested/backend/src/n.py" 'z = (1, 2)'
+fi
+if [ "$have_prettier" = yes ]; then
+  printf 'const w = {a:1}\n' >"$wt/frontend/src/w.ts"
+  fmt "worktree outside the project: .ts formatted -> 0" 0 "$wt/frontend/src/w.ts" "$repo"
+  same "worktree outside the project: .ts content formatted" "$wt/frontend/src/w.ts" 'const w = { a: 1 };'
 fi
 
 echo "== guard-bash.sh =="
