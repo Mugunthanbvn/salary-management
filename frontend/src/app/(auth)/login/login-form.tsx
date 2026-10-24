@@ -33,11 +33,12 @@ function text(form: FormData, name: string): string {
 /** What to tell the person when the API refuses the sign-in. */
 function errorMessage(response: Response): string {
   // Same words for an unknown email and a wrong password, like the API.
-  if (response.status === 401) return "Email or password is incorrect";
+  if (response.status === 401) return WRONG_CREDENTIALS;
   if (response.status === 429) return tooManyAttempts(response);
   return COULD_NOT_SIGN_IN;
 }
 
+const WRONG_CREDENTIALS = "Email or password is incorrect";
 const COULD_NOT_SIGN_IN = "Couldn't sign you in. Try again in a moment.";
 
 /** 5 failures in 15 minutes lock the email; Retry-After says for how many seconds. */
@@ -90,6 +91,8 @@ export function LoginForm() {
   }
 
   const describedBy = error ? ERROR_ID : undefined;
+  // Only wrong credentials make the fields invalid; a lockout or an outage doesn't.
+  const invalid = error === WRONG_CREDENTIALS ? true : undefined;
   return (
     // method="post": even a submit that slips past React never puts the password in a URL.
     <form
@@ -105,7 +108,7 @@ export function LoginForm() {
           type="email"
           autoComplete="username"
           required
-          aria-invalid={error ? true : undefined}
+          aria-invalid={invalid}
           aria-describedby={describedBy}
         />
       </div>
@@ -117,7 +120,7 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
-          aria-invalid={error ? true : undefined}
+          aria-invalid={invalid}
           aria-describedby={describedBy}
         />
       </div>
