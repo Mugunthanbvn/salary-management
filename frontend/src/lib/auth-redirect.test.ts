@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { loginRedirectFor } from "./auth-redirect";
+import { loginRedirectFor, safeNextPath } from "./auth-redirect";
 
 describe("loginRedirectFor", () => {
   it("sends a visitor without a session to /login, remembering the page", () => {
@@ -37,5 +37,26 @@ describe("loginRedirectFor", () => {
     expect(
       loginRedirectFor({ pathname, search: "", hasSession: false }),
     ).toBeNull();
+  });
+});
+
+describe("safeNextPath", () => {
+  it("keeps a page on this site, with its query", () => {
+    expect(safeNextPath("/insights/pay-equity?country=DE")).toBe(
+      "/insights/pay-equity?country=DE",
+    );
+  });
+
+  // Anything else could send a person who just signed in to another site.
+  it.each([
+    null,
+    "",
+    "insights",
+    "//evil.example/insights",
+    "/\\evil.example",
+    "https://evil.example",
+    "javascript:alert(1)",
+  ])("falls back to /insights for %j", (next) => {
+    expect(safeNextPath(next)).toBe("/insights");
   });
 });

@@ -22,3 +22,8 @@ export function loginRedirectFor({
   if (hasSession || PUBLIC_PATH.test(pathname)) return null;
   return `/login?${new URLSearchParams({ next: pathname + search }).toString()}`;
 }
+
+export function safeNextPath(next: string | null): string {
+  void next;
+  throw new Error("safeNextPath is not implemented yet");
+}
