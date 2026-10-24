@@ -2,7 +2,12 @@
 
 import { useId, useState } from "react";
 
-import { Count, Hidden, MoneyRange } from "@/components/insights/figures";
+import {
+  Count,
+  Hidden,
+  HIDDEN_REASON,
+  MoneyRange,
+} from "@/components/insights/figures";
 import { Money, StatusWord } from "@/components/print";
 import { useMe } from "@/components/shell/me-context";
 import { Button } from "@/components/ui/button";
@@ -159,12 +164,19 @@ function CohortRow({
             )}
           </span>
           <span className="sr-only">
-            Middle half earns{" "}
-            <MoneyRange
-              from={stats.p25}
-              to={stats.p75}
-              currency={stats.currency}
-            />
+            {/* Plain words here: a Hidden button in an sr-only span is focusable but unseen. */}
+            {stats.p25 !== null && stats.p75 !== null ? (
+              <>
+                Middle half earns{" "}
+                <MoneyRange
+                  from={stats.p25}
+                  to={stats.p75}
+                  currency={stats.currency}
+                />
+              </>
+            ) : (
+              `Middle half earns: ${HIDDEN_REASON.toLowerCase()}`
+            )}
           </span>
         </span>
       </span>
