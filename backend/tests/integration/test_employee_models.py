@@ -64,9 +64,12 @@ def test_an_employee_starts_active_at_version_1_and_points_at_its_hire_record(
     db_session: Session,
 ) -> None:
     employee = _employee(db_session)
-    record = _record(db_session, employee)
-    record.components.append(
-        SalaryComponent(type=ComponentType.ALLOWANCE, name="Transport", amount_minor=60_000)
+    record = _record(
+        db_session,
+        employee,
+        components=[
+            SalaryComponent(type=ComponentType.ALLOWANCE, name="Transport", amount_minor=60_000)
+        ],
     )
     employee.current_salary_record_id = record.id
     db_session.flush()
@@ -149,26 +152,26 @@ def test_the_database_rejects_a_salary_record_that_cannot_be_right(
 
 
 def test_the_database_rejects_a_negative_component(db_session: Session) -> None:
-    record = _record(db_session, _employee(db_session))
-    record.components.append(
-        SalaryComponent(type=ComponentType.BONUS_TARGET, name="Target bonus", amount_minor=-1)
+    employee = _employee(db_session)
+    negative = SalaryComponent(
+        type=ComponentType.BONUS_TARGET, name="Target bonus", amount_minor=-1
     )
 
     with pytest.raises(IntegrityError, match="CHECK"):
-        db_session.flush()
+        _record(db_session, employee, components=[negative])
 
 
 def test_a_record_cannot_have_two_components_of_the_same_type_and_name(
     db_session: Session,
 ) -> None:
-    record = _record(db_session, _employee(db_session))
-    for amount in (60_000, 70_000):
-        record.components.append(
-            SalaryComponent(type=ComponentType.ALLOWANCE, name="Transport", amount_minor=amount)
-        )
+    employee = _employee(db_session)
+    twice = [
+        SalaryComponent(type=ComponentType.ALLOWANCE, name="Transport", amount_minor=amount)
+        for amount in (60_000, 70_000)
+    ]
 
     with pytest.raises(IntegrityError, match="UNIQUE"):
-        db_session.flush()
+        _record(db_session, employee, components=twice)
 
 
 def test_a_stale_version_cannot_overwrite_a_newer_row(db_session: Session) -> None:
