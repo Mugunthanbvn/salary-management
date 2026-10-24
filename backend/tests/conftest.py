@@ -4,7 +4,7 @@ Sockets are disabled for every test (pytest-socket, see addopts in pyproject.tom
 """
 
 import os
-from collections.abc import Iterator
+from collections.abc import Callable, Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
 from pathlib import Path
@@ -22,8 +22,11 @@ from sqlalchemy.orm import Session
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine, create_session_factory
 from salary_api.core.deps import get_password_hasher, get_session
+from salary_api.core.permissions import Role
+from salary_api.core.security import SESSION_COOKIE, create_access_token
 from salary_api.main import create_app
-from tests.factories import FAST_PASSWORD_HASHER, make_settings
+from salary_api.modules.users.models import User
+from tests.factories import FAST_PASSWORD_HASHER, make_settings, make_user
 
 # HYPOTHESIS_PROFILE=ci (set in CI) makes property tests derandomized and repeatable.
 hypothesis_settings.register_profile("ci", derandomize=True, max_examples=100, deadline=None)
@@ -102,6 +105,28 @@ def client(app: FastAPI, db_session: Session) -> Iterator[TestClient]:
     app.dependency_overrides[get_session] = session_override
     with TestClient(app) as test_client:
         yield test_client
+
+
+def signed_in_client(app: FastAPI, user: User, settings: Settings) -> TestClient:
+    """A client whose session cookie belongs to `user`, minted without a login call."""
+    token = create_access_token(user_id=user.id, role=user.role, settings=settings)
+    return TestClient(app, cookies={SESSION_COOKIE: token})
+
+
+@pytest.fixture
+def as_role(
+    app: FastAPI, client: TestClient, db_session: Session, settings: Settings
+) -> Callable[[Role | str], TestClient]:
+    """`as_role("VIEWER").get(...)`: a client signed in as a new user of that role.
+
+    The cookie is minted directly, so no `auth.login` event is written. It uses the
+    `client` fixture's app, so requests share the test's rolled-back session.
+    """
+
+    def sign_in_as(role: Role | str) -> TestClient:
+        return signed_in_client(app, make_user(db_session, role=role), settings)
+
+    return sign_in_as
 
 
 @pytest.fixture

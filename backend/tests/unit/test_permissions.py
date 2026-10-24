@@ -2,7 +2,13 @@
 
 import pytest
 
-from salary_api.core.permissions import ROLE_PERMISSIONS, Permission, Role, permissions_for
+from salary_api.core.permissions import (
+    ROLE_PERMISSIONS,
+    Permission,
+    Principal,
+    Role,
+    permissions_for,
+)
 
 # The matrix in docs/08-security-rbac.md section 3.1, row by row: (ADMIN, HR_MANAGER, VIEWER).
 MATRIX: dict[str, tuple[bool, bool, bool]] = {
@@ -50,3 +56,11 @@ def test_every_role_has_an_entry_in_the_mapping() -> None:
 
 def test_permissions_for_returns_an_immutable_set() -> None:
     assert isinstance(permissions_for(Role.VIEWER), frozenset)
+
+
+def test_a_principal_has_exactly_the_permissions_of_its_role() -> None:
+    viewer = Principal(user_id=1, email="vic@acme.example", full_name="Vic", role=Role.VIEWER)
+
+    assert viewer.permissions == permissions_for(Role.VIEWER)
+    assert viewer.has(Permission.INSIGHTS_READ)
+    assert not viewer.has(Permission.SALARY_READ)
