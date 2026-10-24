@@ -4,16 +4,17 @@ The benchmark is the band midpoint for the employee's job role + level + country
 cohort's own median, so a team-wide gap shows up (docs/09-insights-pay-equity.md §3.8).
 """
 
-from collections import defaultdict
+from collections import Counter, defaultdict
 from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
+from typing import Self
 
 from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW, ROLLUP_THRESHOLD
 from salary_api.domain.enums import EmploymentType, Level, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
-from salary_api.domain.stats import median
+from salary_api.domain.stats import mean, median
 
 
 class NoCompaRatioReason(StrEnum):
@@ -85,6 +86,38 @@ def flag(ratio: Decimal) -> PayEquityFlag:
     if ratio > PAY_EQUITY_HIGH:
         return PayEquityFlag.OVERPAID
     return PayEquityFlag.IN_BAND
+
+
+@dataclass(frozen=True, slots=True)
+class CompaRatioSummary:
+    """The compa-ratios of one group (a department or a cohort), all unrounded.
+
+    Round only for display. Field names match the API (docs/07 §8.10).
+    """
+
+    count: int
+    median_compa_ratio: Decimal
+    mean_compa_ratio: Decimal
+    underpaid_count: int
+    overpaid_count: int
+
+    @property
+    def pct_below_band(self) -> Decimal:
+        """The share of the group that is UNDERPAID, from 0 to 1 (0.29 means 29 %)."""
+        return Decimal(self.underpaid_count) / self.count
+
+    @classmethod
+    def of(cls, ratios: Iterable[Decimal]) -> Self:
+        """Summarise a group's compa-ratios. Needs at least one ratio (ValueError otherwise)."""
+        collected = list(ratios)
+        flags = Counter(flag(ratio) for ratio in collected)
+        return cls(
+            count=len(collected),
+            median_compa_ratio=median(collected),
+            mean_compa_ratio=mean(collected),
+            underpaid_count=flags[PayEquityFlag.UNDERPAID],
+            overpaid_count=flags[PayEquityFlag.OVERPAID],
+        )
 
 
 @dataclass(frozen=True, slots=True)
