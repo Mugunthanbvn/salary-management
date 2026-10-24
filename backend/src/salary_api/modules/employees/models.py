@@ -1,7 +1,7 @@
 """The employees table (docs/06-data-model.md section 4.5)."""
 
 from datetime import date, datetime
-from typing import TYPE_CHECKING, Any, ClassVar
+from typing import TYPE_CHECKING
 
 from sqlalchemy import CHAR, BigInteger, CheckConstraint, Enum, ForeignKey, Index, String
 from sqlalchemy.orm import Mapped, mapped_column, relationship, validates
@@ -83,7 +83,8 @@ class Employee(Base):
         foreign_keys=[current_salary_record_id]
     )
 
-    __mapper_args__: ClassVar[dict[str, Any]] = {
+    # Read once, when SQLAlchemy maps the class (typed as an instance variable by the base).
+    __mapper_args__ = {  # noqa: RUF012
         "version_id_col": version,
         "version_id_generator": False,
     }
