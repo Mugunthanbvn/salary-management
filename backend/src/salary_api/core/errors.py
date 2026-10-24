@@ -63,6 +63,13 @@ class ValidationFailed(ProblemError):
         )
 
 
+class ServiceUnavailable(ProblemError):
+    """503 with no glossary slug (`about:blank`): a dependency such as the database is down."""
+
+    def __init__(self, detail: str, **extra: Any) -> None:
+        super().__init__(503, None, "Service Unavailable", detail, **extra)
+
+
 def problem_response(
     request: Request, problem: ProblemError, headers: Mapping[str, str] | None = None
 ) -> JSONResponse:
@@ -103,6 +110,10 @@ def _from_request_validation_error(exc: RequestValidationError) -> ValidationFai
 
 
 def install_problem_handlers(app: FastAPI) -> None:
+    @app.exception_handler(ProblemError)
+    async def handle_problem_error(request: Request, exc: ProblemError) -> JSONResponse:
+        return problem_response(request, exc)
+
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return problem_response(request, _from_http_exception(exc), exc.headers)

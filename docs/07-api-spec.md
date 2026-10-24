@@ -175,11 +175,18 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 
 ### `GET /health`: Public
 
-Performs a trivial DB read **and** write (an upsert into a heartbeat row **(proposed)**) so the deploy spike proves the database is writable ([17-deployment.md](17-deployment.md)).
+Runs a read-only `SELECT 1` against the database. It never writes: the write check was only for the deploy spike ([17-deployment.md](17-deployment.md) §7), which is deferred. `version` is the API package version.
 
 ```json
-200 { "status": "ok", "db": "ok", "version": "1.0.0" }
-503 { "status": "degraded", "db": "error" }   // problem+json body in practice
+200 { "status": "ok", "db": "ok", "version": "0.1.0" }
+```
+
+When the database can't be reached: `503` problem+json with `type: "about:blank"` (no glossary slug fits) and an extra `db` member:
+
+```json
+503 { "type": "about:blank", "title": "Service Unavailable", "status": 503,
+      "detail": "The database is not reachable.", "instance": "/api/v1/health",
+      "request_id": "6f1c2b9e-...", "db": "error" }
 ```
 
 ---
