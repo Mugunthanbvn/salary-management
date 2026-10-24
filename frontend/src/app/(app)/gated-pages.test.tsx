@@ -41,14 +41,29 @@ describe("pages that need a permission", () => {
     ).toBeVisible();
   });
 
-  it("/ask says Ask is switched off when the API has it off", async () => {
+  it("/ask opens the question box for anyone with ASK", async () => {
+    await renderPage(AskPage, makeMe({ permissions: VIEWER_PERMISSIONS }));
+
+    expect(screen.getByLabelText("Ask a question about pay")).toBeVisible();
+  });
+
+  it("/ask tells someone without ASK they have no access", async () => {
+    await renderPage(AskPage, makeMe({ permissions: ["INSIGHTS_READ"] }));
+
+    expect(
+      screen.getByRole("heading", { name: "You don't have access to this" }),
+    ).toBeVisible();
+    expect(screen.queryByLabelText("Ask a question about pay")).toBeNull();
+  });
+
+  it("/ask says Ask is turned off when the API has it off", async () => {
     await renderPage(AskPage, makeMe({ features: { ask: false } }));
 
     expect(
       screen.getByRole("heading", { name: "You don't have access to this" }),
     ).toBeVisible();
     expect(
-      screen.getByText("Ask is switched off on this deployment."),
+      screen.getByText("Ask is turned off on this deployment."),
     ).toBeVisible();
   });
 });
