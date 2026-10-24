@@ -3,6 +3,8 @@
  * No float maths: the amount stays a BigInt and is split into major and minor units with
  * string maths, then Intl.NumberFormat formats the exact decimal string.
  */
+import { numberFormat } from "./intl";
+
 export type FormatMoneyOptions = {
   /** Stored amounts are annual; "monthly" shows annual ÷ 12, rounded half-even. */
   period?: "annual" | "monthly";
@@ -31,7 +33,7 @@ export function formatMoney(
   // Whole amounts read like the printout ("€54,000"); any minor part shows every digit.
   const fractionDigits =
     minorUnits === "auto" && /^0*$/.test(fraction) ? 0 : fraction.length;
-  const formatter = new Intl.NumberFormat(locale, {
+  const formatter = numberFormat(locale, {
     style: "currency",
     currency,
     // An amount that rounds to zero (compact mode) shows "€0", never "-€0".
@@ -119,7 +121,7 @@ function defaultLocale(currency: string): string {
 
 /** The currency's minor-unit exponent (JPY 0, EUR 2), as Intl knows it. */
 function minorDigits(currency: string): number {
-  const options = new Intl.NumberFormat("en-US", {
+  const options = numberFormat("en-US", {
     style: "currency",
     currency,
   }).resolvedOptions();

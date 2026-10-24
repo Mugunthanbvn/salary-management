@@ -3,6 +3,7 @@
  * strings (`"0.9234"`) and are formatted from that exact string, never through a float,
  * rounding half-even like the API. The locale is fixed, so server and browser agree.
  */
+import { numberFormat } from "./intl";
 
 const RATIO = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
@@ -21,7 +22,7 @@ export function formatPercent(
   ratio: string,
   { fractionDigits = 0 }: { fractionDigits?: number } = {},
 ): string {
-  return new Intl.NumberFormat("en-US", {
+  return numberFormat("en-US", {
     style: "percent",
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
