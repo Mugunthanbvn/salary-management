@@ -23,7 +23,14 @@ export function loginRedirectFor({
   return `/login?${new URLSearchParams({ next: pathname + search }).toString()}`;
 }
 
+export const AFTER_LOGIN_PATH = "/insights";
+
+/**
+ * The `next` page to open after signing in: a path on this site ("/…"), or /insights.
+ * "//host" and "/\\host" are refused: browsers read both as another site.
+ */
 export function safeNextPath(next: string | null): string {
-  void next;
-  throw new Error("safeNextPath is not implemented yet");
+  if (!next || !next.startsWith("/")) return AFTER_LOGIN_PATH;
+  if (next.startsWith("//") || next.startsWith("/\\")) return AFTER_LOGIN_PATH;
+  return next;
 }
