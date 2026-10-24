@@ -6,10 +6,11 @@ Money is never a float. An amount always travels with its currency.
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
-from decimal import ROUND_HALF_EVEN, Decimal, InvalidOperation
+from decimal import Decimal, InvalidOperation
 from typing import Self
 
 from salary_api.domain.currency import USD, minor_unit_exponent
+from salary_api.domain.rounding import divide_half_even, round_half_even
 
 
 class TooManyDecimalsError(ValueError):
@@ -86,7 +87,7 @@ class Money:
 
     def monthly_display(self) -> "Money":
         """This annual amount ÷ 12, rounded half-even. For display only: never store or sum it."""
-        return Money(_divide_half_even(self.amount_minor, 12), self.currency)
+        return Money(divide_half_even(self.amount_minor, 12), self.currency)
 
     def _require_same_currency(self, other: "Money") -> None:
         if other.currency != self.currency:
@@ -131,22 +132,8 @@ def to_usd(money: Money, rates: Mapping[str, FxRate]) -> UsdAmount:
     if rate.currency != money.currency:
         raise CurrencyMismatchError(money.currency, rate.currency)
     shift = minor_unit_exponent(USD) - minor_unit_exponent(money.currency)
-    usd_minor = _round_half_even(Decimal(money.amount_minor).scaleb(shift) * rate.rate_to_usd)
+    usd_minor = round_half_even(Decimal(money.amount_minor).scaleb(shift) * rate.rate_to_usd)
     return UsdAmount(Money(usd_minor, USD), rate.as_of)
-
-
-def _round_half_even(value: Decimal) -> int:
-    """`value` rounded to the nearest int, ties to even (2.5 -> 2, 3.5 -> 4)."""
-    return int(value.to_integral_value(rounding=ROUND_HALF_EVEN))
-
-
-def _divide_half_even(numerator: int, denominator: int) -> int:
-    """`numerator / denominator` rounded to the nearest int, ties to even, in exact int maths."""
-    quotient, remainder = divmod(numerator, denominator)
-    twice_remainder = 2 * remainder
-    if twice_remainder > denominator or (twice_remainder == denominator and quotient % 2 == 1):
-        quotient += 1
-    return quotient
 
 
 def _parse_major(amount: str | Decimal) -> Decimal:
