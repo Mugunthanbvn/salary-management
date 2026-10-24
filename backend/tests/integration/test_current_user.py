@@ -182,7 +182,7 @@ def test_every_listed_permission_is_required(as_role: Callable[[str], TestClient
     assert admin_response.status_code == 200
 
 
-def test_permissions_are_checked_before_anonymous_callers_get_a_403(client: TestClient) -> None:
+def test_an_anonymous_caller_gets_401_not_403_on_a_protected_route(client: TestClient) -> None:
     response = client.get(SALARIES)
 
     assert response.status_code == 401
