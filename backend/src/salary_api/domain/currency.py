@@ -25,6 +25,13 @@ _MINOR_UNIT_EXPONENTS: Final[Mapping[str, int]] = MappingProxyType(
 SUPPORTED_CURRENCIES: Final = frozenset(_MINOR_UNIT_EXPONENTS)
 
 
+class UnknownCurrencyError(ValueError):
+    """The code is not one of the supported ISO 4217 currencies (codes are upper case)."""
+
+
 def minor_unit_exponent(currency: str) -> int:
     """The number of decimal places in one major unit of `currency` (USD 2, JPY 0)."""
-    return _MINOR_UNIT_EXPONENTS[currency]
+    try:
+        return _MINOR_UNIT_EXPONENTS[currency]
+    except KeyError:
+        raise UnknownCurrencyError(f"Unsupported currency: {currency!r}") from None
