@@ -206,6 +206,17 @@ Tool: Claude Code (VS Code extension), model Claude Opus 5.5, plan mode (read-on
 - **Follow-up ("proceed"):** added [glossary.md](../glossary.md) as the single source for names, enums, audit actions, error codes, env vars and numbers, and aligned every doc to it (audit actions now `ask.query` etc.; threshold 5 everywhere; Ask errors 429 / 502 / 503; Ask flag via `/auth/me`; one import response shape; half-even rounding; one env-var set).
 - **Still open from the review:** Viewer min/max hiding, `compare_groups` suppression, part-time compa-ratio.
 
+### 23. Screen designs with the Stitch CLI, fully mobile responsive
+- **Prompts:** "If I generate design with Stitch or Claude, what instruction do I give for both?" · "Can we provide a single doc to the Stitch CLI and generate the design?" · "Check, recently Google launched Stitch CLI" · "Use the Stitch CLI command to generate designs for this project" · "Screens should be full mobile responsive, update in docs as well" · "Generate a version of the design that's mobile responsive as well".
+- **⚠ correction:** the AI first said there was no official Stitch CLI. Asked to check again, it found Google's `@google/stitch` CLI (announced October 2026) and corrected itself.
+- **AI produced:** a shared brief, a design-system file and one prompt per screen (since removed from the repo); a Stitch project and design system (Geist, one deep-teal accent, 4 px radius); `generate.sh`, which renders 6 screens for desktop and mobile and downloads HTML + PNG. Rewrote [13-frontend-ux.md](../13-frontend-ux.md) §8 to "fully mobile responsive" (tables become cards, filters in a bottom sheet, full-screen sheets, 44 px touch targets) and updated the PRD, testing strategy, plan and glossary.
+- **Decision:** the designs are a reference, not a spec; the docs win on behaviour. The Claude Design phase stays cut.
+- **Follow-up prompt:** "Page looks like AI developed it, should be creative, new."
+- **⚠ correction:** v1 hit the usual AI-dashboard tells (slate + teal, card grids, KPI tiles, all-caps labels, pill badges). The AI wrote a new art direction, "Bands": pay shown as a position in a range, with a band strip as the one signature element; one Prussian-blue ink plus crimson/ochre signals; Archivo Narrow + Public Sans; no cards, tiles or badges. Regenerated all 12 screens in a new Stitch project (v2) and wrote its rules into a DESIGN.md.
+- **Follow-up prompts:** `/design` → "Fresh ACME Pay direction" · "Will keep Claude designs, remove Gemini Stitch designs and commit."
+- **AI produced:** a third direction in Claude Design, "Marked-up printout": every section leads with HR's question; key figures get a highlighter mark, problems a red-pen underline or circle, notes sit in the margin; Source Serif 4 + Atkinson Hyperlegible Next; 6 desktop + 3 phone artboards.
+- **Decision:** keep the Claude Design canvas ([design/claude](../design/claude/README.md)); delete both Stitch directions from the repo; rewrite [design/DESIGN.md](../design/DESIGN.md) for "Marked-up printout".
+
 ---
 
 ## Observations

@@ -1,6 +1,6 @@
 # ADR-0018: UI design workflow: Claude Design canvases → DESIGN.md → build with frontend-design → Impeccable audit
 
-- **Status:** Deferred (2026-10-24): the Claude Design phase is cut from v1 to fit a 1–2 day build. v1 uses shadcn/ui defaults with the frontend-design skill. See the [v1 scope](../README.md#v1-scope-decided-2026-10-24-read-this-first).
+- **Status:** Accepted, reduced (2026-10-24): no separate design phase in the 1–2 day build. One Claude Design canvas was made and its "Marked-up printout" direction chosen ([design/claude](../design/claude/README.md), [DESIGN.md](../design/DESIGN.md)). Google Stitch was tried via its CLI (two directions) and dropped: the output read as generic and invented fields we don't store.
 - **Date:** 2026-10-24
 - **Deciders:** the candidate + Claude (AI pair)
 

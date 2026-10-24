@@ -1,0 +1,164 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<title>Pay equity in Germany</title>
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible+Next:wght@400;500;700&amp;family=Source+Serif+4:opsz,wght@8..60,400;8..60,600;8..60,700&amp;display=swap">
+<style>
+body{margin:0;background:#FFFFFF}
+a{color:#1F4FD8}a:hover{color:#173A9E}
+</style>
+</helmet>
+<div style="font-family: 'Atkinson Hyperlegible Next', system-ui, sans-serif; color: #000000; background: #FFFFFF; font-variant-numeric: tabular-nums; min-height: 100vh">
+
+  <header style="border-bottom: 1px solid #E2E2E2">
+    <nav aria-label="Main" style="max-width: 1280px; margin: 0 auto; padding: 16px 32px; display: flex; flex-wrap: wrap; align-items: center; gap: 8px 32px">
+      <a href="Main.dc.html" style="font-family: 'Source Serif 4', serif; font-weight: 700; font-size: 22px; color: #000000; text-decoration: none">ACME Pay</a>
+      <div style="display: flex; gap: 24px; flex: 1 1 auto; font-size: 15px">
+        <a href="Main.dc.html" aria-current="page" style="color: #000000; font-weight: 700; text-decoration: underline; text-underline-offset: 6px; text-decoration-thickness: 2px">Insights</a>
+        <a href="Employees.dc.html" style="color: #3D3D3D; text-decoration: none">Employees</a>
+        <a href="Ask.dc.html" style="color: #3D3D3D; text-decoration: none">Ask</a>
+      </div>
+      <span style="font-size: 14px; color: #3D3D3D">Hema, HR Manager</span>
+    </nav>
+  </header>
+
+  <main style="max-width: 1280px; margin: 0 auto; padding: 32px 32px 80px">
+    <a href="Main.dc.html" style="display: inline-flex; align-items: center; min-height: 44px; font-size: 15px">Back to insights</a>
+
+    <div style="display: flex; flex-wrap: wrap; align-items: flex-end; justify-content: space-between; gap: 24px; padding: 8px 0 32px; border-bottom: 2px solid #000000">
+      <div style="flex: 999 1 560px; min-width: 0">
+        <h1 style="margin: 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 44px; line-height: 1.1">Are we paying Germany fairly?</h1>
+        <p style="margin: 12px 0 0; font-size: 17px; line-height: 1.5; color: #3D3D3D; max-width: 720px">We compare each person's base pay with the middle of the pay band for their role, level and country. That ratio is the compa-ratio: 1.00 is the middle, below 0.80 is under the band, above 1.20 is over it.</p>
+      </div>
+      <label style="display: flex; flex-direction: column; gap: 6px; font-size: 14px; color: #3D3D3D">Country
+        <select style="font: inherit; font-size: 15px; color: #000000; min-height: 44px; padding: 0 12px; border: 1px solid #000000; border-radius: 4px; background: #FFFFFF">
+          <option>Germany (EUR)</option>
+          <option>India (INR)</option>
+          <option>Japan (JPY)</option>
+        </select>
+      </label>
+    </div>
+
+    <section aria-labelledby="q1" style="display: flex; flex-wrap: wrap; gap: 24px 48px; padding: 40px 0; border-bottom: 1px solid #E2E2E2">
+      <h2 id="q1" style="flex: 1 1 280px; margin: 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 28px; line-height: 1.25">Is any team paid below its bands?</h2>
+      <div style="flex: 999 1 640px; min-width: 0">
+        <p style="margin: 0 0 24px; font-family: 'Source Serif 4', serif; font-size: 24px; line-height: 1.4">Yes. <span style="background: linear-gradient(180deg, transparent 42%, {{hl}} 42%, {{hl}} 90%, transparent 90%); padding: 0 2px">Customer Success has a median compa-ratio of 0.92</span>, so the whole team sits about 8% under the middle of its bands.</p>
+        <div style="display: grid; grid-template-columns: minmax(130px, 180px) minmax(0, 1fr) 56px; gap: 0 16px; font-size: 13px; color: #3D3D3D; padding-bottom: 8px">
+          <span></span>
+          <span style="display: flex; justify-content: space-between"><span>0.80</span><span>0.90</span><span style="color: #000000; font-weight: 700">1.00</span><span>1.10</span><span>1.20</span></span>
+          <span></span>
+        </div>
+        <sc-for list="{{teams}}" as="t" hint-placeholder-count="6">
+          <div style="display: grid; grid-template-columns: minmax(130px, 180px) minmax(0, 1fr) 56px; align-items: center; gap: 16px; padding: 12px 0; border-top: 1px solid #E2E2E2; font-size: 15px">
+            <span style="font-weight: {{t.weight}}; color: {{t.color}}">{{t.name}}</span>
+            <span aria-hidden="true" style="position: relative; height: 20px">
+              <span style="position: absolute; left: 0; right: 0; top: 9px; height: 2px; background: #E2E2E2"></span>
+              <span style="position: absolute; left: 50%; top: 0; width: 1px; height: 20px; background: #000000"></span>
+              <span style="position: absolute; left: 37.5%; top: 0; width: 0; height: 20px; border-left: 1px dashed #8A8A8A"></span>
+              <span style="position: absolute; left: {{t.pos}}; top: 3px; width: 14px; height: 14px; margin-left: -7px; border-radius: 50%; background: {{t.color}}"></span>
+            </span>
+            <span style="text-align: right; font-weight: 700; color: {{t.color}}">{{t.ratio}}</span>
+          </div>
+        </sc-for>
+        <p style="margin: 12px 0 0; font-family: 'Source Serif 4', serif; font-style: italic; font-size: 15px; color: #3D3D3D">Dashed line at 0.95: a team whose median falls below it is flagged as paid below band as a team.</p>
+      </div>
+    </section>
+
+    <section aria-labelledby="q2" style="display: flex; flex-wrap: wrap; gap: 24px 48px; padding: 40px 0; border-bottom: 1px solid #E2E2E2">
+      <h2 id="q2" style="flex: 1 1 280px; margin: 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 28px; line-height: 1.25">Which roles and levels?</h2>
+      <div style="flex: 999 1 640px; min-width: 0">
+        <div style="overflow-x: auto">
+          <table style="width: 100%; border-collapse: collapse; font-size: 15px; min-width: 640px">
+            <thead>
+              <tr style="text-align: left; color: #3D3D3D; font-size: 13px">
+                <th scope="col" style="padding: 0 12px 10px 0; font-weight: 500">Role and level</th>
+                <th scope="col" style="padding: 0 12px 10px; font-weight: 500; text-align: right">People</th>
+                <th scope="col" style="padding: 0 12px 10px; font-weight: 500; text-align: right">Band (EUR)</th>
+                <th scope="col" style="padding: 0 12px 10px; font-weight: 500; text-align: right">Median pay</th>
+                <th scope="col" style="padding: 0 12px 10px; font-weight: 500; text-align: right">Compa-ratio</th>
+                <th scope="col" style="padding: 0 0 10px 12px; font-weight: 500; text-align: right">Below / above band</th>
+              </tr>
+            </thead>
+            <tbody>
+              <sc-for list="{{cohorts}}" as="c" hint-placeholder-count="5">
+                <tr style="border-top: 1px solid #E2E2E2">
+                  <th scope="row" style="padding: 14px 12px 14px 0; text-align: left; font-weight: 500">{{c.role}}</th>
+                  <td style="padding: 14px 12px; text-align: right; color: #3D3D3D">{{c.people}}</td>
+                  <td style="padding: 14px 12px; text-align: right; color: #3D3D3D">{{c.band}}</td>
+                  <td style="padding: 14px 12px; text-align: right; font-weight: 700">{{c.median}}</td>
+                  <td style="padding: 14px 12px; text-align: right; font-weight: 700; color: {{c.color}}">{{c.ratio}}</td>
+                  <td style="padding: 14px 0 14px 12px; text-align: right"><a href="#people">{{c.flags}}</a></td>
+                </tr>
+              </sc-for>
+            </tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <section id="people" aria-labelledby="q3" style="display: flex; flex-wrap: wrap; gap: 24px 48px; padding: 40px 0">
+      <div style="flex: 1 1 280px">
+        <h2 id="q3" style="margin: 0; font-family: 'Source Serif 4', serif; font-weight: 600; font-size: 28px; line-height: 1.25">Who exactly is below band?</h2>
+        <p style="margin: 12px 0 0; font-size: 15px; color: #3D3D3D">Customer Success Manager, L2. Band €41,760 to €62,640.</p>
+      </div>
+      <div style="flex: 999 1 640px; min-width: 0">
+        <ul style="margin: 0; padding: 0; list-style: none">
+          <sc-for list="{{people}}" as="p" hint-placeholder-count="5">
+            <li style="display: flex; flex-wrap: wrap; align-items: baseline; justify-content: space-between; gap: 4px 24px; padding: 12px 0; border-top: 1px solid #E2E2E2; font-size: 15px">
+              <span><a href="EmployeeDetail.dc.html" style="color: #000000; font-weight: 700">{{p.name}}</a> <span style="color: #3D3D3D">{{p.code}}</span></span>
+              <span style="display: flex; gap: 24px; align-items: baseline">
+                <span style="font-weight: 700">{{p.pay}}</span>
+                <span style="color: #C62828; font-weight: 700; text-decoration: underline; text-decoration-color: #C62828; text-decoration-thickness: 2px; text-underline-offset: 4px">{{p.ratio}}</span>
+              </span>
+            </li>
+          </sc-for>
+        </ul>
+        <p style="margin: 16px 0 0; font-size: 14px; color: #3D3D3D">Names and pay are visible to HR managers and admins only. Viewers see the team view above, with groups under 5 people hidden.</p>
+      </div>
+    </section>
+  </main>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props='{"hl":{"editor":"color","default":"#FFE45C","options":["#FFE45C","#B9F2C8","#FFD1DC","#CDE4FF"]},"$preview":{"width":1440,"height":1500}}'>
+class Component extends DCLogic {
+  renderVals() {
+    const ink = '#000000';
+    const red = '#C62828';
+    const pos = (r) => (((r - 0.8) / 0.4) * 100).toFixed(1) + '%';
+    const team = (name, r) => ({ name, ratio: r.toFixed(2), pos: pos(r), color: r < 0.95 ? red : ink, weight: r < 0.95 ? 700 : 400 });
+    return {
+      hl: this.props.hl ?? '#FFE45C',
+      teams: [
+        team('Engineering', 1.01),
+        team('Product', 1.02),
+        team('Sales', 0.99),
+        team('Marketing', 0.98),
+        team('Operations', 1.0),
+        team('Customer Success', 0.92)
+      ],
+      cohorts: [
+        { role: 'Customer Success Manager, L2', people: '41', band: '41,760 to 62,640', median: '€48,000', ratio: '0.92', color: red, flags: '14 below, 1 above' },
+        { role: 'Support Specialist, L1', people: '35', band: '32,000 to 48,000', median: '€37,500', ratio: '0.94', color: red, flags: '11 below, 0 above' },
+        { role: 'Software Engineer, L3', people: '118', band: '72,000 to 108,000', median: '€90,400', ratio: '1.00', color: ink, flags: '2 below, 3 above' },
+        { role: 'Account Executive, L3', people: '52', band: '51,200 to 76,800', median: '€64,000', ratio: '1.00', color: ink, flags: '4 below, 1 above' },
+        { role: 'Product Manager, L3', people: '28', band: '54,000 to 81,000', median: '€68,000', ratio: '1.01', color: ink, flags: '0 below, 2 above' }
+      ],
+      people: [
+        { name: 'Lukas Weber', code: 'ACME-003412', pay: '€36,500', ratio: '0.70' },
+        { name: 'Hannah Meyer', code: 'ACME-003589', pay: '€37,200', ratio: '0.71' },
+        { name: 'Maximilian Fischer', code: 'ACME-003821', pay: '€38,000', ratio: '0.73' },
+        { name: 'Lea Schmidt', code: 'ACME-004344', pay: '€39,500', ratio: '0.76' },
+        { name: 'Tim Hoffmann', code: 'ACME-004719', pay: '€39,800', ratio: '0.76' }
+      ]
+    };
+  }
+}
+</script>
+</body>
+</html>

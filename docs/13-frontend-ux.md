@@ -238,7 +238,7 @@ A three-step flow ([11-import-export.md](11-import-export.md)):
 
 ## 5. Design workflow
 
-> **Cut from v1** ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)): no Claude Design phase. v1 uses shadcn/ui defaults guided by the frontend-design skill, with a short hand-written `docs/design/DESIGN.md` if time allows. The workflow below is the future-work design.
+> **v1:** no multi-step design phase. One time-boxed Claude Design canvas produced the chosen direction, "Marked-up printout": 6 desktop and 3 phone screens ([design/claude](design/claude/README.md)), with the rules in [design/DESIGN.md](design/DESIGN.md). The build uses shadcn/ui restyled to those rules; this doc wins on behaviour. Google Stitch was also tried (two directions) and dropped. The workflow below is the original, fuller plan.
 
 ([adr/0018-design-workflow.md](adr/0018-design-workflow.md), [16-claude-code-setup.md](16-claude-code-setup.md))
 
@@ -285,15 +285,35 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 - `eslint-plugin-jsx-a11y` in CI; **(proposed)** axe checks in Playwright smoke tests ([14-testing-strategy.md](14-testing-strategy.md)).
 - Respects `prefers-reduced-motion` and `prefers-color-scheme`.
 
-## 8. Responsive behaviour
+## 8. Responsive behaviour (fully mobile responsive)
 
-| Breakpoint | Behaviour |
+**Every screen is fully usable on a phone**, not just "readable": every action available on desktop (search, filters, record a salary change, import, export, Ask, pay equity drill-down) works from 360 px wide upwards. Designs are made mobile-first and checked at **390 × 844** (phone), **768 × 1024** (tablet) and **1440 × 900** (desktop).
+
+| Breakpoint (Tailwind) | Layout |
 |---|---|
-| ≥ 1280 px (primary) | Full dashboard grid; tables show all columns |
-| 768–1279 px | Two-column dashboard; tables hide low-priority columns (hire date, type) behind a column picker |
-| < 768 px | Single column; top bar becomes a menu; tables become horizontally scrollable with the name column sticky; the record-change sheet is full-screen |
+| < 640 px (`base`, phone) | Single column. Top bar collapses to the logo + a menu button that opens a navigation sheet. KPI tiles in a 2-column grid. Charts stack full width, using horizontal bars so labels stay readable |
+| 640–1023 px (`sm`/`md`, tablet) | Two-column dashboard grid. Tables hide low-priority columns (hire date, type) behind a column picker |
+| ≥ 1024 px (`lg`+, desktop) | Full dashboard grid; tables show all columns; side sheets open at the right |
 
-The primary use is desktop (HR's daily work), and mobile is "usable for lookups", per the brief's web-app focus.
+Component rules on phones:
+
+| Element | Phone behaviour |
+|---|---|
+| Data tables (employees, cohorts, top earners, import errors) | Become a **card list**: one card per row with the key fields (name, code, role · level, country, salary for HR) and a tap target to open the detail. No horizontal scrolling of the page |
+| Filters | A "Filters (n)" button opens a bottom sheet with every filter; active filters show as removable chips under the search box |
+| Toggles (Base/Total, Annual/Monthly) and population chip | Stay visible above the content as a compact segmented control |
+| Side sheets and dialogs (record salary change, cohort drill-down, confirmations) | Open full screen with a sticky header (title + close) and a sticky footer (primary action) |
+| Pay-equity range bars | Kept, scaled to the card width; numbers shown below the bar instead of beside it |
+| Import | Upload by file picker (drag-and-drop is a desktop bonus); errors as cards grouped by row |
+| Ask | Full-height chat; the input sticks to the bottom and stays above the on-screen keyboard |
+| Pagination | "Previous / Next" with "26–50 of 9,700"; page-size picker hidden |
+
+Rules that apply everywhere:
+- Touch targets at least **44 × 44 px**; no hover-only information (tooltips also open on tap).
+- No horizontal page scroll at any width ≥ 360 px; long names truncate with the full value on tap.
+- Money stays on one line and never wraps between the symbol and the number; compact notation (`€1.2M`) is allowed in KPI tiles and charts on phones.
+- Text inputs use the right mobile keyboard (`inputmode="decimal"` for amounts, `type="email"` for email, `type="search"` for search).
+- Respects safe-area insets (`env(safe-area-inset-*)`) for the sticky header and footers.
 
 ## 9. Performance (UX budgets)
 

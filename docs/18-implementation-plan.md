@@ -98,7 +98,8 @@ Employees and salary records are built together because creating an employee wri
 
 ### B8: Frontend (day 2)
 - **Tasks:** `make api-sync` + openapi-fetch clients; the `/api` rewrite; `proxy.ts` (matcher excludes `/api` and `/login`); login page (client fetch through the rewrite, so FastAPI's cookie reaches the browser); app shell with permission-aware nav; `lib/money.ts`; employee list (server-side paging and sort, nuqs URL filters, masked cells for Viewer); employee detail with salary timeline; record-salary-change form; create/edit/terminate; insights page; pay-equity page; import page (upload via client fetch → preview with row errors → commit); export button. shadcn defaults guided by the frontend-design skill.
-- **Done when:** the main flows work locally and in production (Safari included); Viewer masking verified in the UI; one Playwright smoke flow (HR login → search → record raise) passes.
+- **Mobile:** every screen is built mobile-first and fully usable on a phone ([13-frontend-ux.md](13-frontend-ux.md) §8): tables become card lists, filters open in a bottom sheet, side sheets go full screen.
+- **Done when:** the main flows work locally and in production (Safari included) at 390 px and 1440 px; Viewer masking verified in the UI; one Playwright smoke flow (HR login → search → record raise) passes at desktop and phone sizes.
 
 ### B9: Ask about pay, minimal (day 2, if time allows)
 - **Tasks:** `LLMClient` protocol + OpenAI-compatible adapter (Gemini); `FakeLLM`; about 5 read-only tools over the insight services with permission filtering + executor re-check; loop cap; per-user rate limit; error handling; feature flag; `POST /ask`; `/ask` page; about 5 eval questions run once.
