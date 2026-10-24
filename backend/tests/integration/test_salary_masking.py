@@ -4,6 +4,7 @@ Masking lives in the service, because exports and the Ask tools call services di
 """
 
 from collections.abc import Callable
+from typing import cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -14,6 +15,7 @@ from salary_api.core.permissions import Principal, Role
 from salary_api.modules.employees import service
 from salary_api.modules.employees.schemas import EmployeeListQuery
 from tests.factories import make_employee
+from tests.integration.test_authz_matrix import MATRIX, Endpoint
 
 EMPLOYEES = "/api/v1/employees"
 
@@ -102,3 +104,42 @@ def test_the_service_refuses_a_salary_filter_from_a_caller_without_salary_read(
         service.list_employees(
             db_session, _principal(Role.VIEWER), EmployeeListQuery(salary_min=1, currency=["EUR"])
         )
+
+
+def _amounts_in(body: object, path: str = "$") -> list[str]:
+    """Where a JSON body holds an amount: a non-null `*_minor` member, at any depth."""
+    found: list[str] = []
+    if isinstance(body, dict):
+        for key, value in cast(dict[str, object], body).items():
+            if key.endswith("_minor") and value is not None:
+                found.append(f"{path}.{key}")
+            found += _amounts_in(value, f"{path}.{key}")
+    elif isinstance(body, list):
+        for index, value in enumerate(cast(list[object], body)):
+            found += _amounts_in(value, f"{path}[{index}]")
+    return found
+
+
+EMPLOYEE_ROUTES = [row for row in MATRIX if row.path.startswith("/api/v1/employees")]
+
+
+@pytest.mark.parametrize(
+    "endpoint", [pytest.param(row, id=f"{row.method} {row.path}") for row in EMPLOYEE_ROUTES]
+)
+def test_viewer_never_receives_an_amount_from_any_employee_endpoint(
+    as_role: Callable[[str], TestClient], db_session: Session, endpoint: Endpoint
+) -> None:
+    make_employee(db_session, components=[("BONUS_TARGET", "Target bonus", 600_000)])
+    request = endpoint.prepare(db_session)
+    url = request.pop("url", endpoint.path)
+
+    response = as_role("VIEWER").request(endpoint.method, url, **request)
+
+    if response.headers.get("content-type", "").endswith("json"):
+        assert _amounts_in(response.json()) == []
+
+
+def test_the_amount_scan_finds_an_amount_at_any_depth() -> None:
+    body = {"items": [{"current_base": {"amount_minor": 1, "currency": "EUR"}}]}
+
+    assert _amounts_in(body) == ["$.items[0].current_base.amount_minor"]
