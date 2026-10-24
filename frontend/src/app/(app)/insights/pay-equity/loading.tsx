@@ -1,3 +1,5 @@
+import { DashboardSkeleton } from "@/components/insights/skeletons";
+
 export default function PayEquityLoading() {
-  return null;
+  return <DashboardSkeleton sections={2} />;
 }

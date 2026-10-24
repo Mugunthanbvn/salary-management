@@ -1,3 +1,5 @@
+import { DashboardSkeleton } from "@/components/insights/skeletons";
+
 export default function InsightsLoading() {
-  return null;
+  return <DashboardSkeleton sections={4} />;
 }
