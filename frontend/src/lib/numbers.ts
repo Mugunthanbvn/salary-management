@@ -15,11 +15,15 @@ export function formatRatio(ratio: string): string {
   return RATIO.format(ratio as Intl.StringNumericLiteral);
 }
 
+/** A share or gap as a percentage: `"0.4412"` → `"44%"`; `fractionDigits` defaults to 0. */
 export function formatPercent(
   ratio: string,
-  options: { fractionDigits?: number } = {},
+  { fractionDigits = 0 }: { fractionDigits?: number } = {},
 ): string {
-  void ratio;
-  void options;
-  throw new Error("formatPercent is not implemented yet");
+  return new Intl.NumberFormat("en-US", {
+    style: "percent",
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+    roundingMode: "halfEven",
+  }).format(ratio as Intl.StringNumericLiteral);
 }
