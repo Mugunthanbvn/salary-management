@@ -5,7 +5,9 @@ from pathlib import Path
 import pytest
 from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, insert
 from sqlalchemy.exc import IntegrityError
+from sqlalchemy.pool import NullPool
 
+from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine
 from tests.factories import make_settings
 
@@ -41,3 +43,13 @@ def test_file_databases_use_wal_journal_and_a_busy_timeout(tmp_path: Path) -> No
 
     assert (journal_mode, busy_timeout) == ("wal", 5000)
     engine.dispose()
+
+
+def test_production_engine_does_not_pool_connections() -> None:
+    # model_construct skips the production checks, which have their own tests.
+    settings = Settings.model_construct(app_env="production", database_url="sqlite://")
+
+    engine = create_db_engine(settings)
+
+    assert isinstance(engine.pool, NullPool)
+
