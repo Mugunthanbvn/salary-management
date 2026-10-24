@@ -1,12 +1,13 @@
 "use client";
 
+import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { api } from "@/lib/api/client";
-import { AFTER_LOGIN_PATH } from "@/lib/auth-redirect";
+import { safeNextPath } from "@/lib/auth-redirect";
 import { hardNavigate } from "@/lib/hard-navigate";
 
 function text(form: FormData, name: string): string {
@@ -19,6 +20,9 @@ function text(form: FormData, name: string): string {
  * Action: the browser itself must receive FastAPI's Set-Cookie (docs/17-deployment.md §3.4).
  */
 export function LoginForm() {
+  // Only a path on this site: an open redirect could take someone who just signed in to a
+  // look-alike site.
+  const next = safeNextPath(useSearchParams().get("next"));
   const [pending, setPending] = useState(false);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
@@ -29,7 +33,7 @@ export function LoginForm() {
       body: { email: text(form, "email"), password: text(form, "password") },
     });
     if (data) {
-      hardNavigate(AFTER_LOGIN_PATH);
+      hardNavigate(next);
       return;
     }
     setPending(false);
