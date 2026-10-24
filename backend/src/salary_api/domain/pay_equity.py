@@ -14,7 +14,7 @@ from typing import Self
 from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW, ROLLUP_THRESHOLD
 from salary_api.domain.enums import EmploymentType, Level, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
-from salary_api.domain.stats import mean, median
+from salary_api.domain.stats import Summary, mean, median
 
 
 class NoCompaRatioReason(StrEnum):
@@ -35,7 +35,7 @@ class CompaRatio:
     reason: NoCompaRatioReason | None = None
 
 
-@dataclass(frozen=True, slots=True)
+@dataclass(frozen=True, slots=True, order=True)
 class CohortKey:
     """Peers doing the same job at the same level in the same labour market (and currency)."""
 
@@ -148,3 +148,42 @@ def department_rollup(employees: Iterable[EmployeePay]) -> list[DepartmentRollup
         DepartmentRollup(department_id, country_code, CompaRatioSummary.of(values))
         for (department_id, country_code), values in sorted(ratios.items())
     ]
+
+
+@dataclass(frozen=True, slots=True)
+class CohortRollup:
+    """One cohort (docs/07 §8.10 `view=cohorts`): base pay spread and compa-ratios.
+
+    `base` is in minor units of `currency`. The band itself comes from pay_bands.
+    """
+
+    cohort: CohortKey
+    currency: str
+    base: Summary
+    ratios: CompaRatioSummary
+
+
+def cohort_rollup(employees: Iterable[EmployeePay]) -> list[CohortRollup]:
+    """Base pay and compa-ratios per job role x level x country, sorted by that key.
+
+    Only employees with a compa-ratio count, so a cohort without a band is not listed.
+    """
+    members: defaultdict[CohortKey, list[tuple[Money, Decimal]]] = defaultdict(list)
+    for pay in employees:
+        ratio = compa_ratio(pay.base, pay.band_mid, pay.employment_type).value
+        if ratio is not None:
+            members[pay.cohort].append((pay.base, ratio))
+    return [_cohort_rollup(cohort, group) for cohort, group in sorted(members.items())]
+
+
+def _cohort_rollup(cohort: CohortKey, group: list[tuple[Money, Decimal]]) -> CohortRollup:
+    currency = group[0][0].currency
+    for base, _ in group:
+        if base.currency != currency:
+            raise CurrencyMismatchError(currency, base.currency)
+    return CohortRollup(
+        cohort=cohort,
+        currency=currency,
+        base=Summary.of(base.amount_minor for base, _ in group),
+        ratios=CompaRatioSummary.of(ratio for _, ratio in group),
+    )
