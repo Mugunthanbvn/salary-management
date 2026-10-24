@@ -1,6 +1,7 @@
 import { render, screen, within } from "@testing-library/react";
 import { describe, expect, it, vi } from "vitest";
 
+import { ProblemError } from "@/lib/api/problem";
 import type { Me } from "@/lib/permissions";
 import { makeMe, VIEWER_PERMISSIONS } from "@/test/fixtures";
 
@@ -56,4 +57,28 @@ describe("AppShell", () => {
       }
     },
   );
+
+  // A thrown server error reaches the browser as a generic message in production, so the
+  // shell shows the API's problem itself.
+  it("shows the API's problem, with its request id, when GET /auth/me fails", async () => {
+    getMe.mockRejectedValue(
+      new ProblemError({
+        type: "about:blank",
+        title: "Service Unavailable",
+        status: 503,
+        detail: "The database is not reachable.",
+        instance: "/api/v1/auth/me",
+        request_id: "req-503",
+      }),
+    );
+
+    render(await AppShell({ children: <h1>Employees page</h1> }));
+
+    const alert = screen.getByRole("alert");
+    expect(alert).toHaveTextContent("Service Unavailable");
+    expect(alert).toHaveTextContent("The database is not reachable.");
+    expect(alert).toHaveTextContent("Request ID: req-503");
+    expect(screen.getByRole("button", { name: "Try again" })).toBeVisible();
+    expect(screen.queryByText("Employees page")).toBeNull();
+  });
 });
