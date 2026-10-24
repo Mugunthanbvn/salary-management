@@ -9,6 +9,7 @@ from hypothesis import strategies as st
 
 from salary_api.domain.currency import UnknownCurrencyError
 from salary_api.domain.money import (
+    CurrencyMismatchError,
     FxRate,
     FxRateMissingError,
     InvalidFxRateError,
@@ -102,6 +103,13 @@ def test_usd_to_usd_is_the_identity(amount_minor: int) -> None:
 def test_a_missing_rate_is_an_error_never_zero_or_one() -> None:
     with pytest.raises(FxRateMissingError, match="GBP"):
         to_usd(Money(100, "GBP"), RATES)
+
+
+def test_a_rate_filed_under_another_currency_is_refused() -> None:
+    rates = {"GBP": RATES["EUR"]}
+
+    with pytest.raises(CurrencyMismatchError):
+        to_usd(Money(100, "GBP"), rates)
 
 
 def test_to_usd_leaves_the_source_amount_unchanged() -> None:
