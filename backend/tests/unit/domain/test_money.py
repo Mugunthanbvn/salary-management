@@ -31,3 +31,22 @@ def test_money_rejects_float_amounts(amount: object) -> None:
 def test_money_rejects_an_unsupported_currency() -> None:
     with pytest.raises(UnknownCurrencyError):
         Money(100, "XYZ")
+
+
+@pytest.mark.parametrize(
+    ("major", "currency", "amount_minor"),
+    [
+        ("1234.56", "USD", 123456),
+        ("1234", "JPY", 1234),
+        (Decimal("52000.00"), "EUR", 5200000),
+        ("1200000", "INR", 120000000),
+        ("0.01", "USD", 1),
+        ("0", "GBP", 0),
+    ],
+)
+def test_from_major_converts_major_units_to_minor_units(
+    major: str | Decimal, currency: str, amount_minor: int
+) -> None:
+    money = Money.from_major(major, currency)
+
+    assert money == Money(amount_minor, currency)
