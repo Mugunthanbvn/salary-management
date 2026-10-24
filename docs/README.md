@@ -84,6 +84,7 @@ The day-by-day build order is in [18 — Implementation plan](18-implementation-
 | 19 | [Performance](19-performance.md) | Budgets, indexes, scaling path |
 | 20 | [Trade-offs](20-trade-offs.md) | Major choices compared with the alternatives |
 | — | [Demo script](demo-script.md) | Script for the 3–5 minute demo video |
+| — | [Handoff](handoff.md) | What is done, what is pending (deployment), and the decisions taken |
 
 ### Decisions (ADRs)
 | ADR | Decision |
