@@ -125,23 +125,21 @@ Browser → Next.js 16 (frontend/) → /api rewrite → FastAPI (backend/) → S
 
 ## Deployment: pending
 
-The target is Vercel (two projects) plus Turso, in one region
-([docs/17-deployment.md](docs/17-deployment.md), [ADR 0016](docs/adr/0016-deploy-vercel-turso.md)).
-Remaining steps:
+The target is **one Vercel project with two services** plus Turso, all in Mumbai
+([docs/17-deployment.md](docs/17-deployment.md), [ADR 0019](docs/adr/0019-vercel-services-single-project.md)).
+The root `vercel.json` defines the `backend` (FastAPI) and `frontend` (Next.js) services: `/api/*`
+goes to the backend, everything else to the frontend, on one domain. The frontend reaches the
+backend server-side through the `BACKEND_URL` service binding.
 
-1. Build the database file with real demo passwords:
-   `SEED_ADMIN_PASSWORD=… SEED_HR_PASSWORD=… SEED_VIEWER_PASSWORD=… make seed-turso`.
-2. Create the Turso database from it (same region as the API, US-East by default):
-   `turso db create salary-prod --from-file build/seed.db`, then create an auth token
-   ([docs/17](docs/17-deployment.md) §6.1).
-3. Create the Vercel project `salary-api` from `backend/` and set its env vars: `APP_ENV=production`,
-   `DATABASE_URL` (Turso URL, no token), `DATABASE_AUTH_TOKEN`, `JWT_SECRET` (32+ random bytes),
-   `COOKIE_SECURE=true`, empty `CORS_ORIGINS`, and optionally `LLM_BASE_URL`, `LLM_MODEL`,
-   `LLM_API_KEY`. Put the function in the database's region.
-4. Create the Vercel project `salary-web` from `frontend/` with `API_ORIGIN` set to the
-   `salary-api` URL (set before `next build`, so `/api` is rewritten to it) and
-   `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true` on the demo deployment.
-5. Verify: `GET /api/v1/health` answers through the web URL, and sign-in works for all three
-   roles in **Chrome and Safari** (the session cookie must survive the rewrite). Then work through
-   the checklist in [docs/17](docs/17-deployment.md) §7 and record the deployed numbers in
-   [docs/19](docs/19-performance.md) §9.
+Already done: the Turso database `incubyte-salary-assessment` (`aws-ap-south-1`) is created and
+loaded with the 10k seed. Remaining steps:
+
+1. Import the repository into Vercel as **one** project with the root directory at the repo root
+   (Vercel reads `vercel.json` and builds both services).
+2. Set the project's environment variables (shared by both services): `APP_ENV=production`,
+   `DATABASE_URL=sqlite+libsql://incubyte-salary-assessment-<org>.aws-ap-south-1.turso.io?secure=true`,
+   `DATABASE_AUTH_TOKEN`, `JWT_SECRET` (32+ random bytes), `COOKIE_SECURE=true`, empty
+   `CORS_ORIGINS`, `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true`, and optionally `LLM_API_KEY`
+   (and `LLM_MODEL`). Do **not** set `BACKEND_URL` (Vercel injects it) or `API_ORIGIN` (local only).
+3. Deploy, then check `https://<domain>/api/v1/health` and sign in as all three roles in
+   **Chrome and Safari**. Record the deployed numbers in [docs/19](docs/19-performance.md) §9.

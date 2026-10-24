@@ -46,6 +46,23 @@ describe("serverApi", () => {
     expect(authorization).toBe("Bearer jwt-from-cookie");
   });
 
+  it("calls the backend through the BACKEND_URL service binding when Vercel sets it", async () => {
+    vi.stubEnv("BACKEND_URL", "https://backend.internal.test");
+    withCookies({ session: "jwt-from-cookie" });
+    server.use(
+      http.get<never, never, MeResponse>(
+        "https://backend.internal.test/api/v1/auth/me",
+        () => HttpResponse.json(makeMe()),
+      ),
+    );
+
+    const api = await serverApi();
+    const { data } = await api.GET("/api/v1/auth/me");
+
+    expect(data?.user.email).toBe("hr@acme.example");
+    vi.unstubAllEnvs();
+  });
+
   it("sends no Authorization header when there is no session cookie", async () => {
     withCookies({});
     let authorization: string | null = "not called";

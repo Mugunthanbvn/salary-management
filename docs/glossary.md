@@ -137,7 +137,8 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | `LLM_BASE_URL`, `LLM_MODEL`, `LLM_API_KEY` | api | Ask is disabled when `LLM_API_KEY` is empty |
 | `ASK_RATE_LIMIT_PER_HOUR`, `ASK_MAX_STEPS` | api | `20` · `4` |
 | `SEED_ADMIN_PASSWORD`, `SEED_HR_PASSWORD`, `SEED_VIEWER_PASSWORD` | seed | Production refuses defaults |
-| `API_ORIGIN` | web | API base URL for the rewrite and server-side fetches; never exposed to the browser |
+| `API_ORIGIN` | web | Local only (`make dev`, `make e2e`): uvicorn's URL for the `/api` proxy in `next.config.ts` and server-side fetches; never exposed to the browser |
+| `BACKEND_URL` | web | On Vercel only: the backend service's internal URL, injected at runtime by the service binding in `vercel.json`; never set by hand |
 | `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | web | `true` on the demo deployment only: `/login` lists the three demo accounts (names, emails, roles, never passwords). Inlined at build time |
 
 ## 8. Commands, files and resources
@@ -145,9 +146,10 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | Thing | Canonical |
 |---|---|
 | Local seed | `make seed` |
-| Turso seed file | `make seed-turso` → `build/seed.db` → `turso db create salary-prod --from-file build/seed.db` |
-| Turso database | `salary-prod` (production only; no preview DB) |
-| Vercel projects | `salary-web` (root `frontend/`), `salary-api` (root `backend/`) |
+| Turso seed file | `make seed-turso` → `build/seed.db` → `turso db create incubyte-salary-assessment --from-file build/seed.db --location aws-ap-south-1` |
+| Turso database | `incubyte-salary-assessment` in Mumbai (`aws-ap-south-1`), production only; no preview DB |
+| Vercel region | `bom1` (Mumbai), set in the root `vercel.json`, next to the database |
+| Vercel project | one project with two services in the root `vercel.json`: `backend` (FastAPI, `backend/`, public at `/api/*`) and `frontend` (Next.js, `frontend/`, public at `/*`, binding `BACKEND_URL` → `backend`) ([ADR 0019](adr/0019-vercel-services-single-project.md)) |
 | Seeded `changed_by` / audit `actor_id` | `null` (seed and system actions have no user) |
 | `search_text` | `fold(first last code email)`: NFKD, strip accents, casefold. `muller` finds `Müller` |
 | Eval results | `docs/ai/evals/results/<date>-<provider>-<model>.md` |

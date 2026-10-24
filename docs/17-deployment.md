@@ -17,6 +17,8 @@ How the system is deployed for $0 on Vercel (web + API) and Turso (hosted SQLite
 
 ## 2. Topology
 
+> **Decided at deploy time ([ADR 0019](adr/0019-vercel-services-single-project.md)):** one Vercel project with two **services** replaces the two projects described below. The root `vercel.json` defines `backend` (FastAPI, `backend/index.py`) and `frontend` (Next.js); the top-level rewrites send `/api/*` to `backend` (it receives the original path, so routes stay under `/api/v1`) and everything else to `frontend`, on one domain. Server Components reach the backend through the `BACKEND_URL` binding; the `next.config.ts` `/api` proxy exists only for local development (when `API_ORIGIN` is set). The same-origin cookie design is unchanged. Sections 3.2–3.4 describe the earlier two-project setup.
+
 ```mermaid
 flowchart LR
     U[HR user's browser] -- HTTPS --> W["Vercel project: salary-web<br/>Next.js 16 (Server Components, Server Actions)"]
@@ -37,9 +39,9 @@ flowchart LR
 
 1. Install the Turso CLI and log in (`turso auth login`).
 2. Choose a region close to the Vercel function region (section 5).
-3. Create the database from a pre-seeded file (section 6). Or create it empty: `turso db create salary-prod --location <region>`.
-4. Create an auth token: `turso db tokens create salary-prod`. Store it **only** in Vercel env vars or a local `.env`; never commit it.
-5. Get the URL: `turso db show salary-prod --url` → `libsql://salary-prod-<org>.turso.io`.
+3. Create the database from a pre-seeded file (section 6). Or create it empty: `turso db create incubyte-salary-assessment --location <region>`.
+4. Create an auth token: `turso db tokens create incubyte-salary-assessment`. Store it **only** in Vercel env vars or a local `.env`; never commit it.
+5. Get the URL: `turso db show incubyte-salary-assessment --url` → `libsql://incubyte-salary-assessment-<org>.turso.io`.
 6. No preview DB: **preview deployments are cut from v1**. Only production is deployed; everything else is tested locally ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)). In both Vercel projects, turn off preview builds for non-production branches (Git settings / Ignored Build Step).
 
 ### 3.2 Vercel API project (`salary-api`)
@@ -83,7 +85,7 @@ export default nextConfig;
 | Variable | Project | Local (`.env`) | CI | Preview | Production | Secret? |
 |---|---|---|---|---|---|---|
 | `APP_ENV` | api | `development` | `test` | — | `production` | no |
-| `DATABASE_URL` | api | `sqlite:///./dev.db` | `sqlite://` (memory); `postgresql+psycopg://…` in the pg job | `sqlite+libsql://salary-preview-<org>.turso.io?secure=true` | `sqlite+libsql://salary-prod-<org>.turso.io?secure=true` | no (URL), token is |
+| `DATABASE_URL` | api | `sqlite:///./dev.db` | `sqlite://` (memory); `postgresql+psycopg://…` in the pg job | `sqlite+libsql://salary-preview-<org>.turso.io?secure=true` | `sqlite+libsql://incubyte-salary-assessment-<org>.turso.io?secure=true` | no (URL), token is |
 | `DATABASE_AUTH_TOKEN` | api | — | — | — | prod token (passed via `connect_args`) | **yes** |
 | `JWT_SECRET` | api | dev placeholder | test value | random 32+ bytes | random 32+ bytes | **yes** |
 | `JWT_TTL_MINUTES` | api | `480` **(proposed)** | `5` | `480` | `480` | no |
@@ -107,7 +109,7 @@ Rules:
 
 Every API request makes several database round-trips. Turso and the Vercel function must be in the **same region**, or latency multiplies.
 
-- **Proposed region:** a US-East pairing (Vercel `iad1` ↔ Turso `aws-us-east-1`), the most common and cheapest-latency choice for reviewers in mixed locations. Alternative: Mumbai (`bom1` ↔ `aws-ap-south-1`) if reviewers are primarily India-based. **TBD**, decided at the spike based on measured p95.
+- **Chosen region: Mumbai** (Vercel `bom1` ↔ Turso `aws-ap-south-1`), because Incubyte, the company reviewing this assessment, is based in India. `backend/vercel.json` and `frontend/vercel.json` pin `bom1`; the Turso database `incubyte-salary-assessment` was created in `aws-ap-south-1`.
 - Target: API p95 < **300 ms** for list and insight endpoints at 10k employees, warm ([19-performance.md](19-performance.md)). Cold start ≈ 1–2 s is accepted.
 
 ## 6. Migrations and seed against Turso
@@ -126,15 +128,19 @@ SEED_ADMIN_PASSWORD=... SEED_HR_PASSWORD=... SEED_VIEWER_PASSWORD=... make seed-
 #      (runs alembic upgrade head on the new file, seeds it, folds the WAL into the file;
 #       refuses default or missing demo passwords)
 #   3. prints the next command, and never runs it:
-turso db create salary-prod --from-file build/seed.db
+turso db create incubyte-salary-assessment --from-file build/seed.db
 ```
 
 Add `--location <region>` if the deploy spike showed it is needed. The production database is then **the deterministic seed** (only the demo users' password hashes differ between builds), already at the latest Alembic revision.
 
+### 6.1a Loading a database created in the Turso dashboard
+
+The production database `incubyte-salary-assessment` was created in the Turso web dashboard, so it started empty. It was loaded from the same `build/seed.db` with `backend/scripts/copy_seed_to_turso.py`: `alembic upgrade head` against Turso creates the tables, then the script copies every table in batches of a few hundred rows in one transaction (about 80 s for the 10k seed from a laptop; row-by-row inserts over the network would take about an hour). The script refuses to run if the migrations differ or a table already has rows.
+
 ### 6.2 Subsequent schema changes
 
 ```bash
-DATABASE_URL="sqlite+libsql://salary-prod-<org>.turso.io?secure=true" \
+DATABASE_URL="sqlite+libsql://incubyte-salary-assessment-<org>.turso.io?secure=true" \
 DATABASE_AUTH_TOKEN=... \
 uv run alembic upgrade head
 ```
