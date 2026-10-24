@@ -16,6 +16,7 @@ from salary_api.core.security import (
     create_access_token,
     decode_access_token,
 )
+from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.audit.service import AuditAction, events_since, record_event
 from salary_api.modules.auth.schemas import (
     Features,
@@ -47,20 +48,29 @@ def login(
 ) -> SignedIn:
     """Check the credentials and audit the attempt; commits either way.
 
-    Refused with 429, before any password check, while the email is over the failure limit.
+    Refused with 429 while the email is blocked: before the password check, and again
+    after it, from the failures committed by then (a parallel burst).
     """
     email = credentials.email
-    _refuse_while_blocked(session, email_hash(email), now=utc_now())
+    hashed_email = email_hash(email)
+    now = utc_now()
+    _refuse_while_blocked(session, hashed_email, now=now)
     user = users.get_by_email(session, email)
     # Always one password check, so an unknown email takes as long as a known one.
     password_ok = hasher.verify(
         credentials.password, user.password_hash if user else hasher.dummy_hash
     )
     if user is None or not user.is_active or not password_ok:
-        _record_failed_login(session, email=email, user=user)
+        failure = _record_failed_login(session, hashed_email=hashed_email, user=user)
         session.commit()  # the failure stays recorded: the login failure limit counts it
+        # In a burst, many attempts pass the first check before any failure is committed.
+        # Only failures recorded before this one decide its answer, so at most
+        # LOGIN_FAILURE_LIMIT attempts get a real answer.
+        _refuse_while_blocked(session, hashed_email, now=now, recorded_before=failure.id)
         raise Unauthenticated(INVALID_CREDENTIALS)  # one message: no user enumeration
 
+    session.commit()  # ends the read snapshot, so the re-count sees failures committed since
+    _refuse_while_blocked(session, hashed_email, now=now)
     if hasher.needs_rehash(user.password_hash):
         user.password_hash = hasher.hash(credentials.password)  # upgrade outdated parameters
     user.last_login_at = utc_now()
@@ -118,9 +128,11 @@ def email_hash(email: str) -> str:
     return hashlib.sha256(email.encode()).hexdigest()
 
 
-def _refuse_while_blocked(session: Session, hashed_email: str, *, now: datetime) -> None:
+def _refuse_while_blocked(
+    session: Session, hashed_email: str, *, now: datetime, recorded_before: int | None = None
+) -> None:
     """429 while the email is blocked. Counted from audit events, so the limit holds across
-    serverless instances."""
+    serverless instances. `recorded_before`: count only failures with a smaller id."""
     # A block that is still on started under 15 minutes ago, from a failure whose own
     # 15-minute window started under 30 minutes ago.
     events = events_since(
@@ -131,7 +143,9 @@ def _refuse_while_blocked(session: Session, hashed_email: str, *, now: datetime)
     failures = [
         event.at
         for event in events
-        if event.diff is not None and event.diff.get("email_hash") == hashed_email
+        if event.diff is not None
+        and event.diff.get("email_hash") == hashed_email
+        and (recorded_before is None or event.id < recorded_before)
     ]
     block_ends_at = _block_ends_at(failures)
     if block_ends_at is not None and block_ends_at > now:
@@ -157,15 +171,15 @@ def _block_ends_at(failures: Sequence[datetime]) -> datetime | None:
     return None if reached_at is None else reached_at + LOGIN_BLOCK
 
 
-def _record_failed_login(session: Session, *, email: str, user: User | None) -> None:
+def _record_failed_login(session: Session, *, hashed_email: str, user: User | None) -> AuditEvent:
     # No actor: the caller is not authenticated. The targeted user, if known, is the entity.
-    record_event(
+    return record_event(
         session,
         actor_id=None,
         action=AuditAction.AUTH_LOGIN_FAILED,
         entity="auth",
         entity_id=user.id if user else None,
-        diff={"email_hash": email_hash(email)},
+        diff={"email_hash": hashed_email},
     )
 
 
