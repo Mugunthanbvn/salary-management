@@ -9,5 +9,11 @@ from salary_api.domain.money import Money
 
 
 def total_compensation(base: Money, components: Iterable[Money]) -> Money:
-    """Base + the amount of every ALLOWANCE and BONUS_TARGET component, all annual."""
-    return Money(base.amount_minor + sum(c.amount_minor for c in components), base.currency)
+    """Base + the amount of every ALLOWANCE and BONUS_TARGET component, all annual.
+
+    Every component must be in the base's currency (CurrencyMismatchError otherwise).
+    """
+    total = base
+    for component in components:
+        total += component
+    return total
