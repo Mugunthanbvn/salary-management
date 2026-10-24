@@ -7,6 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from salary_api import __version__
+from salary_api.core.body_limit import BodySizeLimitMiddleware
 from salary_api.core.config import Settings, load_settings
 from salary_api.core.db import create_db_engine, create_session_factory
 from salary_api.core.errors import (
@@ -62,6 +63,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
             allow_headers=["*"],
             expose_headers=[REQUEST_ID_HEADER],
         )
+    app.add_middleware(BodySizeLimitMiddleware)  # inside RequestId: errors carry the id
     app.add_middleware(RequestIdMiddleware)  # added last, so it runs first
     install_problem_handlers(app)
     use_problem_json_in_openapi(app)
