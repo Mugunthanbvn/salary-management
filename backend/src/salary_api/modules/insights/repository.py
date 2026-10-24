@@ -9,7 +9,7 @@ from dataclasses import dataclass
 from datetime import date
 
 from sqlalchemy import ColumnElement, Row, Select, select
-from sqlalchemy.orm import QueryableAttribute, Session
+from sqlalchemy.orm import QueryableAttribute, Session, contains_eager
 
 from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
@@ -83,6 +83,24 @@ def amounts_by_job_role(
         select(JobRole.id, JobRole.title, Employee.level, Employee.currency, amount), where
     ).order_by(JobRole.title, JobRole.id, Employee.level, amount)
     return session.execute(query).all()
+
+
+def ranked(
+    session: Session, where: PopulationFilter, comp: Comp, *, descending: bool, limit: int
+) -> Sequence[Employee]:
+    """The `limit` highest (or lowest) paid employees with role and department loaded.
+
+    Ties are broken by employee code, so the ranking is always the same.
+    """
+    amount = AMOUNT_COLUMNS[comp]
+    query = (
+        _matching(select(Employee), where)
+        .join(JobRole.department)
+        .options(contains_eager(Employee.job_role).contains_eager(JobRole.department))
+        .order_by(amount.desc() if descending else amount.asc(), Employee.employee_code)
+        .limit(limit)
+    )
+    return session.scalars(query).all()
 
 
 def _matching[*Row](query: Select[*Row], where: PopulationFilter) -> Select[*Row]:

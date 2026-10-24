@@ -195,8 +195,9 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 - **Requires `SALARY_READ`** (HR_MANAGER, ADMIN). It returns individuals. Viewers get `403`.
 - **`country` is required** (local-currency ranking). Parameters: `n` (default 10, max 50), `direction=top|bottom`.
 - Ties are broken by `employee_code` ascending, so results are deterministic.
-- Output: list of `{ employee_code, name, job_role, level, department, amount }`.
-- Writes an `insights.individuals_view` audit event because it exposes individual pay (see [08-security-rbac.md](08-security-rbac.md)).
+- Other filters as usual (`department_id`, `job_role_id`, `level`, `employment_type`, `status`, `comp`).
+- Output: `items` of `{ employee_id, employee_code, first_name, last_name, job_role, level, department, amount }`, with `country_code`, `currency`, `direction`, `n` and `population`.
+- Writes an `insights.individuals_view` audit event because it exposes individual pay (see [08-security-rbac.md](08-security-rbac.md)): `entity = "insights"`, `diff = { endpoint: "top-earners", filters: {...} }`, in the same transaction as the read.
 
 ### 3.7 Raises: `GET /api/v1/insights/raises`
 

@@ -1,6 +1,8 @@
 """Insight queries and responses (docs/07-api-spec.md section 8, docs/glossary.md section 6)."""
 
 from datetime import date
+from enum import StrEnum
+from typing import Final
 
 from pydantic import BaseModel, ConfigDict, Field
 
@@ -41,6 +43,23 @@ class JobTitleQuery(InsightFilters):
     country: CountryCode
     comp: Comp = Comp.BASE
     split_by_level: bool = False
+
+
+MAX_TOP_EARNERS: Final = 50
+
+
+class Direction(StrEnum):
+    TOP = "top"  # the highest paid first
+    BOTTOM = "bottom"  # the lowest paid first
+
+
+class TopEarnersQuery(InsightFilters):
+    """The query of top-earners: one country, so everyone is ranked in one currency."""
+
+    country: CountryCode
+    comp: Comp = Comp.BASE
+    n: int = Field(default=10, ge=1, le=MAX_TOP_EARNERS)
+    direction: Direction = Direction.TOP
 
 
 class Population(BaseModel):
@@ -143,3 +162,25 @@ class DepartmentCosts(BaseModel):
     total_usd: Money | None
     suppressed: bool  # the whole population is under MIN_GROUP_SIZE for this caller
     groups: list[DepartmentCost]  # by department name
+
+
+class Earner(BaseModel):
+    employee_id: int
+    employee_code: str
+    first_name: str
+    last_name: str
+    job_role: JobRoleRef
+    level: Level
+    department: Department
+    amount: Money  # base or total, as asked, in the country's currency
+
+
+class TopEarners(BaseModel):
+    """docs/09 section 3.6: individuals, so SALARY_READ only. Ties go by employee code."""
+
+    population: Population
+    country_code: str
+    currency: str
+    direction: Direction
+    n: int
+    items: list[Earner]

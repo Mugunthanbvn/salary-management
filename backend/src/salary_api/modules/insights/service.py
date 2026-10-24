@@ -17,7 +17,7 @@ from operator import itemgetter
 
 from sqlalchemy.orm import Session
 
-from salary_api.core.errors import ValidationFailed
+from salary_api.core.errors import Forbidden, ValidationFailed
 from salary_api.core.permissions import Principal
 from salary_api.core.schemas import Comp, Money
 from salary_api.domain.constants import MIN_GROUP_SIZE
@@ -26,6 +26,8 @@ from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.rounding import round_share
 from salary_api.domain.stats import InsufficientData, Summary, summarize
+from salary_api.modules.audit.service import AuditAction, record_event
+from salary_api.modules.employees.models import Employee
 from salary_api.modules.employees.service import can_see_salaries
 from salary_api.modules.insights import repository
 from salary_api.modules.insights.schemas import (
@@ -35,6 +37,8 @@ from salary_api.modules.insights.schemas import (
     DepartmentCost,
     DepartmentCosts,
     DepartmentStats,
+    Direction,
+    Earner,
     InsightFilters,
     InsightQuery,
     JobTitleQuery,
@@ -42,6 +46,8 @@ from salary_api.modules.insights.schemas import (
     Overview,
     Population,
     Stats,
+    TopEarners,
+    TopEarnersQuery,
 )
 from salary_api.modules.reference.schemas import Department, JobRoleRef
 
@@ -143,6 +149,69 @@ def _share(part: int | None, whole: int | None) -> str | None:
     if part is None or not whole:  # hidden, or nothing to share
         return None
     return str(round_share(Decimal(part) / Decimal(whole)))
+
+
+def top_earners(session: Session, principal: Principal, query: TopEarnersQuery) -> TopEarners:
+    """The highest or lowest paid people in one country (docs/09 section 3.6).
+
+    Individual pay: SALARY_READ only. The view is audited in the same transaction.
+    """
+    _require_salary_read(principal, "Top earners")
+    countries = [query.country]
+    currency = _markets(session, countries).currency_of_population(countries)
+    employees = repository.ranked(
+        session,
+        _where(query, countries),
+        query.comp,
+        descending=query.direction == Direction.TOP,
+        limit=query.n,
+    )
+    result = TopEarners(
+        population=_population(query, countries, query.comp),
+        country_code=query.country,
+        currency=currency,
+        direction=query.direction,
+        n=query.n,
+        items=[_earner(employee, query.comp) for employee in employees],
+    )
+    _audit_individuals_view(session, principal, "top-earners", query.model_dump(mode="json"))
+    return result
+
+
+def _earner(employee: Employee, comp: Comp) -> Earner:
+    role = employee.job_role
+    amount = employee.current_base_minor if comp == Comp.BASE else employee.current_total_minor
+    return Earner(
+        employee_id=employee.id,
+        employee_code=employee.employee_code,
+        first_name=employee.first_name,
+        last_name=employee.last_name,
+        job_role=JobRoleRef(id=role.id, title=role.title),
+        level=employee.level,
+        department=Department(id=role.department.id, name=role.department.name),
+        amount=_money(amount, employee.currency),
+    )
+
+
+def _require_salary_read(principal: Principal, what: str) -> None:
+    """Endpoints that list individuals' pay refuse callers without SALARY_READ (docs/08 4.1)."""
+    if not can_see_salaries(principal):
+        raise Forbidden(f"{what} show individual pay: that requires SALARY_READ.")
+
+
+def _audit_individuals_view(
+    session: Session, principal: Principal, endpoint: str, filters: Mapping[str, object]
+) -> None:
+    """Record who looked at individuals' pay, and with which filters, then commit."""
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.INSIGHTS_INDIVIDUALS_VIEW,
+        entity="insights",
+        entity_id=None,
+        diff={"endpoint": endpoint, "filters": dict(filters)},
+    )
+    session.commit()
 
 
 def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -> ByJobTitle:

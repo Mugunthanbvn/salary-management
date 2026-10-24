@@ -261,6 +261,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/top-earners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Highest or lowest paid people in one country (SALARY_READ; audited) */
+        get: operations["top_earners_api_v1_insights_top_earners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference": {
         parameters: {
             query?: never;
@@ -434,6 +451,26 @@ export interface components {
         DepartmentStats: {
             department: components["schemas"]["Department"];
             stats: components["schemas"]["Stats"];
+        };
+        /**
+         * Direction
+         * @enum {string}
+         */
+        Direction: "top" | "bottom";
+        /** Earner */
+        Earner: {
+            amount: components["schemas"]["Money"];
+            department: components["schemas"]["Department"];
+            /** Employee Code */
+            employee_code: string;
+            /** Employee Id */
+            employee_id: number;
+            /** First Name */
+            first_name: string;
+            job_role: components["schemas"]["JobRoleRef"];
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
         };
         /** EmployeeCreate */
         EmployeeCreate: {
@@ -910,6 +947,22 @@ export interface components {
             termination_date?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * TopEarners
+         * @description docs/09 section 3.6: individuals, so SALARY_READ only. Ties go by employee code.
+         */
+        TopEarners: {
+            /** Country Code */
+            country_code: string;
+            /** Currency */
+            currency: string;
+            direction: components["schemas"]["Direction"];
+            /** Items */
+            items: components["schemas"]["Earner"][];
+            /** N */
+            n: number;
+            population: components["schemas"]["Population"];
         };
         /**
          * ValidationProblem
@@ -2146,6 +2199,81 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    top_earners_api_v1_insights_top_earners_get: {
+        parameters: {
+            query: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country: string;
+                comp?: components["schemas"]["Comp"];
+                n?: number;
+                direction?: components["schemas"]["Direction"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopEarners"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */

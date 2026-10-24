@@ -13,11 +13,16 @@ from salary_api.modules.insights.schemas import (
     InsightQuery,
     JobTitleQuery,
     Overview,
+    TopEarners,
+    TopEarnersQuery,
 )
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
 CanReadInsights = Annotated[Principal, Depends(require_permission(Permission.INSIGHTS_READ))]
+CanReadIndividuals = Annotated[
+    Principal, Depends(require_permission(Permission.INSIGHTS_READ, Permission.SALARY_READ))
+]
 
 
 @router.get(
@@ -66,3 +71,15 @@ def department_cost(
     query: Annotated[InsightQuery, Query()], principal: CanReadInsights, session: SessionDep
 ) -> DepartmentCosts:
     return service.department_cost(session, principal, query)
+
+
+@router.get(
+    "/top-earners",
+    response_model=TopEarners,
+    responses=problem_responses(401, 403),
+    summary="Highest or lowest paid people in one country (SALARY_READ; audited)",
+)
+def top_earners(
+    query: Annotated[TopEarnersQuery, Query()], principal: CanReadIndividuals, session: SessionDep
+) -> TopEarners:
+    return service.top_earners(session, principal, query)
