@@ -289,7 +289,7 @@ All of these use `FakeLLM`. No network in CI.
 
 - `formatMoney(minor, currency, options)` formats JPY with no decimals, INR with lakh grouping, `US$`/`CA$`/`A$`/`S$`, compact mode and huge amounts; monthly is annual ÷ 12 rounded half-even (ties tested). No float maths: it takes a `bigint`, a digit string or a safe-integer `number`, and refuses anything else.
 - Filter state ↔ URL (nuqs): changing a filter updates the query string, and loading a URL restores the filters.
-- Employee form validation messages (zod) match the backend rules (required fields, positive salary, decimals allowed for the currency).
+- Employee forms: typed amounts become minor units by string maths (JPY 0 decimals, EUR 2; `12.345` EUR refused with the API's message, no floats); missing values are asked for before sending; the API's `errors[]` show next to their fields; a `409 version-conflict` offers Reload. The business rules themselves are the API's and are tested there.
 - Role-gated UI: a Viewer sees no "Edit", "Record change" or "Import" actions and sees masked salary cells. (The backend still enforces this; the UI only hides.)
 - Import preview: renders row errors grouped by row; the "Commit" button is disabled while errors exist.
 - Ask page: shows the spinner while a request is pending; renders the "How I got this" panel from `tool_calls`; shows the friendly message on 429.
