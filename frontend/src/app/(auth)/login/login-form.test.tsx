@@ -1,6 +1,7 @@
-import { render, screen, waitFor } from "@testing-library/react";
+import { render, screen, waitFor, within } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
+import { renderToString } from "react-dom/server";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { components } from "@/lib/api/schema";
@@ -169,4 +170,18 @@ describe("LoginForm", () => {
       expect(screen.getByRole("button", { name: "Sign in" })).toBeEnabled();
     },
   );
+});
+
+describe("LoginForm before the page is interactive", () => {
+  // Until React hydrates, a submit is the browser's own form GET to /login, which puts
+  // the email and the password in the address bar and in the server's access logs.
+  it("can't send the password in a URL", () => {
+    const page = document.createElement("div");
+    page.innerHTML = renderToString(<LoginForm />);
+
+    expect(page.querySelector("form")).toHaveAttribute("method", "post");
+    expect(
+      within(page).getByRole("button", { name: "Sign in" }),
+    ).toBeDisabled();
+  });
 });
