@@ -21,4 +21,16 @@ describe("getApiHealth", () => {
 
     expect(health).toBe("ok");
   });
+
+  it("reports unreachable when health answers with an error status", async () => {
+    server.use(
+      http.get(HEALTH_URL, () =>
+        HttpResponse.json({ status: "degraded", db: "error" }, { status: 503 }),
+      ),
+    );
+
+    const health = await getApiHealth(API_ORIGIN);
+
+    expect(health).toBe("unreachable");
+  });
 });
