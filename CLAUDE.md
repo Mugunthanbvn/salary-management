@@ -53,7 +53,8 @@ Fastest TDD loop: `cd backend && uv run pytest tests/unit/domain -q` or `cd fron
 - **Errors are RFC 9457 problem+json** with the glossary §5 slugs and statuses.
 - **Never edit generated files or lockfiles by hand** (`schema.d.ts`, `openapi.json`, `uv.lock`, `pnpm-lock.yaml`)
   and never read or edit `.env` files. Hooks block this. Use `uv add`, `pnpm add`, `make api-sync`.
-- **Every screen works at 390 px** (fully mobile responsive, [docs/13-frontend-ux.md](docs/13-frontend-ux.md) §8).
+- **Every screen is fully usable from 360 px; check at 390 × 844 and 1440 × 900**
+  ([glossary](docs/glossary.md) §3, [docs/13-frontend-ux.md](docs/13-frontend-ux.md) §8).
 - **Small Conventional Commits**, `test:` before `feat:`. Use `/commit`.
 - **Log material AI interactions** with `/log-prompt`.
 
@@ -61,12 +62,9 @@ Fastest TDD loop: `cd backend && uv run pytest tests/unit/domain -q` or `cd fron
 
 `type(scope): subject`, subject ≤ 72 chars, imperative. Types: feat, fix, test, refactor, docs, chore, ci,
 build, perf, style, revert. Scopes follow modules (money, auth, employees, salaries, insights, import, export,
-audit, ask, seed, ui, deploy, docs). Every commit message ends with:
-
-```
-Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-Claude-Session: https://claude.ai/code/session_01TeA7MkfNzAjPMWbzGMqgrL
-```
+audit, ask, seed, ui, deploy, docs). Every commit message ends with the attribution trailer lines the
+current session provides (e.g. in its system instructions). If it provides none, end with
+`Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`. Never copy a session link from an old commit.
 
 Never `--no-verify`, never force-push, never amend a pushed commit.
 

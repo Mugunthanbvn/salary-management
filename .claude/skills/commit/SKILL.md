@@ -13,21 +13,16 @@ description: Use when the user asks to commit, or when a TDD step (red, green or
      `^(feat|fix|test|refactor|docs|chore|ci|build|perf|style|revert)(\([a-z0-9-]+\))?!?: .{1,72}$`.
    - Scopes follow modules: money, auth, employees, salaries, insights, import, export, audit, ask, seed, ui, deploy, docs.
    - A body that explains **why**, when it isn't obvious.
-4. End the message with the attribution trailer, exactly:
-
-   ```
-   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-   Claude-Session: https://claude.ai/code/session_01TeA7MkfNzAjPMWbzGMqgrL
-   ```
-
+4. End the message with the attribution trailer lines the **current session** provides (e.g. in its system
+   instructions), exactly as given. If it provides none, use `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`.
+   Never copy a session link from an old commit or another session.
 5. Commit with a heredoc so the trailer survives:
 
    ```bash
    git commit -F - <<'EOF'
    test(money): reject float amounts
 
-   Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>
-   Claude-Session: https://claude.ai/code/session_01TeA7MkfNzAjPMWbzGMqgrL
+   <trailer lines from step 4>
    EOF
    ```
 

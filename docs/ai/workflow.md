@@ -78,8 +78,8 @@ Enforced by `.claude/settings.json` (permissions + hooks), not just by instructi
 
 | Forbidden | Mechanism |
 |---|---|
-| Read `.env*` files / secrets | `permissions.deny` |
-| `git push --force`, `rm -rf` | `permissions.deny` |
+| Read `.env*` files / secrets (except `.env.example`) | `permissions.deny` + PreToolUse hooks (`block-protected-files.sh` for Read/Edit/Write, `guard-bash.sh` for shell commands) |
+| `git push --force`, `rm -rf` | `permissions.deny`; force, mirror and delete pushes in any argument order by `guard-bash.sh` |
 | Hand-edit `uv.lock`, `pnpm-lock.yaml`, the generated API client | PreToolUse hook blocks the edit |
 | Commit or push without the candidate asking | Claude Code default behaviour + CLAUDE.md rule |
 | Make product or architecture decisions alone | Working agreement: options + recommendation, the candidate decides |

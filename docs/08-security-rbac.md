@@ -269,7 +269,7 @@ Full design: [10-ai-ask-design.md](10-ai-ask-design.md), [ADR 0015](adr/0015-ai-
 
 - `.env*` files are git-ignored. Only `.env.example` (no real values) is committed.
 - **gitleaks** runs in the CI `security` job ([15-tooling-devex.md](15-tooling-devex.md)). Adding it to the lefthook pre-commit hook is optional **(proposed)**.
-- Claude Code is denied reading `.env*` files via `.claude/settings.json` ([16-claude-code-setup.md](16-claude-code-setup.md)).
+- Claude Code is denied reading `.env*` files (except `.env.example`) via `.claude/settings.json`: deny rules plus the `block-protected-files.sh` and `guard-bash.sh` hooks ([16-claude-code-setup.md](16-claude-code-setup.md) §7).
 - `pydantic-settings` uses `SecretStr` for secrets, so they print as `**********`.
 - Production startup check: refuses to boot if `JWT_SECRET` is the dev default, `COOKIE_SECURE` is false, or `APP_ENV=production` with a SQLite file URL.
 
