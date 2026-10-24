@@ -102,6 +102,9 @@ export function ImportFlow() {
         body: form as unknown as UploadBody,
       });
       if (data) {
+        // A new check: the last file's import result or problem no longer applies.
+        setInserted(null);
+        setCommitProblem(null);
         setReport(data);
         void setJob(data.id);
       } else {
