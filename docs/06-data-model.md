@@ -183,7 +183,7 @@ Application users (HR staff). Employees are **not** users; there is no self-serv
 | Column | Type | Null | Constraint / default | Notes |
 |---|---|---|---|---|
 | `id` | INTEGER | no | PK | |
-| `email` | VARCHAR(254) | no | UNIQUE | Stored lowercased; login identifier |
+| `email` | VARCHAR(254) | no | UNIQUE | Stored trimmed and lowercased (the model normalises every value it is given, so the unique index is per person); login identifier |
 | `full_name` | VARCHAR(120) **(proposed)** | no | | |
 | `password_hash` | VARCHAR(255) | no | | pwdlib argon2 encoded hash; never returned by the API |
 | `role` | VARCHAR(20) | no | CHECK IN (`ADMIN`, `HR_MANAGER`, `VIEWER`) | Mapped to permissions in code ([08-security-rbac.md](08-security-rbac.md)) |
