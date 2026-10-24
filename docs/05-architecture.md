@@ -83,7 +83,7 @@ flowchart TB
 | Container | Technology | Responsibility | Does **not** do |
 |---|---|---|---|
 | **Web** | Next.js 16 App Router, React 19, TS strict, Tailwind v4, shadcn/ui | Rendering, routing, URL-state filters (nuqs), forms (react-hook-form + zod), money **formatting** | Business rules, authorization decisions, money arithmetic |
-| **API** | FastAPI, Pydantic v2, SQLAlchemy 2.0, Alembic, Python 3.14 | All business logic, validation, RBAC, masking, audit, insights, import/export, AI orchestration | Rendering |
+| **API** | FastAPI, Pydantic v2, SQLAlchemy 2.x, Alembic, Python 3.13 | All business logic, validation, RBAC, masking, audit, insights, import/export, AI orchestration | Rendering |
 | **Database** | SQLite (local file / `:memory:` in tests), Turso libSQL in prod | Persistence | Business logic (no triggers or stored procedures) |
 | **LLM provider** | Gemini free tier (default), Groq free tier (alternative) | Turns a question plus tool results into an answer | Direct data access: it only ever sees tool outputs |
 

@@ -46,7 +46,7 @@ flowchart LR
 
 1. Import the GitHub repo into Vercel; set **Root Directory = `backend`**.
 2. Framework preset: FastAPI (zero-config). Vercel detects the FastAPI `app` from the entrypoint, declared in `pyproject.toml` under `[tool.vercel]` **(exact key per Vercel docs at setup; TBD)**. The whole app becomes a single Vercel Function on Fluid compute.
-3. Python version from `.python-version` / pyproject (3.14, or the newest version Vercel supports; **TBD** at the spike).
+3. Python version from `.python-version` / pyproject: 3.13, a version Vercel supports. Check at deploy time that Vercel reads it from the repo root, or add `backend/.python-version`.
 4. Function region aligned with Turso (section 5).
 5. Set the env vars (section 4).
 6. Verify: `GET https://salary-api.vercel.app/api/v1/health` → `{"status":"ok","db":"ok"}`.

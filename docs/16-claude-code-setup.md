@@ -68,7 +68,7 @@ frontend/CLAUDE.md             # loaded when working under frontend/
 
 ### 3.2 `backend/CLAUDE.md` (outline)
 
-- Stack: Python 3.14, uv, FastAPI, Pydantic v2, SQLAlchemy 2.x (sync), Alembic, Pyright strict, ruff.
+- Stack: Python 3.13, uv, FastAPI, Pydantic v2, SQLAlchemy 2.x (sync), Alembic, Pyright strict, ruff.
 - Module slice convention: `modules/<feature>/{router,schemas,service,repository,models}.py`; use `/new-module`.
 - Dependencies via `uv add` / `uv add --group test` only.
 - DB: never use raw SQL strings with interpolation. Use SQLAlchemy expressions. Sort columns come from an allow-list.

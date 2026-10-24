@@ -19,10 +19,10 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 ## 2. Version resolution policy
 
 - Versions are **not** hard-coded in these docs. At scaffold time (milestone 1) we install the **latest stable** releases (`uv add <pkg>`, `pnpm add <pkg>`, `pnpm create next-app@latest`) and the lockfiles pin them.
-- Pre-releases are excluded. Example: **SQLAlchemy 2.1** was at rc2 in September 2026. If 2.1.0 final is out at scaffold time we use it; otherwise we pin `sqlalchemy>=2.0,<2.1`.
-- Runtimes: **Python 3.14**, **Node 24 LTS**. Recorded in `.python-version` and `.nvmrc`.
+- Pre-releases are excluded. Example: **SQLAlchemy 2.1** was at rc2 in September 2026; 2.1 final was out at scaffold time, so it is used.
+- Runtimes: **Python 3.13**, **Node 22 LTS**. Recorded in `.python-version` and `.nvmrc`. Both are versions Vercel supports and the ones in the build environment.
 - Updates after scaffold come only through Dependabot PRs (section 11), grouped monthly, so the history isn't polluted with dependency churn.
-- The exact resolved versions are recorded in [adr/0017-toolchain.md](adr/0017-toolchain.md) after scaffold. **TBD** until then.
+- The exact resolved versions are recorded in [adr/0017-toolchain.md](adr/0017-toolchain.md) (backend: done at scaffold).
 
 ---
 
@@ -30,7 +30,7 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 
 | Tool | What it is | Why we use it |
 |---|---|---|
-| **Python 3.14** | The language runtime | Latest stable. SQLAlchemy 2.1 needs ≥ 3.11, and 3.10 reaches end of life in Oct 2026 |
+| **Python 3.13** | The language runtime | A current version that Vercel's Python runtime supports. SQLAlchemy 2.1 needs ≥ 3.11, and 3.10 reaches end of life in Oct 2026 |
 | **uv** | Package manager, virtualenv manager, lockfile tool and command runner (`uv sync`, `uv add`, `uv run`) | Replaces pip + venv + pip-tools + pyenv with one very fast tool. `uv sync --locked` in CI guarantees the exact locked dependency set. Dependency groups: `dev`, `test`, `seed` |
 | **FastAPI** | Web framework that turns typed Python functions into HTTP endpoints and generates an OpenAPI spec | The required stack. The OpenAPI output drives our typed frontend client ([adr/0014-contract-first-openapi-client.md](adr/0014-contract-first-openapi-client.md)) |
 | **Pydantic v2** | Data validation and serialization | Validates every request body and query (`extra="forbid"`), and defines response schemas |
@@ -60,7 +60,7 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 
 | Tool | What it is | Why we use it |
 |---|---|---|
-| **Node 24 LTS** | JavaScript runtime | Long-term support |
+| **Node 22 LTS** | JavaScript runtime | Long-term support |
 | **pnpm** (via **corepack**, pinned in `packageManager`) | Package manager with a strict lockfile | Fast, disk-efficient, strict dependency resolution. Corepack makes everyone use the same pnpm version |
 | **Next.js 16** (App Router) | React framework: routing, Server Components, Server Actions, rewrites | The required UI stack. The `rewrites` rule gives us same-origin auth ([adr/0008-fastapi-auth-same-origin-rewrite.md](adr/0008-fastapi-auth-same-origin-rewrite.md)) |
 | **React 19** | UI library | |
@@ -94,8 +94,8 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 | `.gitattributes` | `* text=auto eol=lf`; marks generated files (`frontend/src/lib/api/schema.d.ts`, lockfiles) as `linguist-generated` so diffs and stats stay readable |
 | `.gitignore` | Python, Node, Next, coverage, `.env*` (except `.env.example`), local SQLite files |
 | `backend/.env.example`, `frontend/.env.example` | Every required env var with safe placeholder values and comments (see [17-deployment.md](17-deployment.md#4-environment-variables)) |
-| `.python-version` | `3.14` (read by uv) |
-| `.nvmrc` | `24` |
+| `.python-version` | `3.13` (read by uv) |
+| `.nvmrc` | `22` |
 | `compose.yaml` | **Postgres only**, used by `make test-pg`. Not needed for normal development |
 | `README.md` | Quick start, demo URL and credentials policy, links to the docs |
 | `LICENSE` **(proposed: MIT)** | |

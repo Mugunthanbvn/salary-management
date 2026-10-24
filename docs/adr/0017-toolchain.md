@@ -51,15 +51,28 @@ Note: **Next.js 16 removed `next lint`**, and `next build` no longer lints, so C
 See [ADR-0014](0014-contract-first-openapi-client.md). Alternatives: Hey API (full SDK + Zod + TanStack plugins), Orval (hooks + mocks), Kubb. All generate more than this project needs.
 
 ### Other choices (uncontested)
-- **uv** for Python packaging, environments and lockfiles (dependency groups dev/test/seed).
+- **uv** for Python packaging, environments and lockfiles (dependency groups `dev` for tools and tests, `seed` for Faker).
 - **ruff** for Python lint + format (rules E, F, I, B, UP, SIM, S, PT, RUF, N, PL).
 - **pytest** + pytest-cov (90% gate on domain + services) + hypothesis + pytest-randomly + pytest-xdist + time-machine.
 - **pip-audit**, **gitleaks**, **CodeQL** for security.
 - **Vitest 4 + React Testing Library + jsdom + MSW**, and **Playwright** for e2e.
 - **knip** for unused files, exports and deps.
 - **Root Makefile** as the single command entry point.
-- **pnpm** via corepack; **Node 24 LTS**; **Python 3.14**.
-- Libraries: **pwdlib[argon2] + PyJWT** (FastAPI docs moved off passlib and python-jose); **SQLAlchemy 2.0.x** (2.1 was at rc2 as of Sep 2026; use 2.1 if final by scaffold time).
+- **pnpm** via corepack; **Node 22 LTS**; **Python 3.13** (versions Vercel supports and the ones in the build environment).
+- Libraries: **pwdlib[argon2] + PyJWT** (FastAPI docs moved off passlib and python-jose); **SQLAlchemy 2.1** (2.1 final was out at scaffold time).
+
+## Resolved versions (backend)
+
+Installed with `uv add` at scaffold time (2026-10-24) and pinned in `backend/uv.lock`. Later updates change the lockfile, not this list.
+
+| Group | Packages |
+|---|---|
+| Runtime | Python 3.13, uv 0.11 |
+| App | fastapi 0.162.0 (starlette 1.9.0), uvicorn[standard] 0.54.0, pydantic 2.14.1, pydantic-settings 2.16.1, sqlalchemy 2.1.6, alembic 1.20.1, pwdlib[argon2] 0.3.1 (argon2-cffi 25.1.0), pyjwt 2.15.1, python-multipart 0.0.32, openpyxl 3.1.5, openai 3.37.0, structlog 26.1.0 |
+| dev | ruff 0.17.2, pyright 1.1.414, pytest 9.1.1, pytest-cov 7.1.0 (coverage 7.17.0), hypothesis 6.170.9, pytest-randomly 5.0.0, pytest-xdist 3.8.0, pytest-socket 0.8.1, time-machine 3.5.1, httpx 0.28.1, lefthook 2.2.2 (the PyPI package that ships the binary) |
+| seed | faker 40.43.0 |
+
+Not installed yet: the Turso/libSQL SQLAlchemy driver. It is added when the API is deployed ([17-deployment.md](../17-deployment.md)).
 
 ## Consequences
 
