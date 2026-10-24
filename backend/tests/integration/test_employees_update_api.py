@@ -121,3 +121,29 @@ def test_patch_refuses_anything_but_profile_fields(
     assert response.status_code == 422
     assert response.json()["type"] == f"{PROBLEMS}validation"
     assert employee.version == 1
+
+
+def test_patch_refuses_an_email_another_employee_uses(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_employee(db_session, email="taken@acme.example")
+    employee = make_employee(db_session)
+
+    response = as_role("HR_MANAGER").patch(
+        f"{EMPLOYEES}/{employee.id}", json={"version": 1, "email": "TAKEN@acme.example"}
+    )
+
+    assert response.status_code == 409
+    assert response.json()["type"] == f"{PROBLEMS}duplicate"
+
+
+def test_patch_may_resend_the_employee_s_own_email(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    employee = make_employee(db_session, email="me@acme.example")
+
+    response = as_role("HR_MANAGER").patch(
+        f"{EMPLOYEES}/{employee.id}", json={"version": 1, "email": "ME@acme.example"}
+    )
+
+    assert response.status_code == 200
