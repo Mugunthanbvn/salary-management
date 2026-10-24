@@ -4,6 +4,7 @@ This is the only place that maps roles to permissions. Code checks permissions, 
 names, so adding a role is one entry in ROLE_PERMISSIONS.
 """
 
+from dataclasses import dataclass
 from enum import StrEnum
 
 
@@ -48,3 +49,23 @@ ROLE_PERMISSIONS: dict[Role, frozenset[Permission]] = {
 
 def permissions_for(role: Role) -> frozenset[Permission]:
     return ROLE_PERMISSIONS[role]
+
+
+@dataclass(frozen=True, slots=True)
+class Principal:
+    """The signed-in user. Permissions follow the role stored now, never the token's claim.
+
+    Services take a Principal to mask fields and refuse actions (`principal.has(...)`).
+    """
+
+    user_id: int
+    email: str
+    full_name: str
+    role: Role
+
+    @property
+    def permissions(self) -> frozenset[Permission]:
+        return permissions_for(self.role)
+
+    def has(self, permission: Permission) -> bool:
+        return permission in self.permissions

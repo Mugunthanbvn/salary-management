@@ -8,14 +8,21 @@ from sqlalchemy.orm import Session
 from salary_api.core.config import Settings
 from salary_api.core.errors import RateLimited, Unauthenticated
 from salary_api.core.models import utc_now
-from salary_api.core.permissions import Permission, permissions_for
-from salary_api.core.security import PasswordHasher, create_access_token
+from salary_api.core.permissions import Permission, Principal, permissions_for
+from salary_api.core.security import (
+    InvalidToken,
+    PasswordHasher,
+    create_access_token,
+    decode_access_token,
+)
 from salary_api.modules.audit.service import AuditAction, events_since, record_event
 from salary_api.modules.auth.schemas import LoginRequest, LoginResponse, SessionUser
 from salary_api.modules.users import repository as users
 from salary_api.modules.users.models import User
 
 INVALID_CREDENTIALS = "Invalid email or password"
+SIGN_IN_REQUIRED = "Sign in to continue."
+SESSION_NOT_VALID = "Your session has expired or is no longer valid. Sign in again."
 # docs/glossary.md section 3: 5 failures per email in 15 minutes → 429.
 LOGIN_FAILURE_LIMIT = 5
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
@@ -60,6 +67,21 @@ def login(
     session.commit()
     token = create_access_token(user_id=user.id, role=user.role, settings=settings)
     return SignedIn(body=_login_response(user), token=token)
+
+
+def authenticate(session: Session, token: str | None, *, settings: Settings) -> Principal:
+    """The caller behind a session token. The user is loaded on every request, so a
+    deactivated user or a changed role takes effect at once."""
+    if not token:
+        raise Unauthenticated(SIGN_IN_REQUIRED)
+    try:
+        claims = decode_access_token(token, settings)
+    except InvalidToken:
+        raise Unauthenticated(SESSION_NOT_VALID) from None
+    user = users.get_by_id(session, claims.user_id)
+    if user is None or not user.is_active:
+        raise Unauthenticated(SESSION_NOT_VALID)
+    return Principal(user_id=user.id, email=user.email, full_name=user.full_name, role=user.role)
 
 
 def email_hash(email: str) -> str:
