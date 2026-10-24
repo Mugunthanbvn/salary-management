@@ -107,6 +107,12 @@ def test_to_major_returns_the_exact_decimal_in_major_units(money: Money, major: 
     assert str(result) == major
 
 
+def test_money_in_the_same_currency_adds_and_subtracts_exactly() -> None:
+    a, b = Money(100, "EUR"), Money(250, "EUR")
+
+    assert (a + b, a - b) == (Money(350, "EUR"), Money(-150, "EUR"))
+
+
 @given(amount_minor=st.integers(), currency=currencies)
 def test_from_major_of_to_major_round_trips_every_amount(amount_minor: int, currency: str) -> None:
     money = Money(amount_minor, currency)
