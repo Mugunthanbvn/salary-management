@@ -252,7 +252,7 @@ domain/
   pay_equity.py         compa-ratio vs pay band, flags, rollups
   compensation.py       total compensation = base + allowances + bonus targets
   enums.py              glossary §2 enums (Level, EmploymentType, ...) as StrEnum
-  constants.py          glossary §3 thresholds (MIN_GROUP_SIZE, PAY_EQUITY_LOW/HIGH, rollup 0.95)
+  constants.py          glossary §3 thresholds (MIN_GROUP_SIZE, PAY_EQUITY_LOW/HIGH, rollup 0.95), MAX_AMOUNT_MINOR
 modules/
   health/               GET /health (read-only DB check)
   auth/                 login, logout, me
