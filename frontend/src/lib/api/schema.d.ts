@@ -176,6 +176,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/fx-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current USD rates with their date and source */
+        get: operations["fx_rates_api_v1_fx_rates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -304,6 +321,23 @@ export interface paths {
         };
         /** Highest or lowest paid people in one country (SALARY_READ; audited) */
         get: operations["top_earners_api_v1_insights_top_earners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pay-bands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pay bands in force today (read-only) */
+        get: operations["pay_bands_api_v1_pay_bands_get"];
         put?: never;
         post?: never;
         delete?: never;
@@ -748,6 +782,25 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** FxRateItem */
+        FxRateItem: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency: string;
+            /** Rate To Usd */
+            rate_to_usd: string;
+            /** Source */
+            source: string;
+        };
+        /** FxRates */
+        FxRates: {
+            /** Rates */
+            rates: components["schemas"]["FxRateItem"][];
+        };
         /** HealthResponse */
         HealthResponse: {
             /**
@@ -879,6 +932,35 @@ export interface components {
             population: components["schemas"]["Population"];
             stats: components["schemas"]["Stats"];
             total_payroll_usd: components["schemas"]["Money"] | null;
+        };
+        /**
+         * PayBandItem
+         * @description The band in force for a job role + level + country, in minor units of `currency`.
+         */
+        PayBandItem: {
+            /** Country Code */
+            country_code: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date
+             */
+            effective_from: string;
+            /** Job Role Id */
+            job_role_id: number;
+            level: components["schemas"]["Level"];
+            /** Max */
+            max: number;
+            /** Mid */
+            mid: number;
+            /** Min */
+            min: number;
+        };
+        /** PayBands */
+        PayBands: {
+            /** Bands */
+            bands: components["schemas"]["PayBandItem"][];
         };
         /** PayEquityCohorts */
         PayEquityCohorts: {
@@ -2113,6 +2195,71 @@ export interface operations {
             };
         };
     };
+    fx_rates_api_v1_fx_rates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FxRates"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -2623,6 +2770,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["TopEarners"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_bands_api_v1_pay_bands_get: {
+        parameters: {
+            query?: {
+                country?: string[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayBands"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */
