@@ -3,15 +3,19 @@
 Money is never a float. An amount always travels with its currency.
 """
 
+import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal, InvalidOperation
+from decimal import Decimal
 from typing import Self
 
 from salary_api.domain.constants import MAX_AMOUNT_DIGITS, MAX_AMOUNT_MINOR
 from salary_api.domain.currency import USD, minor_unit_exponent
 from salary_api.domain.rounding import divide_half_even, round_half_even
+
+# An optional sign, ASCII digits, and an optional point followed by more digits.
+_PLAIN_DECIMAL = re.compile(r"[+-]?[0-9]+(\.[0-9]+)?")
 
 
 class TooManyDecimalsError(ValueError):
@@ -147,11 +151,16 @@ def to_usd(money: Money, rates: Mapping[str, FxRate]) -> UsdAmount:
 
 
 def _parse_major(amount: str | Decimal) -> Decimal:
-    """The major-unit amount as a finite Decimal. A float is refused, not converted."""
+    """The major-unit amount as a Decimal. A float is refused, not converted.
+
+    Text must be a plain ASCII decimal such as `"-52000.50"`: no thousands separators,
+    underscores, spaces, exponents or non-ASCII digits (docs/11 §5.2).
+    """
     if type(amount) not in (str, Decimal):
         kind = type(amount).__name__
         raise TypeError(f"a major-unit amount must be a str or Decimal, not {kind}")
-    try:
-        return Decimal(amount)
-    except InvalidOperation:
-        raise InvalidAmountError(f"{amount!r} is not a number") from None
+    if isinstance(amount, Decimal):
+        return amount
+    if _PLAIN_DECIMAL.fullmatch(amount) is None:
+        raise InvalidAmountError(f"{amount!r} is not a number: write it like 52000.50")
+    return Decimal(amount)

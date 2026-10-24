@@ -116,7 +116,7 @@ Parsing is the **only** format-specific step. Both parsers produce the same `Raw
 
 - Trim whitespace. Lowercase `email`. Uppercase `country`, `currency`, `level`, `employment_type`.
 - Dates accept ISO `YYYY-MM-DD` or a native Excel date. Ambiguous formats (`03/04/2022`) are rejected with a hint.
-- Money: strip a leading currency symbol? **No.** Symbols and thousands separators are rejected with a clear message, to avoid locale ambiguity (`1.234,56` vs `1,234.56`).
+- Money: strip a leading currency symbol? **No.** Symbols and thousands separators are rejected with a clear message, to avoid locale ambiguity (`1.234,56` vs `1,234.56`). After trimming, an amount must be a plain ASCII decimal (`52000.00`, `-12.5`, `+7`): `Money.from_major` rejects `_` grouping, inner spaces, exponents (`1e3`), `12.` / `.5` and non-ASCII digits. XLSX numeric cells are turned into a `Decimal` by the parser (above) before this check.
 
 ### 5.3 Row validation
 
