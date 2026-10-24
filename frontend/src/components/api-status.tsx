@@ -1,5 +1,7 @@
+import type { ApiHealth } from "@/lib/api/health";
+
 type ApiStatusProps = {
-  status: "ok" | "unreachable";
+  status: ApiHealth;
 };
 
 export function ApiStatus({ status }: ApiStatusProps) {
