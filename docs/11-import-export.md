@@ -184,7 +184,7 @@ Stored in `import_jobs` and returned to the UI with `201` (a report with row err
 Preconditions (otherwise `409 Conflict` problem+json):
 - `status == DRY_RUN` and `error_count == 0`.
 - `expires_at` not passed: **24 hours** after the dry-run. This bounds the gap between validation and commit. The DB duplicate re-check below covers changes made in the meantime.
-- Requested by the job's creator or an `ADMIN`.
+- Requested by the job's creator or a caller holding `USER_ADMIN` (the administrator's permission; anyone else gets `404`, as if the job did not exist).
 - **DB duplicates re-checked**, because someone else may have created one of these employees since the dry-run.
 
 Execution:
@@ -199,9 +199,9 @@ Execution:
 ```mermaid
 stateDiagram-v2
     [*] --> DRY_RUN: upload validated (errors may be > 0)
-    DRY_RUN --> COMMITTED: commit (0 errors, fresh, same user, no new dupes)
+    DRY_RUN --> COMMITTED: commit (0 errors, fresh, creator or USER_ADMIN, no new dupes)
     DRY_RUN --> FAILED: commit transaction error
-    DRY_RUN --> EXPIRED: commit attempted after expires_at (refused with 409; job kept for audit)
+    DRY_RUN --> EXPIRED: commit or upload after expires_at, or a 4th open dry-run of the user (job kept for audit)
     EXPIRED --> [*]
     COMMITTED --> [*]
     FAILED --> [*]
