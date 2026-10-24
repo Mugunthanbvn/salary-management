@@ -4,6 +4,8 @@ Money is never a float. An amount always travels with its currency.
 """
 
 from dataclasses import dataclass
+from decimal import Decimal
+from typing import Self
 
 from salary_api.domain.currency import minor_unit_exponent
 
@@ -21,3 +23,9 @@ class Money:
             kind = type(self.amount_minor).__name__
             raise TypeError(f"amount_minor must be an int of minor units, not {kind}")
         minor_unit_exponent(self.currency)  # raises UnknownCurrencyError
+
+    @classmethod
+    def from_major(cls, amount: str | Decimal, currency: str) -> Self:
+        """Money from a major-unit amount: `from_major("1234.56", "USD")` is 123456 cents."""
+        numerator, denominator = Decimal(amount).as_integer_ratio()
+        return cls(numerator * 10 ** minor_unit_exponent(currency) // denominator, currency)
