@@ -74,6 +74,11 @@ def _active_employee(session: Session) -> dict[str, Any]:
     }
 
 
+def _terminated_employee(session: Session) -> dict[str, Any]:
+    employee = make_employee(session, status="TERMINATED")
+    return {"url": f"/api/v1/employees/{employee.id}/reactivate", "json": {"version": 1}}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -86,6 +91,7 @@ MATRIX = [
     Endpoint("GET", EMPLOYEE, (401, 200, 200, 200), _an_employee),
     Endpoint("PATCH", EMPLOYEE, (401, 403, 200, 200), _profile_change),
     Endpoint("POST", f"{EMPLOYEE}/terminate", (401, 403, 200, 200), _active_employee),
+    Endpoint("POST", f"{EMPLOYEE}/reactivate", (401, 403, 200, 200), _terminated_employee),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

@@ -1,6 +1,7 @@
 """Terminate and reactivate (docs/07-api-spec.md 6.5, docs/06-data-model.md 6.3, ADR 0013)."""
 
 from collections.abc import Callable
+from datetime import date
 
 import time_machine
 from fastapi import FastAPI
@@ -60,3 +61,28 @@ def test_terminate_defaults_the_date_to_today(
     )
 
     assert response.json()["termination_date"] == "2026-10-01"
+
+
+def test_reactivate_clears_the_termination_and_writes_one_event(
+    app: FastAPI, client: TestClient, db_session: Session, settings: Settings
+) -> None:
+    hr = make_user(db_session, role="HR_MANAGER")
+    employee = make_employee(db_session, status="TERMINATED", termination_date=date(2025, 6, 30))
+
+    response = signed_in_client(app, hr, settings).post(
+        f"{EMPLOYEES}/{employee.id}/reactivate", json={"version": 1}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["status"], body["termination_date"], body["version"]) == ("ACTIVE", None, 2)
+    event = db_session.scalars(select(AuditEvent)).one()
+    assert (event.action, event.actor_id, event.entity_id) == (
+        "employee.reactivate",
+        hr.id,
+        str(employee.id),
+    )
+    assert event.diff == {
+        "status": ["TERMINATED", "ACTIVE"],
+        "termination_date": ["2025-06-30", None],
+    }
