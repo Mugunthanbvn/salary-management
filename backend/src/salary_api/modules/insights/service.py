@@ -41,82 +41,51 @@ from salary_api.modules.reference.schemas import Department
 
 def overview(session: Session, principal: Principal, query: InsightQuery) -> Overview:
     """Headcount, payroll in USD and pay by country (docs/09 section 3.1)."""
-    audience = _Audience.of(principal)
-    markets = _markets(session, query.country)
-    currency = markets.currency_of_population(query.country)
-    convert = _Converter(markets.rates)
+    scope = _scope(session, principal, query.country)
     rows = repository.amounts_by_country(session, _where(query), query.comp)
-    countries = [
-        _Group(country_code, [(currency, amount) for _, currency, amount in group])
-        for country_code, group in groupby(rows, key=itemgetter(0))
+    countries = _groups(rows)
+    hidden = scope.audience.hidden_groups([country.count for country in countries])
+    by_country = [
+        CountryStats(
+            country_code=country.key,
+            local=scope.stats(country.members, hidden=index in hidden, currency=country.currency),
+            usd=scope.stats(country.members, hidden=index in hidden, currency=USD),
+        )
+        for index, country in enumerate(countries)
     ]
-    hidden = audience.hidden_groups([country.count for country in countries])
-    usd_amounts = [convert.to(USD, amount, ccy) for c in countries for ccy, amount in c.members]
-    total_hidden = audience.hides(len(rows))
-    payroll = summarize(usd_amounts)
+    everyone = [member for country in countries for member in country.members]
+    total_hidden = scope.audience.hides(len(everyone))
+    payroll = summarize(scope.convert.all(USD, everyone))
     return Overview(
         population=_population(query),
-        currency=currency,
-        fx_as_of=convert.fx_as_of,
-        headcount=None if total_hidden else len(rows),
-        total_payroll_usd=None
-        if total_hidden or not isinstance(payroll, Summary)
-        else _money(payroll.sum, USD),
-        stats=_stats(
-            summarize(convert.to(currency, a, ccy) for c in countries for ccy, a in c.members),
-            currency,
-            hidden=total_hidden,
-            audience=audience,
-        ),
-        by_country=[
-            CountryStats(
-                country_code=country.key,
-                local=_stats(
-                    summarize(country.amounts),
-                    country.currency,
-                    hidden=index in hidden,
-                    audience=audience,
-                ),
-                usd=_stats(
-                    summarize(convert.to(USD, a, ccy) for ccy, a in country.members),
-                    USD,
-                    hidden=index in hidden,
-                    audience=audience,
-                ),
-            )
-            for index, country in enumerate(countries)
-        ],
+        currency=scope.currency,
+        fx_as_of=scope.convert.fx_as_of,
+        headcount=None if total_hidden else len(everyone),
+        total_payroll_usd=_money(payroll.sum, USD)
+        if isinstance(payroll, Summary) and not total_hidden
+        else None,
+        stats=scope.stats(everyone, hidden=total_hidden),
+        by_country=by_country,
     )
 
 
 def by_department(session: Session, principal: Principal, query: InsightQuery) -> ByDepartment:
     """Pay statistics per department (docs/09 section 3.2)."""
-    audience = _Audience.of(principal)
-    markets = _markets(session, query.country)
-    currency = markets.currency_of_population(query.country)
-    convert = _Converter(markets.rates)
+    scope = _scope(session, principal, query.country)
     rows = repository.amounts_by_department(session, _where(query), query.comp)
-    departments = [
-        _Group(Department(id=key[0], name=key[1]), [(ccy, amount) for *_, ccy, amount in group])
-        for key, group in groupby(rows, key=itemgetter(0, 1))
-    ]
-    hidden = audience.hidden_groups([department.count for department in departments])
+    departments = _groups(((id_, name), currency, amount) for id_, name, currency, amount in rows)
+    hidden = scope.audience.hidden_groups([department.count for department in departments])
     groups = [
         DepartmentStats(
-            department=department.key,
-            stats=_stats(
-                summarize(convert.all(currency, department.members)),
-                currency,
-                hidden=index in hidden,
-                audience=audience,
-            ),
+            department=Department(id=department.key[0], name=department.key[1]),
+            stats=scope.stats(department.members, hidden=index in hidden),
         )
         for index, department in enumerate(departments)
     ]
     return ByDepartment(
         population=_population(query),
-        currency=currency,
-        fx_as_of=convert.fx_as_of,
+        currency=scope.currency,
+        fx_as_of=scope.convert.fx_as_of,
         groups=groups,
     )
 
@@ -151,6 +120,32 @@ class _Audience:
 
 
 @dataclass(frozen=True, slots=True)
+class _Scope:
+    """What one insight request needs: who asks, the response currency, the converter."""
+
+    audience: _Audience
+    currency: str  # the population's one currency, else USD
+    convert: "_Converter"
+
+    def stats(
+        self, members: Iterable[tuple[str, int]], *, hidden: bool, currency: str | None = None
+    ) -> Stats:
+        """The stats object of members' amounts in `currency` (the response currency if None)."""
+        target = currency or self.currency
+        amounts = self.convert.all(target, members)
+        return _stats(summarize(amounts), target, hidden=hidden, audience=self.audience)
+
+
+def _scope(session: Session, principal: Principal, countries: Sequence[str]) -> _Scope:
+    markets = _markets(session, countries)
+    return _Scope(
+        audience=_Audience.of(principal),
+        currency=markets.currency_of_population(countries),
+        convert=_Converter(markets.rates),
+    )
+
+
+@dataclass(frozen=True, slots=True)
 class _Group[K]:
     """One group of a breakdown: its key and each member's (currency, amount), sorted."""
 
@@ -166,9 +161,13 @@ class _Group[K]:
         """The currency every member is paid in (one country is always one currency)."""
         return _one_currency(self.members)
 
-    @property
-    def amounts(self) -> list[int]:
-        return [amount for _currency, amount in self.members]
+
+def _groups[K](rows: Iterable[tuple[K, str, int]]) -> list[_Group[K]]:
+    """(key, currency, amount) rows sorted by key, as one group per key, in the same order."""
+    return [
+        _Group(key, [(currency, amount) for _key, currency, amount in members])
+        for key, members in groupby(rows, key=itemgetter(0))
+    ]
 
 
 @dataclass(frozen=True, slots=True)
