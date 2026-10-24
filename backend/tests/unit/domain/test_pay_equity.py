@@ -13,10 +13,12 @@ from salary_api.domain.pay_equity import (
     CompaRatioSummary,
     EmployeePay,
     NoCompaRatioReason,
+    PayEquitySummary,
     cohort_rollup,
     compa_ratio,
     department_rollup,
     flag,
+    pay_equity_summary,
 )
 from salary_api.domain.stats import Summary
 
@@ -220,6 +222,30 @@ def test_cohort_rollup_refuses_a_cohort_with_mixed_currencies() -> None:
 
     with pytest.raises(CurrencyMismatchError):
         cohort_rollup([euro, dollar])
+
+
+def test_summary_tallies_evaluated_excluded_and_flagged_employees() -> None:
+    employees = [
+        *(paid_at(r) for r in ("0.70", "0.75", "1.00", "1.30")),
+        make_pay(band_mid=None),
+        make_pay(job_role_id=99, band_mid=None),
+        paid_at("0.50", employment_type=EmploymentType.PART_TIME),
+        make_pay(employment_type=EmploymentType.CONTRACTOR, band_mid=None),
+    ]
+
+    summary = pay_equity_summary(employees)
+
+    assert summary == PayEquitySummary(
+        employees_evaluated=4,
+        employees_without_band=2,
+        employees_not_full_time=2,
+        employees_flagged_underpaid=2,
+        employees_flagged_overpaid=1,
+    )
+
+
+def test_summary_of_nobody_is_all_zero_counts() -> None:
+    assert pay_equity_summary([]) == PayEquitySummary(0, 0, 0, 0, 0)
 
 
 @pytest.mark.parametrize(
