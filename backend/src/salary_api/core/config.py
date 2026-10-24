@@ -1,8 +1,8 @@
 """API configuration from environment variables (docs/glossary.md section 7)."""
 
-from typing import Literal
+from typing import Literal, Self
 
-from pydantic import Field, SecretStr
+from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 type AppEnv = Literal["development", "test", "production"]
@@ -10,6 +10,9 @@ type LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 # The documented development value of JWT_SECRET (backend/.env.example).
 DEV_PLACEHOLDER = "dev-only-change-me"
+# Production refuses a JWT_SECRET that contains any of these, whatever its length.
+PLACEHOLDER_MARKERS = ("change-me", "changeme", "dev-only", "test-only")
+MIN_SECRET_BYTES = 32
 
 
 class Settings(BaseSettings):
@@ -30,3 +33,20 @@ class Settings(BaseSettings):
     ask_rate_limit_per_hour: int = Field(default=20, gt=0)
     ask_max_steps: int = Field(default=4, gt=0)
     log_level: LogLevel = "INFO"
+
+    @model_validator(mode="after")
+    def _refuse_unsafe_production_values(self) -> Self:
+        if self.app_env == "production" and _is_weak_secret(self.jwt_secret.get_secret_value()):
+            msg = (
+                f"JWT_SECRET must be at least {MIN_SECRET_BYTES} random bytes, "
+                "not a placeholder, when APP_ENV=production"
+            )
+            raise ValueError(msg)
+        return self
+
+
+def _is_weak_secret(secret: str) -> bool:
+    lowered = secret.lower()
+    return len(secret.encode()) < MIN_SECRET_BYTES or any(
+        marker in lowered for marker in PLACEHOLDER_MARKERS
+    )
