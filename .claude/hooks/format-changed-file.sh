@@ -55,8 +55,9 @@ case "$rel" in
     [ -x "$root/backend/.venv/bin/ruff" ] || exit 0 # project ruff not installed yet (run make setup)
     cd "$root/backend" || exit 0
     out="$(uv run --quiet --no-sync ruff format "$abs" 2>&1)" || report "ruff format" "$out"
-    # F401 is not auto-fixed: an import added in one edit is used in the next.
-    out="$(uv run --quiet --no-sync ruff check --fix --unfixable F401 "$abs" 2>&1)" || report "ruff check" "$out"
+    # F401 (unused import) is ignored here: an import added in one edit is used in the next.
+    # lefthook and CI still catch unused imports.
+    out="$(uv run --quiet --no-sync ruff check --fix --ignore F401 "$abs" 2>&1)" || report "ruff check" "$out"
     ;;
 
   frontend/*.ts | frontend/*.tsx | frontend/*.css | frontend/*.json | frontend/*.md)
