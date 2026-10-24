@@ -121,7 +121,6 @@ def upgrade() -> None:
         )
         batch_op.create_index("ix_employees_job_role_level", ["job_role_id", "level"], unique=False)
         batch_op.create_index("ix_employees_last_first", ["last_name", "first_name"], unique=False)
-        batch_op.create_index("ix_employees_search_text", ["search_text"], unique=False)
         batch_op.create_index(
             "ix_employees_status_employment_type", ["status", "employment_type"], unique=False
         )
@@ -250,7 +249,6 @@ def downgrade() -> None:
     op.drop_table("salary_records")
     with op.batch_alter_table("employees", schema=None) as batch_op:
         batch_op.drop_index("ix_employees_status_employment_type")
-        batch_op.drop_index("ix_employees_search_text")
         batch_op.drop_index("ix_employees_last_first")
         batch_op.drop_index("ix_employees_job_role_level")
         batch_op.drop_index("ix_employees_currency_base")

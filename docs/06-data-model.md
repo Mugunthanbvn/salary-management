@@ -263,7 +263,6 @@ Indexes (see [19-performance.md](19-performance.md) for the reasoning):
 | `ix_employees_status_employment_type` | `status, employment_type` | Default insight population (active full-time) |
 | `ix_employees_currency_base` | `currency, current_base_minor` | Salary-range filter within one currency, top/bottom earners |
 | `ix_employees_last_first` | `last_name, first_name` | Default sort |
-| `ix_employees_search_text` | `search_text` | Prefix search (`LIKE 'term%'`); infix search scans, which is acceptable at 10k |
 
 ### 4.6 `salary_records` (append-only)
 
@@ -455,6 +454,7 @@ fold(s)     = NFKD-normalize → strip combining marks → casefold
 - SQLite's `LIKE` is case-insensitive only for ASCII, so `Müller` would not match `müller` with plain `LIKE`. Folding in Python makes search behave the same on SQLite, libSQL and Postgres.
 - Accent stripping is **decided**: `muller` also finds `Müller`, and `jose` finds `José`.
 - The query term goes through the same `fold()`, then `search_text LIKE '%term%'`, with `%` and `_` escaped.
+- No index on `search_text`: an infix `LIKE` cannot use a B-tree index (and SQLite does not use one for this prefix `LIKE` either), so search scans at most 10k short rows, about 3 ms for a page and its count (measured on SQLite, 10k rows). FTS5 is the upgrade path ([19-performance.md](19-performance.md) §7).
 - Romanized names for Japanese employees appear in `email`, so searching `sato` finds `佐藤`'s record through the email part.
 
 ---
