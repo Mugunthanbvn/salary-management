@@ -22,11 +22,13 @@ from tests.factories import (
     DEFAULT_PASSWORD,
     employee_request,
     make_country,
+    make_employee,
     make_job_role,
     make_user,
 )
 
 ANON = "ANON"
+EMPLOYEE = "/api/v1/employees/{employee_id:int}"  # int only, so /employees/export is not an id
 CALLERS = (ANON, "VIEWER", "HR_MANAGER", "ADMIN")
 
 # Builds one call: TestClient.request keyword arguments (json, params, files, ...) plus an
@@ -56,6 +58,10 @@ def _new_employee(session: Session) -> dict[str, Any]:
     return {"json": employee_request(make_job_role(session).id, hire_date="2024-01-15")}
 
 
+def _an_employee(session: Session) -> dict[str, Any]:
+    return {"url": f"/api/v1/employees/{make_employee(session).id}"}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -64,6 +70,7 @@ MATRIX = [
     Endpoint("GET", "/api/v1/reference", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/countries", (401, 200, 200, 200)),
     Endpoint("POST", "/api/v1/employees", (401, 403, 201, 201), _new_employee),
+    Endpoint("GET", EMPLOYEE, (401, 200, 200, 200), _an_employee),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

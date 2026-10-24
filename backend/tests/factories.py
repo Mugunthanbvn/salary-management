@@ -4,6 +4,8 @@ Each builder sets safe defaults, so a test states only the fields that matter to
 Model builders (make_employee, make_salary_record, ...) are added with their models.
 """
 
+from collections.abc import Sequence
+from datetime import date
 from itertools import count
 from typing import Any
 
@@ -15,7 +17,18 @@ from sqlalchemy.orm import Session
 from salary_api.core.config import Settings
 from salary_api.core.permissions import Role
 from salary_api.core.security import PasswordHasher
+from salary_api.domain.enums import (
+    ComponentType,
+    EmployeeStatus,
+    EmploymentType,
+    Level,
+    SalaryReason,
+)
+from salary_api.domain.search import employee_search_text
+from salary_api.modules.employees import repository as employees
+from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import Country, Department, JobFamily, JobRole
+from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
 from salary_api.modules.users.models import User
 
 # Low entropy on purpose, so secret scanners (gitleaks) do not mistake it for a real key.
@@ -170,3 +183,86 @@ def employee_request(job_role_id: int, **overrides: Any) -> dict[str, Any]:
         },
     }
     return body | overrides
+
+
+_employee_numbers = count(1)
+
+# (type, name, amount_minor), e.g. ("ALLOWANCE", "HRA", 72_000_000).
+type ComponentSpec = tuple[ComponentType | str, str, int]
+
+
+def make_employee(
+    session: Session,
+    *,
+    country: str = "DE",
+    job_role: JobRole | None = None,
+    level: Level | str = Level.L3,
+    employment_type: EmploymentType | str = EmploymentType.FULL_TIME,
+    base_minor: int = 6_000_000,
+    components: Sequence[ComponentSpec] = (),
+    first_name: str = "Test",
+    last_name: str | None = None,
+    email: str | None = None,
+    employee_code: str | None = None,
+    hire_date: date = date(2024, 1, 15),
+    status: EmployeeStatus | str = EmployeeStatus.ACTIVE,
+    termination_date: date | None = None,
+    changed_by: User | None = None,
+) -> Employee:
+    """A saved employee with its HIRE salary record, paid in the country's currency.
+
+    The current-salary columns match the record, as the salary service keeps them.
+    """
+    currency = make_country(session, country).default_currency
+    role = job_role or make_job_role(session)
+    number = next(_employee_numbers)
+    code = employee_code or _next_code(session)
+    last_name = last_name or f"Employee {number}"
+    email = email or f"employee-{number}@acme.example"
+    total_minor = base_minor + sum(amount for _type, _name, amount in components)
+    status = EmployeeStatus(status)
+    employee = Employee(
+        employee_code=code,
+        first_name=first_name,
+        last_name=last_name,
+        email=email,
+        search_text=employee_search_text(first_name, last_name, code, email),
+        job_role_id=role.id,
+        level=Level(level),
+        employment_type=EmploymentType(employment_type),
+        country_code=country,
+        status=status,
+        hire_date=hire_date,
+        termination_date=termination_date
+        or (hire_date if status == EmployeeStatus.TERMINATED else None),
+        currency=currency,
+        current_base_minor=base_minor,
+        current_total_minor=total_minor,
+    )
+    session.add(employee)
+    session.flush()
+    record = SalaryRecord(
+        employee_id=employee.id,
+        effective_date=hire_date,
+        currency=currency,
+        base_minor=base_minor,
+        total_minor=total_minor,
+        job_role_id=role.id,
+        level=employee.level,
+        reason=SalaryReason.HIRE,
+        changed_by=changed_by.id if changed_by else None,
+        components=[
+            SalaryComponent(type=ComponentType(kind), name=name, amount_minor=amount)
+            for kind, name, amount in components
+        ],
+    )
+    session.add(record)
+    session.flush()
+    employee.current_salary_record_id = record.id
+    session.flush()
+    return employee
+
+
+def _next_code(session: Session) -> str:
+    highest = employees.highest_employee_code(session)
+    return f"ACME-{int(highest.removeprefix('ACME-')) + 1 if highest else 1:06d}"
