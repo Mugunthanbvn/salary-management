@@ -61,4 +61,4 @@ def test_the_database_rejects_an_unknown_status_or_format(
     row = _job_row(db_session) | {column: value}
 
     with pytest.raises(IntegrityError, match="CHECK"):
-        db_session.execute(insert(ImportJob.__table__).values(**row))
+        db_session.execute(insert(ImportJob).values(**row))
