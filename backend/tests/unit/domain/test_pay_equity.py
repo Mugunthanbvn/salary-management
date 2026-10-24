@@ -5,7 +5,7 @@ from decimal import Decimal
 import pytest
 
 from salary_api.domain.enums import EmploymentType
-from salary_api.domain.money import Money
+from salary_api.domain.money import CurrencyMismatchError, Money
 from salary_api.domain.pay_equity import CompaRatio, NoCompaRatioReason, compa_ratio
 
 FULL_TIME = EmploymentType.FULL_TIME
@@ -42,3 +42,8 @@ def test_only_full_time_employees_get_a_compa_ratio(
     result = compa_ratio(Money(2300000, "EUR"), band_mid, employment_type)
 
     assert result == CompaRatio(None, NoCompaRatioReason.NOT_FULL_TIME)
+
+
+def test_compa_ratio_refuses_a_band_in_another_currency() -> None:
+    with pytest.raises(CurrencyMismatchError):
+        compa_ratio(Money(9000000, "USD"), Money(5000000, "EUR"), FULL_TIME)
