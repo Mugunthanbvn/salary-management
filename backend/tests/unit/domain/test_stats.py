@@ -1,13 +1,14 @@
 """Statistics over integer minor amounts (docs/09-insights-pay-equity.md §2.7, ADR 0007)."""
 
 import statistics
+from decimal import Decimal
 from fractions import Fraction
 
 import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from salary_api.domain.stats import InsufficientData, Summary, summarize
+from salary_api.domain.stats import InsufficientData, Summary, median, summarize
 
 # Seven EUR salaries in cents; NumPy percentile(..., [25, 50, 75]) = 5000000, 5400000, 6650000.
 SALARIES = [4200000, 4900000, 5100000, 5400000, 6300000, 7000000, 14500000]
@@ -85,6 +86,26 @@ def test_mean_is_sum_over_count_rounded_half_even(amounts: list[int], mean: int)
     result = summary_of(amounts)
 
     assert result.mean == mean
+
+
+@pytest.mark.parametrize(
+    ("ratios", "expected"),
+    [
+        (["0.94", "0.90", "0.92"], "0.92"),
+        (["0.90", "1.00"], "0.95"),
+        (["0.91", "0.92"], "0.915"),  # exact, not rounded
+        (["1.07"], "1.07"),
+    ],
+)
+def test_median_of_ratios_is_exact_and_unrounded(ratios: list[str], expected: str) -> None:
+    result = median(Decimal(ratio) for ratio in ratios)
+
+    assert result == Decimal(expected)
+
+
+def test_median_of_no_ratios_is_an_error() -> None:
+    with pytest.raises(ValueError, match="no values"):
+        median([])
 
 
 @given(amount_lists)
