@@ -55,7 +55,10 @@ SORT_COLUMNS: Mapping[str, QueryableAttribute[object]] = {
     "hire_date": Employee.hire_date,
     "country": Employee.country_code,
     "level": Employee.level,
+    "current_base": Employee.current_base_minor,
+    "current_total": Employee.current_total_minor,
 }
+SALARY_SORT_FIELDS = frozenset({"current_base", "current_total"})
 
 
 @dataclass(frozen=True, slots=True)

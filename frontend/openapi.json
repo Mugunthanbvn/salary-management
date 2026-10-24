@@ -1,6 +1,15 @@
 {
   "components": {
     "schemas": {
+      "Comp": {
+        "description": "Which amount a salary filter or statistic uses: the base or the total compensation.",
+        "enum": [
+          "base",
+          "total"
+        ],
+        "title": "Comp",
+        "type": "string"
+      },
       "Component": {
         "properties": {
           "amount": {
@@ -938,6 +947,15 @@
         "title": "Role",
         "type": "string"
       },
+      "SalaryBasis": {
+        "description": "How salaries in different currencies are compared: in local currency, or in USD.",
+        "enum": [
+          "local",
+          "usd"
+        ],
+        "title": "SalaryBasis",
+        "type": "string"
+      },
       "SalaryReason": {
         "description": "Why a salary record was written.",
         "enum": [
@@ -1467,6 +1485,74 @@
               },
               "title": "Currency",
               "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "salary_min",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 999999999999999,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salary Min"
+            }
+          },
+          {
+            "in": "query",
+            "name": "salary_max",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "maximum": 999999999999999,
+                  "minimum": 0,
+                  "type": "integer"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salary Max"
+            }
+          },
+          {
+            "in": "query",
+            "name": "salary_basis",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/SalaryBasis"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Salary Basis"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "anyOf": [
+                {
+                  "$ref": "#/components/schemas/Comp"
+                },
+                {
+                  "type": "null"
+                }
+              ],
+              "title": "Comp"
             }
           },
           {

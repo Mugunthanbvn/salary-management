@@ -3,7 +3,8 @@ from typing import Annotated
 
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
-from salary_api.core.schemas import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Money
+from salary_api.core.schemas import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Comp, Money, SalaryBasis
+from salary_api.domain.constants import MAX_AMOUNT_MINOR
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level, SalaryReason
 from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, Department, JobRoleRef
 from salary_api.modules.salaries.schemas import BaseMinor, Component, Components, Note
@@ -20,6 +21,10 @@ WorkEmail = Annotated[
 
 
 SearchTerm = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
+
+
+# A query parameter, so it arrives as text; "1.5" is still refused.
+SalaryBound = Annotated[int, Field(ge=0, le=MAX_AMOUNT_MINOR)]
 
 
 class HireSalary(BaseModel):
@@ -100,6 +105,12 @@ class EmployeeListQuery(BaseModel):
     employment_type: list[EmploymentType] = Field(default_factory=list[EmploymentType])
     status: list[EmployeeStatus] = Field(default_factory=lambda: [EmployeeStatus.ACTIVE])
     currency: list[CurrencyCode] = Field(default_factory=list[CurrencyCode])
+    # Salary range in minor units. These, salary_basis, comp and the salary sorts need
+    # SALARY_READ (403 otherwise): repeated range queries could isolate one person's pay.
+    salary_min: SalaryBound | None = None
+    salary_max: SalaryBound | None = None
+    salary_basis: SalaryBasis | None = None  # local when left out
+    comp: Comp | None = None  # base when left out
     # Comma-separated fields, `-` for descending: sort=-hire_date,last_name. Ties are broken
     # by last_name, first_name, id.
     sort: str | None = None

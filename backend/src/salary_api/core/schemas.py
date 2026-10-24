@@ -1,5 +1,6 @@
-"""Response shapes shared by several modules (docs/glossary.md section 6)."""
+"""API shapes and parameters shared by several modules (docs/glossary.md section 6)."""
 
+from enum import StrEnum
 from typing import Final
 
 from pydantic import BaseModel
@@ -14,3 +15,17 @@ class Money(BaseModel):
 
     amount_minor: int
     currency: str
+
+
+class SalaryBasis(StrEnum):
+    """How salaries in different currencies are compared: in local currency, or in USD."""
+
+    LOCAL = "local"
+    USD = "usd"
+
+
+class Comp(StrEnum):
+    """Which amount a salary filter or statistic uses: the base or the total compensation."""
+
+    BASE = "base"
+    TOTAL = "total"

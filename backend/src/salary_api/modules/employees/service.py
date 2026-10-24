@@ -9,7 +9,7 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
-from salary_api.core.errors import Duplicate, FieldError, NotFound, ValidationFailed
+from salary_api.core.errors import Duplicate, FieldError, Forbidden, NotFound, ValidationFailed
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
@@ -111,7 +111,12 @@ def get_employee(session: Session, principal: Principal, employee_id: int) -> Em
 def list_employees(
     session: Session, principal: Principal, query: EmployeeListQuery
 ) -> EmployeePage:
-    """One page of employees, `ACTIVE` ones by default, sorted by name."""
+    """One page of employees, `ACTIVE` ones by default, sorted by name.
+
+    Salary filters and sorts need SALARY_READ (Forbidden otherwise).
+    """
+    order = _sort_keys(query.sort)
+    _refuse_salary_query_without_salary_read(principal, query, order)
     where = repository.EmployeeFilter(
         search=fold(query.q) if query.q else None,
         countries=query.country,
@@ -125,7 +130,7 @@ def list_employees(
     employees = repository.page(
         session,
         where,
-        order=_sort_keys(query.sort),
+        order=order,
         offset=(query.page - 1) * query.page_size,
         limit=query.page_size,
     )
@@ -139,6 +144,19 @@ def list_employees(
         page_size=query.page_size,
         total=repository.count(session, where),
     )
+
+
+def _refuse_salary_query_without_salary_read(
+    principal: Principal, query: EmployeeListQuery, order: list[repository.SortKey]
+) -> None:
+    """Without SALARY_READ, narrowing a salary range could reveal one person's pay (docs/08 4.1)."""
+    salary_filter = any(
+        value is not None
+        for value in (query.salary_min, query.salary_max, query.salary_basis, query.comp)
+    )
+    salary_sort = any(key.field in repository.SALARY_SORT_FIELDS for key in order)
+    if (salary_filter or salary_sort) and not can_see_salaries(principal):
+        raise Forbidden("Filtering or sorting by salary requires SALARY_READ.")
 
 
 def _sort_keys(sort: str | None) -> list[repository.SortKey]:

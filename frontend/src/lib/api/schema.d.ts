@@ -145,6 +145,12 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * Comp
+         * @description Which amount a salary filter or statistic uses: the base or the total compensation.
+         * @enum {string}
+         */
+        Comp: "base" | "total";
         /** Component */
         Component: {
             amount: components["schemas"]["Money"];
@@ -496,6 +502,12 @@ export interface components {
          */
         Role: "ADMIN" | "HR_MANAGER" | "VIEWER";
         /**
+         * SalaryBasis
+         * @description How salaries in different currencies are compared: in local currency, or in USD.
+         * @enum {string}
+         */
+        SalaryBasis: "local" | "usd";
+        /**
          * SalaryReason
          * @description Why a salary record was written.
          * @enum {string}
@@ -799,6 +811,10 @@ export interface operations {
                 employment_type?: components["schemas"]["EmploymentType"][];
                 status?: components["schemas"]["EmployeeStatus"][];
                 currency?: string[];
+                salary_min?: number | null;
+                salary_max?: number | null;
+                salary_basis?: components["schemas"]["SalaryBasis"] | null;
+                comp?: components["schemas"]["Comp"] | null;
                 sort?: string | null;
                 page?: number;
                 page_size?: number;
