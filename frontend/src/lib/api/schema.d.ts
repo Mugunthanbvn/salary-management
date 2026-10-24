@@ -799,6 +799,7 @@ export interface operations {
                 employment_type?: components["schemas"]["EmploymentType"][];
                 status?: components["schemas"]["EmployeeStatus"][];
                 currency?: string[];
+                sort?: string | null;
                 page?: number;
                 page_size?: number;
             };

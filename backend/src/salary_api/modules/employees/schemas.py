@@ -100,6 +100,9 @@ class EmployeeListQuery(BaseModel):
     employment_type: list[EmploymentType] = Field(default_factory=list[EmploymentType])
     status: list[EmployeeStatus] = Field(default_factory=lambda: [EmployeeStatus.ACTIVE])
     currency: list[CurrencyCode] = Field(default_factory=list[CurrencyCode])
+    # Comma-separated fields, `-` for descending: sort=-hire_date,last_name. Ties are broken
+    # by last_name, first_name, id.
+    sort: str | None = None
     page: int = Field(default=1, ge=1)
     page_size: int = Field(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE)
 

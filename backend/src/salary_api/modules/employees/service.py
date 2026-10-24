@@ -35,6 +35,8 @@ from salary_api.modules.salaries.schemas import Component
 
 ENTITY = "employee"  # audit events name the entity they change
 CODE_PREFIX = "ACME-"
+# After the requested sort fields; the repository ends every order with the id.
+TIEBREAK = ("last_name", "first_name")
 
 
 def create_employee(
@@ -116,7 +118,11 @@ def list_employees(
         currencies=query.currency,
     )
     employees = repository.page(
-        session, where, offset=(query.page - 1) * query.page_size, limit=query.page_size
+        session,
+        where,
+        order=_sort_keys(query.sort),
+        offset=(query.page - 1) * query.page_size,
+        limit=query.page_size,
     )
     salary_visible = principal.has(Permission.SALARY_READ)
     return EmployeePage(
@@ -128,6 +134,27 @@ def list_employees(
         page_size=query.page_size,
         total=repository.count(session, where),
     )
+
+
+def _sort_keys(sort: str | None) -> list[repository.SortKey]:
+    """The requested sort keys, then the tiebreak fields the request did not name."""
+    requested: list[repository.SortKey] = []
+    for token in sort.split(",") if sort is not None else []:
+        field = token.removeprefix("-")
+        if field not in repository.SORT_COLUMNS:
+            allowed = ", ".join(repository.SORT_COLUMNS)
+            raise ValidationFailed(
+                [
+                    {
+                        "loc": ["query", "sort"],
+                        "code": "unknown_sort_field",
+                        "message": f"Cannot sort by {field!r}. Sort by: {allowed}.",
+                    }
+                ]
+            )
+        requested.append(repository.SortKey(field, descending=token.startswith("-")))
+    named = {key.field for key in requested}
+    return requested + [repository.SortKey(field) for field in TIEBREAK if field not in named]
 
 
 def _detail(employee: Employee, *, salary_visible: bool) -> EmployeeDetail:

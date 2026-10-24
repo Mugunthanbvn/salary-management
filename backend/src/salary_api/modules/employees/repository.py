@@ -1,4 +1,4 @@
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
 from sqlalchemy import ColumnElement, Select, func, select
@@ -47,6 +47,23 @@ def email_in_use(session: Session, email: str) -> bool:
     return session.scalar(select(Employee.id).where(Employee.email == email)) is not None
 
 
+# The only columns a list can be sorted by: sort fields never become SQL text.
+SORT_COLUMNS: Mapping[str, QueryableAttribute[object]] = {
+    "last_name": Employee.last_name,
+    "first_name": Employee.first_name,
+    "employee_code": Employee.employee_code,
+    "hire_date": Employee.hire_date,
+    "country": Employee.country_code,
+    "level": Employee.level,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class SortKey:
+    field: str  # a key of SORT_COLUMNS
+    descending: bool = False
+
+
 @dataclass(frozen=True, slots=True)
 class EmployeeFilter:
     """Which employees a list shows. An empty sequence means no condition on that field."""
@@ -61,13 +78,27 @@ class EmployeeFilter:
     currencies: Sequence[str] = ()
 
 
-def page(session: Session, where: EmployeeFilter, *, offset: int, limit: int) -> Sequence[Employee]:
-    """One page of matching employees with role and department loaded (one query)."""
+def page(
+    session: Session,
+    where: EmployeeFilter,
+    *,
+    order: Sequence[SortKey],
+    offset: int,
+    limit: int,
+) -> Sequence[Employee]:
+    """One page of matching employees with role and department loaded (one query).
+
+    Sorted by `order`, then by id, so every page boundary is stable.
+    """
+    order_by = [
+        SORT_COLUMNS[key.field].desc() if key.descending else SORT_COLUMNS[key.field].asc()
+        for key in order
+    ]
     query = (
         _matching(select(Employee), where)
         .options(contains_eager(Employee.job_role).contains_eager(JobRole.department))
         .join(JobRole.department)
-        .order_by(Employee.last_name, Employee.first_name, Employee.id)
+        .order_by(*order_by, Employee.id)
         .offset(offset)
         .limit(limit)
     )
