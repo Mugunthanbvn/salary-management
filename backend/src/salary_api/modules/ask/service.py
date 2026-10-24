@@ -24,7 +24,7 @@ from pydantic import BaseModel, ConfigDict, Field, ValidationError
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
-from salary_api.core.errors import RateLimited, UpstreamUnavailable
+from salary_api.core.errors import FeatureDisabled, RateLimited, UpstreamUnavailable
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Principal
 from salary_api.core.schemas import Money
@@ -37,6 +37,7 @@ from salary_api.modules.ask.llm import (
     Message,
     ToolSpec,
 )
+from salary_api.modules.ask.openai_client import OpenAICompatibleLLMClient
 from salary_api.modules.ask.prompt import system_prompt
 from salary_api.modules.ask.schemas import (
     MAX_MESSAGE_CHARS,
@@ -85,6 +86,16 @@ class Outcome(StrEnum):
     INVALID_OUTPUT = "invalid_output"
     UPSTREAM_RATE_LIMITED = "upstream_rate_limited"
     UPSTREAM_ERROR = "upstream_error"
+
+
+def llm_client(settings: Settings) -> LLMClient:
+    """The configured provider. Ask is switched off while LLM_API_KEY is empty."""
+    api_key = settings.llm_api_key.get_secret_value()
+    if not api_key:
+        raise FeatureDisabled("Ask is turned off on this deployment: no LLM_API_KEY is set.")
+    return OpenAICompatibleLLMClient(
+        base_url=settings.llm_base_url, api_key=api_key, model=settings.llm_model
+    )
 
 
 def ask(  # noqa: PLR0913

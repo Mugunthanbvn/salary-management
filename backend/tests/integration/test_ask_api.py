@@ -15,6 +15,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from salary_api.core.deps import get_session
+from salary_api.modules.ask import service
 from salary_api.modules.ask.llm import LLMClient
 from salary_api.modules.ask.openai_client import OpenAICompatibleLLMClient
 from salary_api.modules.ask.router import get_llm_client
@@ -224,3 +225,10 @@ def test_other_provider_errors_are_upstream_unavailable(
     assert response.status_code == 502
     assert response.json()["type"] == f"{PROBLEMS}upstream-unavailable"
     assert "malformed" not in response.text  # the provider's body is never echoed
+
+
+def test_with_a_key_the_configured_provider_is_used() -> None:
+    llm = service.llm_client(make_settings(llm_api_key="test-key"))
+
+    assert isinstance(llm, OpenAICompatibleLLMClient)
+    assert (llm.provider, llm.model) == ("gemini", "gemini-flash-latest")

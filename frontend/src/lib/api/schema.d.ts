@@ -4,6 +4,23 @@
  */
 
 export interface paths {
+    "/api/v1/ask": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Ask a question about pay in plain words (audited) */
+        post: operations["ask_api_v1_ask_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/auth/login": {
         parameters: {
             query?: never;
@@ -368,6 +385,27 @@ export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
         /**
+         * AskRequest
+         * @description The conversation so far, kept by the client: the last 6 turns, ending with a question.
+         */
+        AskRequest: {
+            /** Messages */
+            messages: components["schemas"]["ChatMessage"][];
+        };
+        /** AskResponse */
+        AskResponse: {
+            /** Answer */
+            answer: string;
+            /** Caveats */
+            caveats: string[];
+            /** Dashboard Link */
+            dashboard_link: string | null;
+            /** Figures */
+            figures: components["schemas"]["Figure"][];
+            /** Tool Calls */
+            tool_calls: components["schemas"]["ToolCallTrace"][];
+        };
+        /**
          * Band
          * @description A pay band in minor units of `currency`. Policy, not anyone's pay: never hidden.
          */
@@ -414,6 +452,17 @@ export interface components {
             /** Id */
             id: number;
         };
+        /** ChatMessage */
+        ChatMessage: {
+            /** Content */
+            content: string;
+            role: components["schemas"]["ChatRole"];
+        };
+        /**
+         * ChatRole
+         * @enum {string}
+         */
+        ChatRole: "user" | "assistant";
         /**
          * CohortEquity
          * @description One job role + level + country against its band. Ratios are 2-decimal strings.
@@ -781,6 +830,18 @@ export interface components {
             message: string;
         } & {
             [key: string]: unknown;
+        };
+        /**
+         * Figure
+         * @description A key figure of the answer, as a tool returned it: an amount, or a number (a count,
+         *     a compa-ratio such as `0.93`, a share such as `0.2000`).
+         */
+        Figure: {
+            /** Label */
+            label: string;
+            /** Number */
+            number: string | null;
+            value: components["schemas"]["Money"] | null;
         };
         /** FxRateItem */
         FxRateItem: {
@@ -1236,6 +1297,24 @@ export interface components {
             rollup: string;
         };
         /**
+         * ToolCallTrace
+         * @description One tool the model called, for "How I got this". Built by the server, not the model.
+         */
+        ToolCallTrace: {
+            /** Args */
+            args: {
+                [key: string]: unknown;
+            };
+            /** Duration Ms */
+            duration_ms: number;
+            /** Name */
+            name: string;
+            /** Ok */
+            ok: boolean;
+            /** Summary */
+            summary: string;
+        };
+        /**
          * TopEarners
          * @description docs/09 section 3.6: individuals, so SALARY_READ only. Ties go by employee code.
          */
@@ -1282,6 +1361,104 @@ export interface components {
 }
 export type $defs = Record<string, never>;
 export interface operations {
+    ask_api_v1_ask_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["AskRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["AskResponse"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Too many requests */
+            429: {
+                headers: {
+                    /** @description Seconds to wait before trying again */
+                    "Retry-After"?: number;
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description `upstream-unavailable`: the LLM provider failed */
+            502: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description `feature-disabled`: the feature is switched off */
+            503: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     login_api_v1_auth_login_post: {
         parameters: {
             query?: never;
