@@ -187,7 +187,9 @@ function TerminateForm({ onOpenChange, employee, version }: DialogProps) {
   function terminate() {
     // The same check and words as the API's `before_hire_date`, to save a round trip.
     if (date && date < employee.hire_date) {
-      setDateError(`The employee was hired on ${employee.hire_date}.`);
+      setDateError(
+        `The employee was hired on ${formatDate(employee.hire_date)}.`,
+      );
       return;
     }
     setDateError(undefined);

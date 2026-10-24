@@ -117,6 +117,18 @@ function SalaryChangeForm({
 
   // A move pays in the new country's currency (docs/07-api-spec.md §6.7).
   const newCountry = reference.countries.find((c) => c.code === countryCode);
+  const currencyOf = (code: string) =>
+    reference.countries.find((c) => c.code === code)?.default_currency ??
+    currentCurrency;
+
+  /** A move to another currency empties every amount: they were typed in the old one. */
+  function changeCountry(code: string) {
+    if (currencyOf(code) !== currencyOf(countryCode)) {
+      setBase("");
+      setRows((current) => current.map((row) => ({ ...row, amount: "" })));
+    }
+    setCountryCode(code);
+  }
   const currency = newCountry?.default_currency ?? currentCurrency;
   const exponent = exponentOf(currency, reference);
   const errors = { ...fieldErrors(problem), ...clientErrors };
@@ -151,6 +163,8 @@ function SalaryChangeForm({
       ...(jobRoleId ? { job_role_id: Number(jobRoleId) } : {}),
       ...(level ? { level: level as Level } : {}),
       ...(countryCode ? { country_code: countryCode } : {}),
+      // The currency the amounts were typed in; the API refuses it if it isn't the country's.
+      currency,
       base_minor: baseMinor.minor,
       components: list.components,
       ...(note.trim() ? { note: note.trim() } : {}),
@@ -258,7 +272,7 @@ function SalaryChangeForm({
           label="New country"
           current={countryName(employee.country_code, reference)}
           value={countryCode}
-          onChange={setCountryCode}
+          onChange={changeCountry}
           error={error("country_code")}
           options={reference.countries
             .filter((c) => c.is_active && c.code !== employee.country_code)

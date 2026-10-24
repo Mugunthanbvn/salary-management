@@ -142,6 +142,8 @@ export function NewEmployeeForm({ reference }: { reference: ReferenceData }) {
       country_code: values.country_code,
       hire_date: values.hire_date,
       salary: {
+        // Always the country's; sent so the API confirms what the amounts were typed in.
+        currency: currency ?? undefined,
         base_minor: baseMinor,
         components: list.components,
         ...(values.note.trim() ? { note: values.note.trim() } : {}),

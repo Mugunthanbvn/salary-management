@@ -217,7 +217,7 @@ function ResultsTable({ items, reference, state, showPay }: ListProps) {
                     href={`/employees/${employee.id}`}
                     className={cn(
                       // Ink names as on the printout; the underline shows the link.
-                      "inline-flex min-h-6 items-center font-bold text-ink no-underline hover:text-ink hover:underline hover:underline-offset-4",
+                      "inline-flex min-h-11 items-center font-bold text-ink no-underline hover:text-ink hover:underline hover:underline-offset-4",
                       terminated && "text-ink-3 hover:text-ink-3",
                     )}
                   >
