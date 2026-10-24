@@ -40,15 +40,16 @@ def xlsx_bytes(
     return buffer.getvalue()
 
 
-def replace_in_sheets(content: bytes, old: str, new: str) -> bytes:
-    """The workbook with `old` replaced by `new` in each worksheet's XML (to fake what Excel
-    writes, such as a formula's saved value)."""
+def replace_in_sheets(content: bytes, old: str, new: str, *, part: str = "xl/worksheets/") -> bytes:
+    """The workbook with `old` replaced by `new` in the XML of each part whose name starts
+    with `part` (every worksheet by default), to fake what Excel writes, such as a formula's
+    saved value."""
     source = zipfile.ZipFile(io.BytesIO(content))
     buffer = io.BytesIO()
     with zipfile.ZipFile(buffer, "w", zipfile.ZIP_DEFLATED) as target:
         for item in source.infolist():
             data = source.read(item)
-            if item.filename.startswith("xl/worksheets/"):
+            if item.filename.startswith(part):
                 data = data.replace(old.encode(), new.encode())
             target.writestr(item, data)
     return buffer.getvalue()

@@ -11,7 +11,7 @@ import warnings
 import zipfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
-from datetime import date, datetime, time
+from datetime import datetime, time
 from decimal import Decimal
 from typing import TYPE_CHECKING, Final
 
@@ -151,14 +151,16 @@ def _xlsx_records(
 
 
 def _sheet_rows(workbook: "ReadOnlyWorkbook") -> Iterator[tuple[object, ...]]:
-    try:
-        names: list[str] = workbook.sheetnames
-        sheet = workbook[EMPLOYEES_SHEET] if EMPLOYEES_SHEET in names else workbook.worksheets[0]
-        # The saved dimensions can be wrong; read the rows that are really there.
-        sheet.reset_dimensions()
-        return sheet.iter_rows(max_col=XLSX_COLUMNS_READ, values_only=True)
-    except Exception:
-        raise UnreadableFile(NOT_A_WORKBOOK) from None
+    """The rows of the `Employees` worksheet, or else of the first worksheet."""
+    sheets = {sheet.title: sheet for sheet in workbook.worksheets}  # chart sheets left out
+    if not sheets:
+        raise UnreadableFile(
+            f"The workbook has no worksheet. Put the employees on a sheet called {EMPLOYEES_SHEET}."
+        )
+    sheet = sheets.get(EMPLOYEES_SHEET) or workbook.worksheets[0]
+    # The saved dimensions can be wrong; read the rows that are really there.
+    sheet.reset_dimensions()
+    return sheet.iter_rows(max_col=XLSX_COLUMNS_READ, values_only=True)
 
 
 def _cell_text(value: object) -> Cell:
@@ -170,11 +172,9 @@ def _cell_text(value: object) -> Cell:
     if isinstance(value, float):
         # Through the float's shortest repr: 1234.56 stays "1234.56", never 1234.5599999...
         return format(Decimal(repr(value)), "f")
-    if isinstance(value, datetime):
+    if isinstance(value, datetime):  # openpyxl reads every date cell as a datetime
         return value.date().isoformat() if value.time() == time() else value.isoformat()
-    if isinstance(value, date):
-        return value.isoformat()
-    return str(value)
+    return str(value)  # an int, or a time or duration cell
 
 
 def _size(byte_count: int) -> str:

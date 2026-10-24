@@ -1,11 +1,9 @@
 """The XLSX parser reads values only and gives the same rows as the CSV parser (docs/11 5.1)."""
 
-import io
 from datetime import date, datetime, time
 from pathlib import Path
 
 import pytest
-from openpyxl import Workbook
 
 from salary_api.modules.imports.parsing import (
     HeaderMismatch,
@@ -92,15 +90,13 @@ def test_the_first_sheet_is_read_when_no_sheet_is_called_employees() -> None:
     assert row["employee_code"] == "ACME-010001"
 
 
-def test_a_workbook_with_only_a_chart_sheet_is_refused_with_a_hint() -> None:
-    workbook = Workbook()
-    workbook.create_chartsheet("Chart")
-    workbook.remove(workbook.worksheets[0])
-    buffer = io.BytesIO()
-    workbook.save(buffer)
+def test_a_workbook_without_a_worksheet_is_refused_with_a_hint() -> None:
+    sheet = '<sheet name="Employees" sheetId="1" state="visible" r:id="rId1" />'
+    content = xlsx_bytes([FULL_HEADER, _employee()])
+    content = replace_in_sheets(content, sheet, "", part="xl/workbook.xml")
 
     with pytest.raises(UnreadableFile, match="no worksheet"):
-        _parse(buffer.getvalue())
+        _parse(content)
 
 
 def test_a_formula_cell_is_read_as_its_saved_value() -> None:
