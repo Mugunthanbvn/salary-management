@@ -60,6 +60,14 @@ describe("formatMoney", () => {
     expect(() => formatMoney(amount, "EUR")).toThrow(RangeError);
   });
 
+  // BigInt() alone would read "" and "  " as 0, "0x1F" as 31 and "+5" as 5.
+  it.each(["", "  ", "0x1F", " 42 ", "+5", "12.5", "1e3"])(
+    "refuses the string %j, which is not a whole number of minor units",
+    (amount) => {
+      expect(() => formatMoney(amount, "EUR")).toThrow(RangeError);
+    },
+  );
+
   // Monthly = annual ÷ 12, rounded half-even at the minor unit (display only).
   it.each([
     { annual: 5_400_000, currency: "EUR", monthly: "€4,500" },
