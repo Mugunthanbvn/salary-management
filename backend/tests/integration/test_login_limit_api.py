@@ -1,4 +1,6 @@
-"""Login failure limit: 5 failures per email in 15 minutes → 429 (docs/glossary.md section 3).
+"""Login failure limit: 5 failures per email in 15 minutes → 429 for 15 minutes (glossary §3).
+
+The block lasts 15 minutes from the failure that reached the limit (the 5th).
 
 Failures are counted from `auth.login_failed` audit events, so the limit holds across
 serverless instances (docs/08-security-rbac.md section 9).
@@ -62,22 +64,34 @@ def test_five_failures_block_even_the_right_password_with_429(
 
 
 @pytest.mark.usefixtures("user_email")
-def test_retry_after_is_the_wait_until_the_oldest_failure_is_15_minutes_old(
+def test_retry_after_is_the_wait_until_the_fifth_failure_is_15_minutes_old(
     client: TestClient, frozen_time: time_machine.Traveller
 ) -> None:
     _fail_logins(client, frozen_time, times=5)  # at 0, 1, 2, 3 and 4 minutes; now 5 minutes
 
     response = _login(client)
 
-    assert response.headers["retry-after"] == str(10 * 60)
+    assert response.headers["retry-after"] == str(14 * 60)  # the block ends at 19 minutes
 
 
 @pytest.mark.usefixtures("user_email")
-def test_the_limit_holds_until_the_last_second_of_the_window(
+def test_the_block_lasts_15_minutes_even_after_older_failures_leave_the_window(
     client: TestClient, frozen_time: time_machine.Traveller
 ) -> None:
     _fail_logins(client, frozen_time, times=5)
-    frozen_time.shift(timedelta(minutes=10) - timedelta(seconds=1))  # oldest is 14:59 old
+    frozen_time.shift(timedelta(minutes=11))  # 16 minutes: only 4 failures are under 15 old
+
+    response = _login(client)
+
+    assert (response.status_code, response.headers["retry-after"]) == (429, str(3 * 60))
+
+
+@pytest.mark.usefixtures("user_email")
+def test_the_block_holds_until_its_last_second(
+    client: TestClient, frozen_time: time_machine.Traveller
+) -> None:
+    _fail_logins(client, frozen_time, times=5)
+    frozen_time.shift(timedelta(minutes=14) - timedelta(seconds=1))  # the 5th is 14:59 old
 
     response = _login(client)
 
@@ -85,11 +99,11 @@ def test_the_limit_holds_until_the_last_second_of_the_window(
 
 
 @pytest.mark.usefixtures("user_email")
-def test_a_login_is_allowed_again_once_the_oldest_failure_leaves_the_window(
+def test_a_login_is_allowed_again_15_minutes_after_the_fifth_failure(
     client: TestClient, frozen_time: time_machine.Traveller
 ) -> None:
     _fail_logins(client, frozen_time, times=5)
-    frozen_time.shift(timedelta(minutes=10))  # the oldest failure is exactly 15 minutes old
+    frozen_time.shift(timedelta(minutes=14))  # the 5th failure is exactly 15 minutes old
 
     assert _login(client).status_code == 200
 
