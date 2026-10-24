@@ -9,6 +9,7 @@ from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
+from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.salaries.models import SalaryRecord
 from tests.conftest import signed_in_client
@@ -107,3 +108,40 @@ def test_create_employee_writes_the_hire_record_and_points_the_employee_at_it(
         5_892_000,
     )
     assert employee.search_text == "lena muller acme-000001 lena.mueller@acme.example"
+
+
+def test_create_employee_writes_one_audit_event_with_the_created_fields(
+    app: FastAPI,
+    client: TestClient,
+    db_session: Session,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    hr = make_user(db_session, role="HR_MANAGER")
+    role = make_job_role(db_session)
+    make_country(db_session, "DE")
+
+    response = signed_in_client(app, hr, settings).post(
+        EMPLOYEES, json=employee_request(role.id, employee_code="ACME-000001")
+    )
+
+    body = response.json()
+    event = db_session.scalars(select(AuditEvent)).one()
+    assert (event.action, event.actor_id, event.entity, event.entity_id) == (
+        "employee.create",
+        hr.id,
+        "employee",
+        str(body["id"]),
+    )
+    assert event.diff == {
+        "employee_code": "ACME-000001",
+        "first_name": "Lena",
+        "last_name": "Müller",
+        "email": "lena.mueller@acme.example",
+        "job_role_id": role.id,
+        "level": "L2",
+        "employment_type": "FULL_TIME",
+        "country_code": "DE",
+        "hire_date": "2026-09-01",
+        "salary_record_id": body["current_salary"]["id"],
+    }
