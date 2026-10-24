@@ -50,6 +50,8 @@ src = ["src", "tests"]
 
 [tool.ruff.lint]
 select = ["E", "F", "I", "B", "UP", "SIM", "S", "PT", "RUF", "N", "PL"]
+# Problem exceptions use the names in docs/05-architecture.md section 9 (NotFound, Forbidden, ...).
+ignore = ["N818"]
 
 [tool.ruff.lint.per-file-ignores]
 # Tests use plain asserts, literal status codes and fake secrets.

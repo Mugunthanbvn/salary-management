@@ -6,9 +6,10 @@ A status with no glossary slug uses `about:blank` and the HTTP status phrase as 
 
 from collections.abc import Mapping
 from http import HTTPStatus
-from typing import Any
+from typing import Any, TypedDict
 
 from fastapi import FastAPI, Request
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
@@ -41,6 +42,22 @@ class ProblemError(Exception):
         self.extra = extra
 
 
+class FieldError(TypedDict):
+    loc: list[str | int]
+    code: str
+    message: str
+
+
+class ValidationFailed(ProblemError):
+    """422: field-level errors in a JSON body or query, listed in `errors[]`."""
+
+    def __init__(self, errors: list[FieldError], detail: str | None = None) -> None:
+        count = "1 field is" if len(errors) == 1 else f"{len(errors)} fields are"
+        super().__init__(
+            422, "validation", "Validation failed", detail or f"{count} invalid.", errors=errors
+        )
+
+
 def problem_response(
     request: Request, problem: ProblemError, headers: Mapping[str, str] | None = None
 ) -> JSONResponse:
@@ -64,7 +81,21 @@ def _from_http_exception(exc: StarletteHTTPException) -> ProblemError:
     return ProblemError(exc.status_code, slug, title, detail)
 
 
+def _from_request_validation_error(exc: RequestValidationError) -> ValidationFailed:
+    errors: list[FieldError] = [
+        {"loc": list(error["loc"]), "code": error["type"], "message": error["msg"]}
+        for error in exc.errors()
+    ]
+    return ValidationFailed(errors)
+
+
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:
         return problem_response(request, _from_http_exception(exc), exc.headers)
+
+    @app.exception_handler(RequestValidationError)
+    async def handle_request_validation_error(
+        request: Request, exc: RequestValidationError
+    ) -> JSONResponse:
+        return problem_response(request, _from_request_validation_error(exc))
