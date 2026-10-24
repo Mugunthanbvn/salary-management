@@ -1,9 +1,11 @@
 """Engine and session factory, chosen only by DATABASE_URL (+ DATABASE_AUTH_TOKEN)."""
 
-from collections.abc import Callable
+import sqlite3
+from collections.abc import Callable, Generator
+from contextlib import contextmanager
 from typing import Any
 
-from sqlalchemy import URL, Engine, create_engine, event, make_url
+from sqlalchemy import URL, Connection, Engine, create_engine, event, make_url
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool, Pool, StaticPool
 
@@ -35,6 +37,39 @@ def create_db_engine(settings: Settings) -> Engine:
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+@contextmanager
+def foreign_keys_off_for_migrations(connection: Connection) -> Generator[None]:
+    """Turn SQLite foreign keys off while migrations run, and back on afterwards.
+
+    Batch migrations rebuild a table by copy, drop and rename; with foreign keys on,
+    dropping a table that others reference fails or cascades. Use it before the
+    migration transaction starts.
+    """
+    if connection.dialect.name != "sqlite":
+        yield
+        return
+    _set_sqlite_foreign_keys(connection, enabled=False)
+    try:
+        yield
+    finally:
+        _set_sqlite_foreign_keys(connection, enabled=True)
+
+
+def _set_sqlite_foreign_keys(connection: Connection, *, enabled: bool) -> None:
+    statement = "PRAGMA foreign_keys=ON" if enabled else "PRAGMA foreign_keys=OFF"
+    if connection.in_transaction():
+        connection.commit()  # migrations are done (or not started): close what they left open
+    dbapi_connection = connection.connection.dbapi_connection
+    if isinstance(dbapi_connection, sqlite3.Connection) and dbapi_connection.autocommit is False:
+        # PEP 249 mode keeps a transaction open, and SQLite ignores this PRAGMA inside one.
+        dbapi_connection.autocommit = True
+        dbapi_connection.execute(statement)
+        dbapi_connection.autocommit = False
+    else:
+        connection.exec_driver_sql(statement)
+        connection.commit()
 
 
 def _pool_class(settings: Settings, url: URL) -> type[Pool] | None:

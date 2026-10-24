@@ -37,7 +37,7 @@ ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
 def upgrade_to_head(engine: Engine) -> None:
     """Build the schema from the Alembic migrations, so every test run checks them."""
     config = Config(ALEMBIC_INI)
-    with engine.begin() as connection:
+    with engine.connect() as connection:  # not begin(): env.py manages the transaction
         config.attributes["connection"] = connection
         command.upgrade(config, "head")
 

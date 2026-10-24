@@ -1,6 +1,7 @@
 """Alembic environment. The database comes from Settings (DATABASE_URL + DATABASE_AUTH_TOKEN).
 
-Tests and scripts may pass an open connection in `config.attributes["connection"]`.
+Tests and scripts may pass an open connection, not in a transaction, in
+`config.attributes["connection"]`.
 """
 
 from logging.config import fileConfig
@@ -9,7 +10,7 @@ from alembic import context
 from sqlalchemy import Connection
 
 from salary_api.core.config import load_settings
-from salary_api.core.db import create_db_engine
+from salary_api.core.db import create_db_engine, foreign_keys_off_for_migrations
 from salary_api.core.models import Base
 
 config = context.config
@@ -46,7 +47,9 @@ def run_migrations_online() -> None:
 def _run_migrations(connection: Connection) -> None:
     # Batch mode rebuilds tables for ALTERs that SQLite cannot do in place.
     context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
-    with context.begin_transaction():
+    # Foreign keys off before the migration transaction starts: batch mode may rebuild
+    # a table that others reference. They are back on for every app connection.
+    with foreign_keys_off_for_migrations(connection), context.begin_transaction():
         context.run_migrations()
 
 
