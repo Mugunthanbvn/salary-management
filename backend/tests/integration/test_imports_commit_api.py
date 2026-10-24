@@ -12,6 +12,7 @@ from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
+from salary_api.domain.enums import ImportStatus
 from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.imports.models import ImportJob
@@ -309,3 +310,30 @@ def test_a_database_error_mid_commit_keeps_its_message_but_no_row_values(
     assert result["http_status"] == 500
     db_session.refresh(job)
     assert job.failure_reason == "IntegrityError: CHECK constraint failed"
+
+
+def test_a_failed_commit_never_marks_a_job_another_request_committed_meanwhile(
+    hr: TestClient,
+    hr_user: User,
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # Without SQLite's write lock (Turso), two commits of one job can overlap: the second
+    # then fails on the codes the first inserted, after the first has committed the job.
+    job = make_dry_run(
+        db_session, hire(1, allowance_1_name="Meals", allowance_1_amount="100"), user=hr_user
+    )
+
+    def committed_meanwhile(*_args: object, **_kwargs: object) -> None:
+        job.status = ImportStatus.COMMITTED
+        db_session.commit()  # the other request's commit
+        raise IntegrityError("INSERT INTO employees", {}, Exception("UNIQUE constraint failed"))
+
+    monkeypatch.setattr(salary_repository, "insert_components", committed_meanwhile)
+
+    result = _commit(hr, job)
+
+    assert result["http_status"] == 500
+    db_session.refresh(job)
+    assert (job.status, job.failure_reason) == ("COMMITTED", None)
