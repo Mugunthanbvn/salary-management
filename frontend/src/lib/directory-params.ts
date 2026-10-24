@@ -222,8 +222,9 @@ export function toExportQuery(
   format: ExportFormat,
   options: { canReadSalaries: boolean; reference: ReferenceData },
 ): ExportQuery {
-  void state;
-  void format;
-  void options;
-  throw new Error("toExportQuery is not implemented yet");
+  // The export takes no paging (the API refuses `page`): it is the whole filtered list.
+  const { page, page_size, ...query } = toListQuery(state, options);
+  void page;
+  void page_size;
+  return { ...query, format };
 }
