@@ -8,7 +8,7 @@ import { AppHeader } from "./app-header";
 import { BottomNav } from "./bottom-nav";
 import { MeProvider } from "./me-context";
 
-const route = { pathname: "/insights" };
+const route = vi.hoisted(() => ({ pathname: "/insights" }));
 vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
   useRouter: () => ({ refresh: vi.fn() }),
