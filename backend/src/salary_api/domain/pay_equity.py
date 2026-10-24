@@ -9,7 +9,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW
-from salary_api.domain.enums import EmploymentType, PayEquityFlag
+from salary_api.domain.enums import EmploymentType, Level, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
 
 
@@ -29,6 +29,32 @@ class CompaRatio:
 
     value: Decimal | None
     reason: NoCompaRatioReason | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class CohortKey:
+    """Peers doing the same job at the same level in the same labour market (and currency)."""
+
+    job_role_id: int
+    level: Level
+    country_code: str
+
+
+@dataclass(frozen=True, slots=True)
+class EmployeePay:
+    """What pay equity needs to know about one employee. `band_mid` is None with no band."""
+
+    department_id: int
+    job_role_id: int
+    level: Level
+    country_code: str
+    employment_type: EmploymentType
+    base: Money
+    band_mid: Money | None
+
+    @property
+    def cohort(self) -> CohortKey:
+        return CohortKey(self.job_role_id, self.level, self.country_code)
 
 
 def compa_ratio(base: Money, band_mid: Money | None, employment_type: EmploymentType) -> CompaRatio:
