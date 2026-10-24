@@ -78,7 +78,7 @@ class Overview(BaseModel):
     population: Population
     currency: str
     fx_as_of: date | None  # the oldest rate used for a USD figure; None when none was needed
-    headcount: int
+    headcount: int | None  # null when the population is suppressed
     total_payroll_usd: Money | None
     stats: Stats
     by_country: list[CountryStats]

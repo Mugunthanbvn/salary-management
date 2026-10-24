@@ -583,7 +583,7 @@ export interface components {
             /** Fx As Of */
             fx_as_of: string | null;
             /** Headcount */
-            headcount: number;
+            headcount: number | null;
             population: components["schemas"]["Population"];
             stats: components["schemas"]["Stats"];
             total_payroll_usd: components["schemas"]["Money"] | null;

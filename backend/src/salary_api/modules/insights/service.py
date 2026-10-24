@@ -20,10 +20,12 @@ from sqlalchemy.orm import Session
 from salary_api.core.errors import ValidationFailed
 from salary_api.core.permissions import Principal
 from salary_api.core.schemas import Money
+from salary_api.domain.constants import MIN_GROUP_SIZE
 from salary_api.domain.currency import USD
 from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.stats import InsufficientData, Summary, summarize
+from salary_api.modules.employees.service import can_see_salaries
 from salary_api.modules.insights import repository
 from salary_api.modules.insights.schemas import (
     CountryStats,
@@ -36,39 +38,92 @@ from salary_api.modules.insights.schemas import (
 
 def overview(session: Session, principal: Principal, query: InsightQuery) -> Overview:
     """Headcount, payroll in USD and pay by country (docs/09 section 3.1)."""
-    del principal  # used once masking applies
+    audience = _Audience.of(principal)
     markets = _markets(session, query.country)
     currency = markets.currency_of_population(query.country)
     convert = _Converter(markets.rates)
     rows = repository.amounts_by_country(session, _where(query), query.comp)
-    by_country: list[CountryStats] = []
-    amounts: list[int] = []
-    usd_amounts: list[int] = []
-    for country_code, group in groupby(rows, key=itemgetter(0)):
-        members = [(member_currency, amount) for _, member_currency, amount in group]
-        local_currency = _one_currency(members)
-        usd = [convert.to(USD, amount, member_currency) for member_currency, amount in members]
-        by_country.append(
-            CountryStats(
-                country_code=country_code,
-                local=_stats(summarize(amount for _, amount in members), local_currency),
-                usd=_stats(summarize(usd), USD),
-            )
-        )
-        amounts += [
-            convert.to(currency, amount, member_currency) for member_currency, amount in members
-        ]
-        usd_amounts += usd
+    countries = [
+        _Group(country_code, [(currency, amount) for _, currency, amount in group])
+        for country_code, group in groupby(rows, key=itemgetter(0))
+    ]
+    hidden = audience.hidden_groups([country.count for country in countries])
+    usd_amounts = [convert.to(USD, amount, ccy) for c in countries for ccy, amount in c.members]
+    total_hidden = audience.hides(len(rows))
     payroll = summarize(usd_amounts)
     return Overview(
         population=_population(query),
         currency=currency,
         fx_as_of=convert.fx_as_of,
-        headcount=len(rows),
-        total_payroll_usd=_money(payroll.sum, USD) if isinstance(payroll, Summary) else None,
-        stats=_stats(summarize(amounts), currency),
-        by_country=by_country,
+        headcount=None if total_hidden else len(rows),
+        total_payroll_usd=None
+        if total_hidden or not isinstance(payroll, Summary)
+        else _money(payroll.sum, USD),
+        stats=_stats(
+            summarize(convert.to(currency, a, ccy) for c in countries for ccy, a in c.members),
+            currency,
+            hidden=total_hidden,
+            audience=audience,
+        ),
+        by_country=[
+            CountryStats(
+                country_code=country.key,
+                local=_stats(
+                    summarize(country.amounts),
+                    country.currency,
+                    hidden=index in hidden,
+                    audience=audience,
+                ),
+                usd=_stats(
+                    summarize(convert.to(USD, a, ccy) for ccy, a in country.members),
+                    USD,
+                    hidden=index in hidden,
+                    audience=audience,
+                ),
+            )
+            for index, country in enumerate(countries)
+        ],
     )
+
+
+@dataclass(frozen=True, slots=True)
+class _Audience:
+    """Whether the caller may see individual pay (SALARY_READ) or only aggregates."""
+
+    salary_visible: bool
+
+    @classmethod
+    def of(cls, principal: Principal) -> "_Audience":
+        return cls(salary_visible=can_see_salaries(principal))
+
+    def hides(self, count: int) -> bool:
+        """The small-group rule: without SALARY_READ, fewer than MIN_GROUP_SIZE is hidden."""
+        return not self.salary_visible and count < MIN_GROUP_SIZE
+
+    def hidden_groups(self, counts: Sequence[int]) -> set[int]:
+        """The indexes of the groups of one breakdown that this caller may not see."""
+        return {index for index, count in enumerate(counts) if self.hides(count)}
+
+
+@dataclass(frozen=True, slots=True)
+class _Group[K]:
+    """One group of a breakdown: its key and each member's (currency, amount), sorted."""
+
+    key: K
+    members: Sequence[tuple[str, int]]
+
+    @property
+    def count(self) -> int:
+        return len(self.members)
+
+    @property
+    def currency(self) -> str:
+        """The currency every member is paid in (one country is always one currency)."""
+        return _one_currency(self.members)
+
+    @property
+    def amounts(self) -> list[int]:
+        return [amount for _currency, amount in self.members]
 
 
 @dataclass(frozen=True, slots=True)
@@ -143,10 +198,13 @@ def _one_currency(members: Iterable[tuple[str, int]]) -> str:
     return first
 
 
-def _stats(summary: Summary | InsufficientData, currency: str) -> Stats:
-    if isinstance(summary, InsufficientData):
+def _stats(
+    summary: Summary | InsufficientData, currency: str, *, hidden: bool, audience: "_Audience"
+) -> Stats:
+    """The stats object of one group; every value and the count are null when it is hidden."""
+    if hidden or isinstance(summary, InsufficientData):
         return Stats(
-            count=0,
+            count=None if hidden else 0,
             min=None,
             p25=None,
             median=None,
@@ -154,8 +212,9 @@ def _stats(summary: Summary | InsufficientData, currency: str) -> Stats:
             p75=None,
             max=None,
             currency=currency,
-            suppressed=False,
+            suppressed=hidden,
         )
+    del audience  # min and max are masked next
     return Stats(
         count=summary.count,
         min=summary.min,

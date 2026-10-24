@@ -924,8 +924,15 @@
             "title": "Fx As Of"
           },
           "headcount": {
-            "title": "Headcount",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headcount"
           },
           "population": {
             "$ref": "#/components/schemas/Population"
