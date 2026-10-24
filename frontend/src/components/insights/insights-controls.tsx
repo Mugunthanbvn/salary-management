@@ -1,7 +1,7 @@
 "use client";
 
 import { ChevronDownIcon } from "lucide-react";
-import { useId } from "react";
+import { useId, type ReactNode } from "react";
 
 import { Checkbox } from "@/components/ui/checkbox";
 import {
@@ -23,12 +23,9 @@ import {
   STATUS_LABELS,
 } from "@/lib/labels";
 
-import { useInsightsState } from "./insights-state";
+import { useInsightsPending, useInsightsState } from "./insights-state";
 
 type ReferenceData = components["schemas"]["ReferenceData"];
-
-export const TOTAL_PAY_NOTE =
-  "Total = base + allowances + target bonus. Equity and commission are not included.";
 
 /** The Base / Total and Yearly / Monthly toggles (docs/13-frontend-ux.md §3.4). */
 export function PayToggles() {
@@ -205,5 +202,52 @@ function CheckGroup<T extends string>({
         );
       })}
     </fieldset>
+  );
+}
+
+/** Job pay by role alone, or split by level too (`split_by_level`). */
+export function SplitByLevelToggle() {
+  const [state, setState] = useInsightsState();
+  return (
+    <SegmentedControl
+      label="Group jobs by"
+      options={[
+        { value: "role", label: "Job" },
+        { value: "level", label: "Job and level" },
+      ]}
+      value={state.split_by_level ? "level" : "role"}
+      onChange={(value) => void setState({ split_by_level: value === "level" })}
+    />
+  );
+}
+
+/** Top or bottom earners (`direction`). */
+export function DirectionToggle() {
+  const [state, setState] = useInsightsState();
+  return (
+    <SegmentedControl
+      label="Earners"
+      options={[
+        { value: "top", label: "Highest paid" },
+        { value: "bottom", label: "Lowest paid" },
+      ]}
+      value={state.direction}
+      onChange={(direction) => void setState({ direction })}
+    />
+  );
+}
+
+/** Dims the figures while the server renders new ones for a changed filter. */
+export function InsightsBusy({ children }: { children: ReactNode }) {
+  const pending = useInsightsPending();
+  return (
+    <div
+      aria-busy={pending || undefined}
+      className={
+        pending ? "opacity-60 transition-opacity" : "transition-opacity"
+      }
+    >
+      {children}
+    </div>
   );
 }

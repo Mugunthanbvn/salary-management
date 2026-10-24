@@ -119,11 +119,7 @@ function serveInsights(bodies: Bodies = {}) {
 type Search = Record<string, string | string[]>;
 
 // A Server Component: call it with the page's search params, then render what it returns.
-async function renderPage(
-  search: Search = {},
-  me: Me = makeMe(),
-  onUrlUpdate?: ReturnType<typeof vi.fn>,
-) {
+async function renderPage(search: Search = {}, me: Me = makeMe()) {
   getMe.mockResolvedValue(me);
   signedInRequest();
   const query = new URLSearchParams();
@@ -134,7 +130,7 @@ async function renderPage(
     params: Promise.resolve({}),
     searchParams: Promise.resolve(search),
   });
-  renderInApp(page, { me, searchParams: `?${query.toString()}`, onUrlUpdate });
+  renderInApp(page, { me, searchParams: `?${query.toString()}` });
 }
 
 function section(name: string) {

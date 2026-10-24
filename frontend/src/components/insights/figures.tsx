@@ -10,6 +10,7 @@ import {
   PopoverTrigger,
 } from "@/components/ui/popover";
 import { insightsParsers } from "@/lib/insights-params";
+import { formatCount } from "@/lib/numbers";
 
 /** Why a figure is a dash (docs/13-frontend-ux.md §3.5). */
 export const HIDDEN_REASON =
@@ -43,6 +44,36 @@ export function Hidden({ className }: { className?: string }) {
 export function usePeriod() {
   const [period] = useQueryState("period", insightsParsers.period);
   return period;
+}
+
+/** "a year" or "a month", to go with amounts shown by PeriodMoney. */
+export function PerPeriod() {
+  return usePeriod() === "monthly" ? "a month" : "a year";
+}
+
+/** A headcount from the API, or a dash when it is hidden. */
+export function Count({ value }: { value: number | null }) {
+  if (value === null) return <Hidden />;
+  return <span className="tabular-nums">{formatCount(value)}</span>;
+}
+
+/** "€48,000 to €63,000": two figures of one group, or a dash when either is hidden. */
+export function MoneyRange({
+  from,
+  to,
+  currency,
+}: {
+  from: number | null;
+  to: number | null;
+  currency: string;
+}) {
+  if (from === null || to === null) return <Hidden />;
+  return (
+    <span>
+      <PeriodMoney amountMinor={from} currency={currency} /> to{" "}
+      <PeriodMoney amountMinor={to} currency={currency} />
+    </span>
+  );
 }
 
 /** An annual amount from the API, shown a year or a month at a time as the URL says. */

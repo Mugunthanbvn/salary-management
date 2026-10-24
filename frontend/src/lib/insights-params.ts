@@ -28,6 +28,10 @@ export type InsightQuery = NonNullable<
   paths["/api/v1/insights/overview"]["get"]["parameters"]["query"]
 >;
 
+/** What "Total pay" means (docs/13-frontend-ux.md §3.4). */
+export const TOTAL_PAY_NOTE =
+  "Total = base + allowances + target bonus. Equity and commission are not included.";
+
 export const COMPS = ["base", "total"] as const;
 export const PERIODS = ["annual", "monthly"] as const;
 export const DIRECTIONS = ["top", "bottom"] as const;
