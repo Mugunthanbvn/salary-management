@@ -35,3 +35,15 @@ describe("next.config rewrites", () => {
     ]);
   });
 });
+
+describe("next.config redirects", () => {
+  it("sends / to /insights, the landing page", async () => {
+    const { default: nextConfig } = await import("./next.config");
+
+    const redirects = await nextConfig.redirects?.();
+
+    expect(redirects).toEqual([
+      { source: "/", destination: "/insights", permanent: false },
+    ]);
+  });
+});
