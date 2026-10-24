@@ -145,3 +145,38 @@ def test_create_employee_writes_one_audit_event_with_the_created_fields(
         "hire_date": "2026-09-01",
         "salary_record_id": body["current_salary"]["id"],
     }
+
+
+def test_an_omitted_employee_code_is_the_next_after_the_highest(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "DE")
+    hr = as_role("HR_MANAGER")
+    hr.post(
+        EMPLOYEES,
+        json=employee_request(role.id, employee_code="ACME-000041", email="a@acme.example"),
+    )
+
+    response = hr.post(EMPLOYEES, json=employee_request(role.id, email="b@acme.example"))
+
+    assert response.status_code == 201
+    assert response.json()["employee_code"] == "ACME-000042"
+    employee = db_session.get(Employee, response.json()["id"])
+    assert employee is not None
+    assert "acme-000042" in employee.search_text
+
+
+def test_the_first_generated_employee_code_is_acme_000001(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "DE")
+
+    response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id))
+
+    assert response.json()["employee_code"] == "ACME-000001"
