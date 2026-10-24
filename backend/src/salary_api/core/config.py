@@ -10,7 +10,7 @@ type AppEnv = Literal["development", "test", "production"]
 type LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
 
 # The documented development value of JWT_SECRET (backend/.env.example).
-DEV_PLACEHOLDER = "dev-only-change-me"
+DEV_PLACEHOLDER = "dev-change-me"
 # Production refuses a JWT_SECRET that contains any of these, whatever its length.
 PLACEHOLDER_MARKERS = ("change-me", "changeme", "dev-only", "test-only")
 MIN_SECRET_BYTES = 32

@@ -318,7 +318,7 @@ All configuration comes from environment variables, validated at startup by `pyd
 | `APP_ENV` | `development` (`test` in CI) | `production` | Switches strict checks (secure cookies, no defaults). Values per the [glossary](glossary.md) §7 |
 | `DATABASE_URL` | `sqlite:///./dev.db` | `sqlite+libsql://<db>.turso.io?secure=true` (no token in the URL) | The only thing that changes to switch DB; Postgres fallback `postgresql+psycopg://...` |
 | `DATABASE_AUTH_TOKEN` | — | Turso token (secret) | Passed via connect args, never logged |
-| `JWT_SECRET` | `dev-only-change-me` | random ≥32 bytes (secret) | Prod rejects placeholders and anything shorter than 32 bytes |
+| `JWT_SECRET` | `dev-change-me` | random ≥32 bytes (secret) | Prod rejects placeholders and anything shorter than 32 bytes |
 | `JWT_TTL_MINUTES` | `480` **(proposed)** | `480` **(proposed)** | Session length, see [08-security-rbac.md](08-security-rbac.md) |
 | `COOKIE_SECURE` | `false` | `true` | Forced `true` in production |
 | `CORS_ORIGINS` | `http://localhost:3000` | empty | Comma-separated. CORS is off when empty; not needed in prod (same origin via rewrite) |

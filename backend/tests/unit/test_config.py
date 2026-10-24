@@ -1,5 +1,6 @@
 """Settings: production safety checks, env parsing and backend/.env.example."""
 
+import secrets
 from pathlib import Path
 from typing import Any
 
@@ -7,14 +8,14 @@ import pytest
 from dotenv import dotenv_values
 from pydantic import ValidationError
 
-from salary_api.core.config import Settings
+from salary_api.core.config import DEV_PLACEHOLDER, Settings
 from tests.factories import make_settings, settings_from_environment
 
 ENV_EXAMPLE = Path(__file__).resolve().parents[2] / ".env.example"
 
 SAFE_PRODUCTION: dict[str, Any] = {
     "app_env": "production",
-    "jwt_secret": "Zq3vX9kLm2Pt7Rb4Wy8Nc1Hd6Jf5Gs0A",
+    "jwt_secret": secrets.token_urlsafe(32),  # made at run time: no key-like literal in git
     "cookie_secure": True,
     "database_url": "sqlite+libsql://salary-prod-acme.turso.io?secure=true",
 }
@@ -29,9 +30,9 @@ def test_production_accepts_safe_settings() -> None:
 @pytest.mark.parametrize(
     "jwt_secret",
     [
-        "dev-only-change-me",
+        DEV_PLACEHOLDER,
         "please-change-me-please-change-me-please",
-        "short-but-random-Zq3vX9",
+        "x" * 31,
     ],
 )
 def test_production_refuses_a_placeholder_or_short_jwt_secret(jwt_secret: str) -> None:

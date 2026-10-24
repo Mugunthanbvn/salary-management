@@ -10,7 +10,8 @@ from pydantic_settings import SettingsConfigDict
 
 from salary_api.core.config import Settings
 
-TEST_JWT_SECRET = "test-only-jwt-secret-0123456789abcdef"
+# Low entropy on purpose, so secret scanners (gitleaks) do not mistake it for a real key.
+TEST_JWT_SECRET = "test-only-" + "x" * 32
 
 
 class _SettingsWithoutEnvFile(Settings):

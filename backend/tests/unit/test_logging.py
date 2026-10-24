@@ -44,7 +44,7 @@ def test_logged_exceptions_do_not_include_local_variables(
     capsys: pytest.CaptureFixture[str],
 ) -> None:
     configure_logging("INFO")
-    jwt_secret = "local-value-hunter2"
+    jwt_secret = "hunter2" * 3
 
     try:
         raise RuntimeError(f"failed after reading {len(jwt_secret)} characters")
