@@ -1,6 +1,8 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 
+import { PageTitle } from "./page-title";
+
 type EmptyStateProps = {
   /** What is missing, plainly: "No employees match these filters". */
   title: string;
@@ -29,21 +31,20 @@ export function EmptyState({ title, children, action }: EmptyStateProps) {
  * The page for a route this person's permissions don't allow (never a blank page). The
  * UI only hides; FastAPI still refuses the API calls with 403.
  */
-export function Forbidden() {
+export function Forbidden({
+  reason = "Your role doesn't include this page.",
+}: {
+  reason?: string;
+}) {
   return (
-    <div className="border-t-2 border-ink py-10">
-      <h1 className="font-serif text-[32px] leading-[1.1] font-semibold sm:text-[44px]">
-        You don&apos;t have access to this
-      </h1>
-      <p className="mt-3 max-w-[640px] text-[17px] text-ink-2">
-        Your role doesn&apos;t include this page.
-      </p>
+    <>
+      <PageTitle title="You don't have access to this">{reason}</PageTitle>
       <Link
         href="/insights"
-        className="mt-4 inline-flex min-h-11 items-center text-base font-bold"
+        className="mt-6 inline-flex min-h-11 items-center text-base font-bold"
       >
         Go to Insights
       </Link>
-    </div>
+    </>
   );
 }
