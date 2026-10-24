@@ -159,6 +159,11 @@ Lefthook was chosen over pre-commit and husky: it is a single Go binary with nat
 # They format and lint staged files and check the commit message. They never run the
 # test suite, so red TDD commits stay possible; CI is the gate.
 
+# Print only failures so commits stay quiet.
+output:
+  - failure
+  - execution_out
+
 pre-commit:
   parallel: true
   commands:
@@ -176,9 +181,9 @@ pre-commit:
     eslint:
       root: "frontend/"
       glob: "*.{ts,tsx,js,mjs}"
-      run: if [ -d node_modules ]; then pnpm exec eslint {staged_files}; fi
+      run: if [ -d node_modules ]; then pnpm exec eslint --no-warn-ignored {staged_files}; fi
     gitleaks:
-      # Optional locally (CI always scans the full history).
+      # Optional locally. CI scans every push and PR, and the full history weekly.
       run: if command -v gitleaks >/dev/null 2>&1; then gitleaks protect --staged --redact; fi
 
 commit-msg:
@@ -201,7 +206,7 @@ Hooks deliberately **don't run the test suite**. Red-phase TDD commits must be p
 
 > **v1 scope:** one `ci.yml` with the `backend`, `frontend`, `contract` and `security` (gitleaks) jobs. **Cut from v1:** `backend-pg`, the e2e job (one local Playwright smoke at most), CodeQL, Dependabot (§11) and knip ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)). The full pipeline below is the future-work design.
 
-Workflow `.github/workflows/ci.yml` runs on every push to a PR branch and on `main`. Jobs run in parallel; a PR may merge only when all required jobs are green.
+Workflow `.github/workflows/ci.yml` runs on every push to a PR branch and on `main`, weekly (the secret scan only) and on demand. Jobs run in parallel; a PR may merge only when all required jobs are green.
 
 ```mermaid
 flowchart LR
@@ -217,7 +222,7 @@ flowchart LR
 | **frontend** | checkout → `pnpm/action-setup` + `actions/setup-node` (pnpm cache, Node from `.nvmrc`) → `pnpm install --frozen-lockfile` → `eslint` → `prettier --check` → `tsc --noEmit` → `vitest run --coverage` → `next build` → `knip` | ✅ |
 | **contract** | setup both stacks → export `openapi.json` from the app → regenerate TS types → `git diff --exit-code` on the generated client. Fails if the API changed without `make api-sync` | ✅ |
 | **e2e** | needs backend + frontend → install Playwright browsers (cached) → seed a small temp DB → start API + `next start` → `playwright test` → upload report/trace on failure | ✅ on PRs touching `frontend/**` or API routers **(proposed path filter)**; always on `main` |
-| **security** | `gitleaks detect` (full history) → `uvx pip-audit` → `pnpm audit --prod --audit-level=high` | ✅ |
+| **security** | gitleaks (`gitleaks/gitleaks-action`): on push and PR it scans the new commits; a weekly `schedule` run and a manual `workflow_dispatch` run scan the full history. v1 stops there; `uvx pip-audit` and `pnpm audit --prod --audit-level=high` are future work | ✅ |
 
 Other workflows:
 - **`codeql.yml`**: GitHub CodeQL for `python` and `javascript-typescript` on PRs and weekly. Free for public repositories; findings appear in the Security tab.

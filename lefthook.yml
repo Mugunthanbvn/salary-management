@@ -26,7 +26,7 @@ pre-commit:
       glob: "*.{ts,tsx,js,mjs}"
       run: if [ -d node_modules ]; then pnpm exec eslint --no-warn-ignored {staged_files}; fi
     gitleaks:
-      # Optional locally (CI always scans the full history).
+      # Optional locally. CI scans every push and PR, and the full history weekly.
       run: if command -v gitleaks >/dev/null 2>&1; then gitleaks protect --staged --redact; fi
 
 commit-msg:
