@@ -6,6 +6,8 @@
 export type FormatMoneyOptions = {
   /** Stored amounts are annual; "monthly" shows annual ÷ 12, rounded half-even. */
   period?: "annual" | "monthly";
+  /** Short form for charts and sentences ("US$823.5M"); tables show full values. */
+  compact?: boolean;
   /** "auto" (default) leaves out minor units that are all zero; "always" keeps them. */
   minorUnits?: "auto" | "always";
 };
@@ -13,7 +15,11 @@ export type FormatMoneyOptions = {
 export function formatMoney(
   amountMinor: number | bigint | string,
   currency: string,
-  { period = "annual", minorUnits = "auto" }: FormatMoneyOptions = {},
+  {
+    period = "annual",
+    compact = false,
+    minorUnits = "auto",
+  }: FormatMoneyOptions = {},
 ): string {
   const annual = toBigInt(amountMinor);
   const amount =
@@ -25,8 +31,17 @@ export function formatMoney(
   const formatter = new Intl.NumberFormat(defaultLocale(currency), {
     style: "currency",
     currency,
-    minimumFractionDigits: fractionDigits,
-    maximumFractionDigits: fractionDigits,
+    ...(compact
+      ? {
+          notation: "compact",
+          minimumFractionDigits: 0,
+          maximumFractionDigits: 1,
+          roundingMode: "halfEven",
+        }
+      : {
+          minimumFractionDigits: fractionDigits,
+          maximumFractionDigits: fractionDigits,
+        }),
   });
   const decimal = fraction ? `${major}.${fraction}` : major;
   return withSymbol(
