@@ -6,7 +6,7 @@ from decimal import Decimal
 import pytest
 
 from salary_api.domain.currency import UnknownCurrencyError
-from salary_api.domain.money import Money
+from salary_api.domain.money import Money, TooManyDecimalsError
 
 
 def test_money_holds_integer_minor_units_and_a_currency() -> None:
@@ -46,6 +46,27 @@ def test_money_rejects_an_unsupported_currency() -> None:
 )
 def test_from_major_converts_major_units_to_minor_units(
     major: str | Decimal, currency: str, amount_minor: int
+) -> None:
+    money = Money.from_major(major, currency)
+
+    assert money == Money(amount_minor, currency)
+
+
+@pytest.mark.parametrize(
+    ("major", "currency"),
+    [("1234.5", "JPY"), ("1000.05", "JPY"), ("1.234", "USD"), ("0.001", "EUR")],
+)
+def test_from_major_rejects_more_decimals_than_the_currency_has(major: str, currency: str) -> None:
+    with pytest.raises(TooManyDecimalsError, match=currency):
+        Money.from_major(major, currency)
+
+
+@pytest.mark.parametrize(
+    ("major", "currency", "amount_minor"),
+    [("4500000.0", "JPY", 4500000), ("52000.000", "EUR", 5200000)],
+)
+def test_from_major_accepts_trailing_zeros_because_nothing_is_lost(
+    major: str, currency: str, amount_minor: int
 ) -> None:
     money = Money.from_major(major, currency)
 
