@@ -145,8 +145,9 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | Thing | Canonical |
 |---|---|
 | Local seed | `make seed` |
-| Turso seed file | `make seed-turso` → `build/seed.db` → `turso db create salary-prod --from-file build/seed.db` |
-| Turso database | `salary-prod` (production only; no preview DB) |
+| Turso seed file | `make seed-turso` → `build/seed.db` → `turso db create incubyte-salary-assessment --from-file build/seed.db --location aws-ap-south-1` |
+| Turso database | `incubyte-salary-assessment` in Mumbai (`aws-ap-south-1`), production only; no preview DB |
+| Vercel region | `bom1` (Mumbai), set in `backend/vercel.json` and `frontend/vercel.json`, next to the database |
 | Vercel projects | `salary-web` (root `frontend/`), `salary-api` (root `backend/`) |
 | Seeded `changed_by` / audit `actor_id` | `null` (seed and system actions have no user) |
 | `search_text` | `fold(first last code email)`: NFKD, strip accents, casefold. `muller` finds `Müller` |

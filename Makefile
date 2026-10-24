@@ -63,7 +63,7 @@ seed-turso: ## Build build/seed.db for Turso (needs real SEED_*_PASSWORD); print
 	  --db-url sqlite:///../$(SEED_FILE)
 	@echo ""
 	@echo "Built $(SEED_FILE) (one self-contained file). To create the production database, run:"
-	@echo "  turso db create salary-prod --from-file $(SEED_FILE)"
+	@echo "  turso db create incubyte-salary-assessment --from-file $(SEED_FILE) --location aws-ap-south-1"
 
 fmt: fmt-backend fmt-frontend ## Format and auto-fix all code
 
