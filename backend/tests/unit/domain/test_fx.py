@@ -8,7 +8,13 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from salary_api.domain.currency import UnknownCurrencyError
-from salary_api.domain.money import FxRate, InvalidFxRateError, Money, to_usd
+from salary_api.domain.money import (
+    FxRate,
+    FxRateMissingError,
+    InvalidFxRateError,
+    Money,
+    to_usd,
+)
 
 AS_OF = date(2026, 10, 1)
 RATES = {
@@ -91,6 +97,11 @@ def test_usd_to_usd_is_the_identity(amount_minor: int) -> None:
     result = to_usd(money, RATES)
 
     assert result.amount == money
+
+
+def test_a_missing_rate_is_an_error_never_zero_or_one() -> None:
+    with pytest.raises(FxRateMissingError, match="GBP"):
+        to_usd(Money(100, "GBP"), RATES)
 
 
 def test_to_usd_leaves_the_source_amount_unchanged() -> None:
