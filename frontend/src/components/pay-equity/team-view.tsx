@@ -94,7 +94,8 @@ export function TeamView({
               </span>
             </th>
             <th scope="col" className="px-3 pb-2 text-right font-medium">
-              Median compa-ratio
+              <span className="sm:hidden">Compa-ratio</span>
+              <span className="hidden sm:inline">Median compa-ratio</span>
             </th>
             <th scope="col" className="pb-2 pl-3 text-right font-medium">
               Below band

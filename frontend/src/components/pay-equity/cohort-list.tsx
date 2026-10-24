@@ -121,7 +121,7 @@ function CohortRow({
       aria-labelledby={nameId}
       className="grid grid-cols-[minmax(0,1fr)_auto] items-start gap-x-4 gap-y-2 border-t border-rule py-3 text-[15px] tabular-nums lg:grid-cols-[minmax(0,1.3fr)_minmax(0,1.4fr)_6rem_9rem]"
     >
-      <span className="min-w-0">
+      <span className="col-start-1 row-start-1 min-w-0 lg:col-auto lg:row-auto">
         <span id={nameId} className="font-bold">
           {name}
         </span>
@@ -139,7 +139,7 @@ function CohortRow({
           </Button>
         ) : null}
       </span>
-      <span className="col-span-2 row-start-2 flex min-w-0 flex-col gap-1.5 lg:col-span-1 lg:row-start-auto">
+      <span className="col-span-2 col-start-1 row-start-2 flex min-w-0 flex-col gap-1.5 lg:col-auto lg:row-auto">
         <BandStrip band={band} stats={stats} />
         <span className="flex flex-wrap justify-between gap-x-4 text-[13px] text-ink-2">
           <span>
@@ -168,7 +168,7 @@ function CohortRow({
           </span>
         </span>
       </span>
-      <span className="row-start-1 text-right font-bold lg:row-start-auto">
+      <span className="col-start-2 row-start-1 text-right font-bold lg:col-auto lg:row-auto">
         <span className="sr-only">Median compa-ratio </span>
         {cohort.median_compa_ratio !== null ? (
           formatRatio(cohort.median_compa_ratio)
@@ -176,7 +176,7 @@ function CohortRow({
           <Hidden />
         )}
       </span>
-      <span className="col-span-2 text-sm lg:col-span-1 lg:text-right">
+      <span className="col-span-2 col-start-1 row-start-3 text-sm lg:col-auto lg:row-auto lg:text-right">
         <Flags cohort={cohort} />
       </span>
     </li>
