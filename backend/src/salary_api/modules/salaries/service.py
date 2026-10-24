@@ -11,10 +11,12 @@ from typing import Any
 
 from sqlalchemy.orm import Session
 
+from salary_api.core.errors import InvalidState, ValidationFailed
+from salary_api.core.models import utc_now
 from salary_api.core.permissions import Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.compensation import total_compensation
-from salary_api.domain.enums import Level, SalaryReason
+from salary_api.domain.enums import EmployeeStatus, Level, SalaryReason
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.salary_change import base_change_pct
 from salary_api.modules.audit.service import AuditAction, record_event
@@ -73,7 +75,10 @@ def record_salary_change(
 ) -> SalaryChange:
     """Append a salary record and make it the current salary, in one transaction."""
     employee = locking.get_version(session, employee_id, request.version)
+    if employee.status != EmployeeStatus.ACTIVE:
+        raise InvalidState(f"Employee {employee_id} is terminated: reactivate them first.")
     previous = repository.latest_record(session, employee_id)
+    _check_effective_date(request.effective_date, employee, previous)
     pay = Pay(DomainMoney(request.base_minor, employee.currency), request.components)
     record = _new_record(
         employee.id,
@@ -103,6 +108,23 @@ def record_salary_change(
     )
     locking.commit_versioned(session, employee_id)
     return SalaryChange(record=_history_record(record, previous), employee_version=employee.version)
+
+
+def _check_effective_date(
+    effective_date: date, employee: Employee, latest: SalaryRecord | None
+) -> None:
+    """No future-dated changes, nothing before the hire date or the latest record (ADR 0006),
+    so the latest record is always the current one."""
+    if effective_date > utc_now().date():
+        code, message = "future_date", "A salary change cannot take effect in the future."
+    elif effective_date < employee.hire_date:
+        code, message = "before_hire_date", f"The employee was hired on {employee.hire_date}."
+    elif latest is not None and effective_date < latest.effective_date:
+        code = "before_latest_record"
+        message = f"The latest salary record is effective {latest.effective_date}."
+    else:
+        return
+    raise ValidationFailed([{"loc": ["body", "effective_date"], "code": code, "message": message}])
 
 
 def _new_record(  # noqa: PLR0913  (one keyword per snapshot column)
@@ -168,7 +190,8 @@ def _money(amount_minor: int, currency: str) -> Money:
 
 def _make_current(employee: Employee, record: SalaryRecord) -> None:
     """Copy the record onto the employee's current-salary columns (docs/06 section 6.2)."""
-    employee.current_salary_record_id = record.id
+    # The relationship, not only the id, so a session that loaded the old record sees the new.
+    employee.current_salary_record = record
     employee.currency = record.currency
     employee.current_base_minor = record.base_minor
     employee.current_total_minor = record.total_minor
