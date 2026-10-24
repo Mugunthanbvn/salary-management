@@ -38,3 +38,19 @@ def test_lines_below_the_configured_level_are_dropped(capsys: pytest.CaptureFixt
     structlog.get_logger().info("not_shown")
 
     assert capsys.readouterr().out == ""
+
+
+def test_logged_exceptions_do_not_include_local_variables(
+    capsys: pytest.CaptureFixture[str],
+) -> None:
+    configure_logging("INFO")
+    jwt_secret = "local-value-hunter2"
+
+    try:
+        raise RuntimeError(f"failed after reading {len(jwt_secret)} characters")
+    except RuntimeError:
+        structlog.get_logger().exception("unhandled_error")
+
+    output = capsys.readouterr().out
+    assert "RuntimeError" in output
+    assert "hunter2" not in output
