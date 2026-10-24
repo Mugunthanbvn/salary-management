@@ -305,6 +305,13 @@ for rule in 'Bash(git checkout -- :*)' 'Bash(git checkout .:*)' 'Bash(git branch
   cfg "deny $rule" "'$rule' in s['permissions']['deny']"
 done
 
+echo "== .mcp.json =="
+# MCP server packages are pinned to exact versions (finding 9)
+for spec in context7:@upstash/context7-mcp@4.4.4 playwright:@playwright/mcp@0.0.83; do
+  if python3 -I -c 'import json, sys; m = json.load(open(sys.argv[1]))["mcpServers"]; sys.exit(0 if sys.argv[3] in m[sys.argv[2]]["args"] else 1)' \
+    "$repo/.mcp.json" "${spec%%:*}" "${spec#*:}" 2>/dev/null; then ok "mcp: ${spec%%:*} pinned to ${spec#*:}"; else bad "mcp: ${spec%%:*} pinned to ${spec#*:}" "args differ"; fi
+done
+
 echo
 printf '%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 [ "$fail" -eq 0 ]
