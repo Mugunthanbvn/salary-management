@@ -101,6 +101,7 @@ describe("formatMoney", () => {
     { amount: 82_350_000_000, currency: "USD", text: "US$823.5M" },
     { amount: 125_000_000, currency: "EUR", text: "€1.2M" }, // 1.25 ties to even
     { amount: 186_000_000, currency: "INR", text: "₹18.6L" },
+    { amount: -1, currency: "EUR", text: "€0" }, // rounds to zero: no "-€0"
   ])(
     "shortens $amount $currency to $text in compact mode",
     ({ amount, currency, text }) => {
