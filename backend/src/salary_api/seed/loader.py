@@ -14,7 +14,16 @@ from typing import TYPE_CHECKING, Final
 
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import Connection, Engine, bindparam, delete, insert, select, update
+from sqlalchemy import (
+    Connection,
+    Engine,
+    bindparam,
+    delete,
+    insert,
+    inspect,
+    select,
+    update,
+)
 
 import salary_api
 
@@ -66,8 +75,8 @@ def load(
     """
     if reset:
         clear(connection)
-    elif _has_data(connection):
-        raise SeedRefused("The database already has data: pass --reset to replace it.")
+    else:
+        refuse_if_data(connection)
     for model, rows in (
         (User, users),
         (Country, dataset.countries),
@@ -138,11 +147,16 @@ def checkpoint(engine: Engine) -> None:
             dbapi_connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
 
-def _has_data(connection: Connection) -> bool:
-    return any(
+def refuse_if_data(connection: Connection) -> None:
+    """SeedRefused if any of the app's tables holds a row. Works on a database at any
+    migration, or with no tables yet, so the seed can check before it migrates."""
+    existing = set(inspect(connection).get_table_names())
+    if any(
         connection.execute(select(table).limit(1)).first() is not None
         for table in Base.metadata.sorted_tables
-    )
+        if table.name in existing
+    ):
+        raise SeedRefused("The database already has data: pass --reset to replace it.")
 
 
 def _insert(

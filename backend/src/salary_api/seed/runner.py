@@ -1,6 +1,7 @@
 """Run the seed: check, migrate, generate, load, report (docs/12-seed-data.md sections 13-14).
 
-Every refusal happens before the database is touched, so a refused seed creates no file.
+Every refusal happens before the database is changed: the production checks before it is
+even opened (a refused seed creates no file), the "already has data" check before migrating.
 """
 
 import time
@@ -18,7 +19,7 @@ from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.seed import seed_config as config
 from salary_api.seed.errors import SeedRefused
 from salary_api.seed.generator import Dataset, generate
-from salary_api.seed.loader import checkpoint, load, migrate
+from salary_api.seed.loader import checkpoint, load, migrate, refuse_if_data
 from salary_api.seed.settings import SeedSettings
 from salary_api.seed.users import demo_users
 
@@ -58,6 +59,9 @@ def run_seed(
     database_url = options.db_url or settings.database_url
     engine = create_engine_for_url(database_url, auth_token=_auth_token(settings, database_url))
     try:
+        if not options.reset:
+            with engine.connect() as connection:
+                refuse_if_data(connection)  # before migrating, so a refusal changes nothing
         with clock.phase("migrate"):
             migrate(engine)
         with clock.phase("generate"):
