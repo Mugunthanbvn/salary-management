@@ -2,10 +2,11 @@
 
 from collections.abc import Callable
 
+import pytest
 import time_machine
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
@@ -180,3 +181,38 @@ def test_the_first_generated_employee_code_is_acme_000001(
     response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id))
 
     assert response.json()["employee_code"] == "ACME-000001"
+
+
+@pytest.mark.parametrize(
+    ("field", "taken"),
+    [("employee_code", "ACME-000007"), ("email", "  LENA.Mueller@Acme.Example ")],
+)
+def test_create_refuses_a_code_or_email_already_in_use(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    field: str,
+    taken: str,
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "DE")
+    hr = as_role("HR_MANAGER")
+    hr.post(EMPLOYEES, json=employee_request(role.id, employee_code="ACME-000007"))
+    other = {"employee_code": "ACME-000008", "email": "other@acme.example"}
+
+    response = hr.post(EMPLOYEES, json=employee_request(role.id, **(other | {field: taken})))
+
+    assert response.status_code == 409
+    assert response.json()["type"] == f"{PROBLEMS}duplicate"
+    assert field in response.json()["detail"]
+    assert db_session.scalar(select(func.count()).select_from(Employee)) == 1
+    assert db_session.scalar(select(func.count()).select_from(AuditEvent)) == 1
+
+
+def test_openapi_documents_the_problems_create_can_send(app: FastAPI) -> None:
+    responses = app.openapi()["paths"][EMPLOYEES]["post"]["responses"]
+
+    assert {"401", "403", "409", "422"} <= set(responses)
+    assert responses["409"]["content"] == {
+        "application/problem+json": {"schema": {"$ref": "#/components/schemas/Problem"}}
+    }
