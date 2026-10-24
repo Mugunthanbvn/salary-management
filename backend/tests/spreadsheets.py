@@ -8,9 +8,13 @@ from typing import Any
 from openpyxl import Workbook
 from sqlalchemy.orm import Session
 
+from salary_api.core.permissions import Principal
+from salary_api.modules.imports import service as imports
 from salary_api.modules.imports.columns import TEMPLATE_COLUMNS
+from salary_api.modules.imports.models import ImportJob
 from salary_api.modules.reference.models import JobRole
-from tests.factories import make_country, make_job_role
+from salary_api.modules.users.models import User
+from tests.factories import make_country, make_job_role, make_user
 
 FULL_HEADER = list(TEMPLATE_COLUMNS)
 
@@ -106,3 +110,20 @@ def make_import_reference(session: Session) -> JobRole:
     for code in ("DE", "JP", "IN"):
         make_country(session, code)
     return make_job_role(session, "Software Engineer")
+
+
+def make_dry_run(
+    session: Session, *rows: Mapping[str, object], user: User | None = None
+) -> ImportJob:
+    """A dry-run of these rows (one valid hire by default), uploaded by `user` (a new HR
+    manager by default) through the import service."""
+    make_import_reference(session)
+    user = user or make_user(session, role="HR_MANAGER")
+    principal = Principal(
+        user_id=user.id, email=user.email, full_name=user.full_name, role=user.role
+    )
+    content = import_csv(*(rows or (hire(1),)))
+    report = imports.dry_run(session, principal, filename="hires.csv", upload=io.BytesIO(content))
+    job = session.get(ImportJob, report.id)
+    assert job is not None
+    return job

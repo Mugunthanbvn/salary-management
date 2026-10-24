@@ -27,10 +27,11 @@ from tests.factories import (
     make_job_role,
     make_user,
 )
-from tests.spreadsheets import hire, import_csv, make_import_reference, upload
+from tests.spreadsheets import hire, import_csv, make_dry_run, make_import_reference, upload
 
 ANON = "ANON"
 EMPLOYEE = "/api/v1/employees/{employee_id:int}"  # int only, so /employees/export is not an id
+IMPORT = "/api/v1/imports/{import_id:int}"
 CALLERS = (ANON, "VIEWER", "HR_MANAGER", "ADMIN")
 
 # Builds one call: TestClient.request keyword arguments (json, params, files, ...) plus an
@@ -97,6 +98,11 @@ def _import_file(session: Session) -> dict[str, Any]:
     return upload("hires.csv", import_csv(hire(1)))
 
 
+def _someone_elses_import(session: Session) -> dict[str, Any]:
+    # Uploaded by another HR manager: only its creator or an administrator may see it.
+    return {"url": f"/api/v1/imports/{make_dry_run(session).id}"}
+
+
 def _salary_history(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{make_employee(session).id}/salary-history"}
 
@@ -117,6 +123,7 @@ MATRIX = [
     Endpoint("POST", f"{EMPLOYEE}/salary-changes", (401, 403, 201, 201), _salary_change),
     Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
     Endpoint("POST", "/api/v1/imports", (401, 403, 201, 201), _import_file),
+    Endpoint("GET", IMPORT, (401, 403, 404, 200), _someone_elses_import),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
