@@ -299,9 +299,9 @@ Vitest can't render async Server Components; those are covered by Playwright.
 
 ### 5.8 End-to-end smoke (Playwright)
 
-> **v1 scope:** only flow 1 (HR login → search → record raise) is built, if time allows. The other flows are future work ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)).
+> **v1 scope:** flow 1 (HR login → search → record raise) and a short form of flow 3 (Viewer: salary masked, no "Record salary change") are built, in `frontend/e2e/smoke.spec.ts`. The other flows are future work ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)).
 
-Runs against a local stack: the FastAPI dev server on a fresh seeded SQLite file (small seed) + `next start`.
+`make e2e` runs against a real local stack that Playwright starts and stops: `frontend/e2e/start-api.sh` seeds a fresh temp SQLite file (`--seed 42 --employees 300`) and serves the API on :8100; the web app is built with `API_ORIGIN` pointing at it and served by `next start` on :3100. The 300-employee seed has no Müller, so the desktop run searches "gonçalves" and the phone run "jähn": different employees, so the two viewports run in parallel on one database.
 
 | # | Flow | Asserts |
 |---|---|---|
@@ -375,7 +375,7 @@ The eval set checks the real LLM behaviour, which unit tests with `FakeLLM` can'
 | `make test-backend` | `cd backend && uv run pytest --cov` (`-n auto` is in the pytest options) + the coverage gate |
 | `make test-frontend` | `cd frontend && pnpm test` (`vitest run`) |
 | `make test-pg` | backend integration suite against Postgres (compose) |
-| `make e2e` | builds the frontend, starts API + web on a seeded temp DB, runs Playwright |
+| `make e2e` | builds the frontend, starts API (:8100) + web (:3100) on a seeded temp DB, runs Playwright, stops both. Local only (not in CI or `make verify`) |
 | `make eval-ask PROVIDER=gemini` | runs the AI eval set (needs `LLM_API_KEY`) |
 | `make verify` | everything CI runs, except e2e and pg: lint, typecheck, tests, knip |
 | `uv run pytest tests/unit/domain -q` | domain tests only (fastest loop during TDD) |
