@@ -72,6 +72,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Create an employee with their hire salary */
+        post: operations["create_employee_api_v1_employees_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -110,6 +127,30 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Component */
+        Component: {
+            amount: components["schemas"]["Money"];
+            /** Name */
+            name: string;
+            type: components["schemas"]["ComponentType"];
+        };
+        /**
+         * ComponentIn
+         * @description An annual allowance or bonus target, in the salary's currency.
+         */
+        ComponentIn: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Name */
+            name: string;
+            type: components["schemas"]["ComponentType"];
+        };
+        /**
+         * ComponentType
+         * @description A salary component on top of base pay (ADR 0010).
+         * @enum {string}
+         */
+        ComponentType: "ALLOWANCE" | "BONUS_TARGET";
         /** Country */
         Country: {
             /** Code */
@@ -128,6 +169,22 @@ export interface components {
             /** Exponent */
             exponent: number;
         };
+        /**
+         * CurrentSalary
+         * @description The salary record the current salary comes from.
+         */
+        CurrentSalary: {
+            /** Components */
+            components: components["schemas"]["Component"][];
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /** Id */
+            id: number;
+            reason: components["schemas"]["SalaryReason"];
+        };
         /** Department */
         Department: {
             /** Id */
@@ -135,6 +192,68 @@ export interface components {
             /** Name */
             name: string;
         };
+        /** EmployeeCreate */
+        EmployeeCreate: {
+            /** Country Code */
+            country_code: string;
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code?: string | null;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Job Role Id */
+            job_role_id: number;
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            salary: components["schemas"]["HireSalary"];
+        };
+        /** EmployeeDetail */
+        EmployeeDetail: {
+            /** Country Code */
+            country_code: string;
+            current_base: components["schemas"]["Money"] | null;
+            current_salary: components["schemas"]["CurrentSalary"] | null;
+            current_total: components["schemas"]["Money"] | null;
+            department: components["schemas"]["Department"];
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code: string;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Id */
+            id: number;
+            job_role: components["schemas"]["JobRoleRef"];
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            /** Salary Masked */
+            salary_masked: boolean;
+            status: components["schemas"]["EmployeeStatus"];
+            /** Termination Date */
+            termination_date: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * EmployeeStatus
+         * @enum {string}
+         */
+        EmployeeStatus: "ACTIVE" | "TERMINATED";
         /**
          * EmploymentType
          * @enum {string}
@@ -175,6 +294,23 @@ export interface components {
             version: string;
         };
         /**
+         * HireSalary
+         * @description The first salary. `currency` may be left out: it is always the country's currency.
+         */
+        HireSalary: {
+            /** Base Minor */
+            base_minor: number;
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["ComponentIn"][];
+            /** Currency */
+            currency?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
          * JobFamily
          * @description The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).
          * @enum {string}
@@ -185,6 +321,16 @@ export interface components {
             /** Department Id */
             department_id: number;
             family: components["schemas"]["JobFamily"];
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+        };
+        /**
+         * JobRoleRef
+         * @description A job role as other resources show it.
+         */
+        JobRoleRef: {
             /** Id */
             id: number;
             /** Title */
@@ -224,6 +370,16 @@ export interface components {
             /** Permissions */
             permissions: components["schemas"]["Permission"][];
             user: components["schemas"]["SessionUser"];
+        };
+        /**
+         * Money
+         * @description An exact amount: integer minor units of an ISO 4217 currency, never a float.
+         */
+        Money: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Currency */
+            currency: string;
         };
         /**
          * Permission
@@ -519,6 +675,75 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["Country"][];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_employee_api_v1_employees_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */

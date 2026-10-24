@@ -17,6 +17,7 @@ from salary_api.core.errors import (
 from salary_api.core.logging import configure_logging
 from salary_api.core.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
 from salary_api.modules.auth.router import router as auth_router
+from salary_api.modules.employees.router import router as employees_router
 from salary_api.modules.health.router import router as health_router
 from salary_api.modules.reference.router import router as reference_router
 
@@ -64,6 +65,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(health_router, prefix=API_PREFIX)
     app.include_router(auth_router, prefix=API_PREFIX)
     app.include_router(reference_router, prefix=API_PREFIX)
+    app.include_router(employees_router, prefix=API_PREFIX)
     return app
 
 

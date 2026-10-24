@@ -1,6 +1,60 @@
 {
   "components": {
     "schemas": {
+      "Component": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ComponentType"
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "amount"
+        ],
+        "title": "Component",
+        "type": "object"
+      },
+      "ComponentIn": {
+        "additionalProperties": false,
+        "description": "An annual allowance or bonus target, in the salary's currency.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          },
+          "type": {
+            "$ref": "#/components/schemas/ComponentType"
+          }
+        },
+        "required": [
+          "type",
+          "name",
+          "amount_minor"
+        ],
+        "title": "ComponentIn",
+        "type": "object"
+      },
+      "ComponentType": {
+        "description": "A salary component on top of base pay (ADR 0010).",
+        "enum": [
+          "ALLOWANCE",
+          "BONUS_TARGET"
+        ],
+        "title": "ComponentType",
+        "type": "string"
+      },
       "Country": {
         "properties": {
           "code": {
@@ -47,6 +101,38 @@
         "title": "CurrencyOption",
         "type": "object"
       },
+      "CurrentSalary": {
+        "description": "The salary record the current salary comes from.",
+        "properties": {
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/Component"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "effective_date": {
+            "format": "date",
+            "title": "Effective Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SalaryReason"
+          }
+        },
+        "required": [
+          "id",
+          "effective_date",
+          "reason",
+          "components"
+        ],
+        "title": "CurrentSalary",
+        "type": "object"
+      },
       "Department": {
         "properties": {
           "id": {
@@ -64,6 +150,197 @@
         ],
         "title": "Department",
         "type": "object"
+      },
+      "EmployeeCreate": {
+        "additionalProperties": false,
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "employee_code": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employee Code"
+          },
+          "employment_type": {
+            "$ref": "#/components/schemas/EmploymentType"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "hire_date": {
+            "format": "date",
+            "title": "Hire Date",
+            "type": "string"
+          },
+          "job_role_id": {
+            "title": "Job Role Id",
+            "type": "integer"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "salary": {
+            "$ref": "#/components/schemas/HireSalary"
+          }
+        },
+        "required": [
+          "first_name",
+          "last_name",
+          "email",
+          "job_role_id",
+          "level",
+          "employment_type",
+          "country_code",
+          "hire_date",
+          "salary"
+        ],
+        "title": "EmployeeCreate",
+        "type": "object"
+      },
+      "EmployeeDetail": {
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "current_base": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_salary": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/CurrentSalary"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "current_total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "employee_code": {
+            "title": "Employee Code",
+            "type": "string"
+          },
+          "employment_type": {
+            "$ref": "#/components/schemas/EmploymentType"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "hire_date": {
+            "format": "date",
+            "title": "Hire Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "salary_masked": {
+            "title": "Salary Masked",
+            "type": "boolean"
+          },
+          "status": {
+            "$ref": "#/components/schemas/EmployeeStatus"
+          },
+          "termination_date": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Termination Date"
+          },
+          "version": {
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "employee_code",
+          "first_name",
+          "last_name",
+          "email",
+          "job_role",
+          "department",
+          "level",
+          "employment_type",
+          "country_code",
+          "status",
+          "hire_date",
+          "current_base",
+          "current_total",
+          "salary_masked",
+          "version",
+          "termination_date",
+          "current_salary"
+        ],
+        "title": "EmployeeDetail",
+        "type": "object"
+      },
+      "EmployeeStatus": {
+        "enum": [
+          "ACTIVE",
+          "TERMINATED"
+        ],
+        "title": "EmployeeStatus",
+        "type": "string"
       },
       "EmploymentType": {
         "enum": [
@@ -147,6 +424,51 @@
         "title": "HealthResponse",
         "type": "object"
       },
+      "HireSalary": {
+        "additionalProperties": false,
+        "description": "The first salary. `currency` may be left out: it is always the country's currency.",
+        "properties": {
+          "base_minor": {
+            "title": "Base Minor",
+            "type": "integer"
+          },
+          "components": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ComponentIn"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "currency": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Currency"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          }
+        },
+        "required": [
+          "base_minor"
+        ],
+        "title": "HireSalary",
+        "type": "object"
+      },
       "JobFamily": {
         "description": "The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).",
         "enum": [
@@ -189,6 +511,25 @@
           "family"
         ],
         "title": "JobRole",
+        "type": "object"
+      },
+      "JobRoleRef": {
+        "description": "A job role as other resources show it.",
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title"
+        ],
+        "title": "JobRoleRef",
         "type": "object"
       },
       "Level": {
@@ -287,6 +628,25 @@
           "features"
         ],
         "title": "MeResponse",
+        "type": "object"
+      },
+      "Money": {
+        "description": "An exact amount: integer minor units of an ISO 4217 currency, never a float.",
+        "properties": {
+          "amount_minor": {
+            "title": "Amount Minor",
+            "type": "integer"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          }
+        },
+        "required": [
+          "amount_minor",
+          "currency"
+        ],
+        "title": "Money",
         "type": "object"
       },
       "Permission": {
@@ -853,6 +1213,95 @@
         "summary": "Countries and their salary currency",
         "tags": [
           "reference"
+        ]
+      }
+    },
+    "/api/v1/employees": {
+      "post": {
+        "operationId": "create_employee_api_v1_employees_post",
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/EmployeeCreate"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/EmployeeDetail"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Create an employee with their hire salary",
+        "tags": [
+          "employees"
         ]
       }
     },

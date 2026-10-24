@@ -16,3 +16,11 @@ def list_departments(session: Session) -> Sequence[Department]:
 
 def list_job_roles(session: Session) -> Sequence[JobRole]:
     return session.scalars(select(JobRole).order_by(JobRole.title)).all()
+
+
+def get_country(session: Session, code: str) -> Country | None:
+    return session.get(Country, code)
+
+
+def get_job_role(session: Session, job_role_id: int) -> JobRole | None:
+    return session.get(JobRole, job_role_id)

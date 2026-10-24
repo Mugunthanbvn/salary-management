@@ -23,6 +23,13 @@ class JobRole(BaseModel):
     family: JobFamily
 
 
+class JobRoleRef(BaseModel):
+    """A job role as other resources show it."""
+
+    id: int
+    title: str
+
+
 class LevelOption(BaseModel):
     code: Level
     label: str
