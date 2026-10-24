@@ -23,8 +23,12 @@ def login(
     session: Session, credentials: LoginRequest, *, settings: Settings, hasher: PasswordHasher
 ) -> SignedIn:
     user = users.get_by_email(session, credentials.email)
-    if user is None or not hasher.verify(credentials.password, user.password_hash):
-        raise Unauthenticated(INVALID_CREDENTIALS)
+    # Always one password check, so an unknown email takes as long as a known one.
+    password_ok = hasher.verify(
+        credentials.password, user.password_hash if user else hasher.dummy_hash
+    )
+    if user is None or not user.is_active or not password_ok:
+        raise Unauthenticated(INVALID_CREDENTIALS)  # one message: no user enumeration
     token = create_access_token(user_id=user.id, role=user.role, settings=settings)
     return SignedIn(body=_login_response(user), token=token)
 

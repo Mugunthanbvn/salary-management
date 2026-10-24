@@ -5,8 +5,10 @@ docs/08-security-rbac.md sections 5.1 and 5.2. Tokens carry `sub` (user id as a 
 from the user's role in the database on every request.
 """
 
+import secrets
 from dataclasses import dataclass
 from datetime import UTC, datetime, timedelta
+from functools import cached_property
 from uuid import uuid4
 
 import jwt
@@ -42,6 +44,15 @@ class PasswordHasher:
     def needs_rehash(self, password_hash: str) -> bool:
         """Whether the hash was made with other parameters than this hasher's."""
         return self._argon2.check_needs_rehash(password_hash)
+
+    @cached_property
+    def dummy_hash(self) -> str:
+        """A hash of a random password, checked when the email is unknown.
+
+        The login then costs the same as for a real user, so timing does not reveal
+        which emails exist.
+        """
+        return self.hash(secrets.token_urlsafe(16))
 
 
 class InvalidToken(Exception):
