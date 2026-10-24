@@ -3,6 +3,7 @@
 A 200-employee seed is loaded once per module into its own in-memory database; the tests read it.
 """
 
+import sqlite3
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime, time
@@ -26,7 +27,7 @@ from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
 from salary_api.modules.users.models import User
 from salary_api.seed.errors import SeedRefused
 from salary_api.seed.generator import generate
-from salary_api.seed.loader import load
+from salary_api.seed.loader import clear, load
 from salary_api.seed.rows import UserRow
 from salary_api.seed.users import demo_users
 from tests.conftest import upgrade_to_head
@@ -212,6 +213,33 @@ def test_reset_replaces_everything_including_users_and_audit_events(fresh: Engin
         assert _count(session, SalaryRecord) == len(replacement.salary_records)
         assert _count(session, User) == 3
         assert _count(session, AuditEvent) == 0
+
+
+def test_reset_work_grows_with_the_rows_not_with_records_times_employees(fresh: Engine) -> None:
+    """Deleting a salary record must not scan every employee (current_salary_record_id has no
+    index). Counted in SQLite VM steps, not seconds, so the test does not depend on the machine."""
+    dataset = generate(seed=1, employees=1000)
+    with fresh.begin() as connection:
+        load(connection, dataset, _users())
+    rows = sum(
+        len(table)
+        for table in (dataset.employees, dataset.salary_records, dataset.salary_components)
+    )
+    steps = 0
+
+    def count_steps() -> int:
+        nonlocal steps
+        steps += 1000
+        return 0  # carry on
+
+    with fresh.begin() as connection:
+        driver = connection.connection.dbapi_connection
+        assert isinstance(driver, sqlite3.Connection)
+        driver.set_progress_handler(count_steps, 1000)
+        clear(connection)
+        driver.set_progress_handler(None, 0)
+
+    assert steps < 200 * rows
 
 
 def test_rows_are_inserted_in_chunks(fresh: Engine) -> None:
