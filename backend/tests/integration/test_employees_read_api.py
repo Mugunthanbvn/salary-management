@@ -241,3 +241,50 @@ def test_list_filters_combine_values_of_one_key_with_or_and_keys_with_and(
     body = response.json()
     assert [item["last_name"] for item in body["items"]] == last_names
     assert body["total"] == len(last_names)
+
+
+@pytest.mark.parametrize("q", ["müller", "MULLER", "Muller", "lena m"])
+def test_search_ignores_accents_and_case(
+    as_role: Callable[[str], TestClient], db_session: Session, q: str
+) -> None:
+    lena = make_employee(db_session, first_name="Lena", last_name="Müller")
+    make_employee(db_session, first_name="Max", last_name="Mustermann")
+
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"q": q})
+
+    assert [item["id"] for item in response.json()["items"]] == [lena.id]
+
+
+@pytest.mark.parametrize("q", ["acme-000042", "sato", "@acme"])
+def test_search_also_matches_the_employee_code_and_email(
+    as_role: Callable[[str], TestClient], db_session: Session, q: str
+) -> None:
+    sato = make_employee(
+        db_session,
+        first_name="結衣",
+        last_name="佐藤",
+        employee_code="ACME-000042",
+        email="yui.sato@acme.example",
+    )
+
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"q": q})
+
+    assert [item["id"] for item in response.json()["items"]] == [sato.id]
+
+
+def test_search_treats_like_wildcards_as_plain_characters(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_employee(db_session, first_name="Lena", last_name="Becker")
+
+    for q in ("_e", "%e"):
+        response = as_role("HR_MANAGER").get(EMPLOYEES, params={"q": q})
+
+        assert response.json()["total"] == 0
+
+
+def test_search_needs_at_least_two_characters(as_role: Callable[[str], TestClient]) -> None:
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"q": " m "})
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["loc"] == ["query", "q"]
