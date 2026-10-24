@@ -3,6 +3,7 @@
 from decimal import Decimal
 
 from salary_api.domain.constants import (
+    MAX_AMOUNT_MINOR,
     MIN_GROUP_SIZE,
     PAY_EQUITY_HIGH,
     PAY_EQUITY_LOW,
@@ -12,6 +13,10 @@ from salary_api.domain.constants import (
 
 def test_small_group_threshold_is_five_people() -> None:
     assert MIN_GROUP_SIZE == 5
+
+
+def test_amounts_have_at_most_15_digits_in_minor_units() -> None:
+    assert MAX_AMOUNT_MINOR == 10**15 - 1
 
 
 def test_pay_equity_thresholds_are_exact_decimals_from_the_glossary() -> None:

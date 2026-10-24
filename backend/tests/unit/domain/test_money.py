@@ -7,7 +7,6 @@ from decimal import Decimal
 
 import pytest
 from hypothesis import given
-from hypothesis import strategies as st
 
 from salary_api.domain.currency import UnknownCurrencyError
 from salary_api.domain.money import (
@@ -16,7 +15,7 @@ from salary_api.domain.money import (
     Money,
     TooManyDecimalsError,
 )
-from tests.unit.domain.strategies import currencies, major_amounts
+from tests.unit.domain.strategies import amounts_minor, currencies, major_amounts
 
 
 def test_money_holds_integer_minor_units_and_a_currency() -> None:
@@ -98,6 +97,41 @@ def test_from_major_rejects_text_that_is_not_a_finite_number(major: str | Decima
 
 
 @pytest.mark.parametrize(
+    ("major", "currency"),
+    [
+        ("10000000000000.00", "USD"),  # 10**15 cents: one past the cap
+        ("1000000000000000", "JPY"),
+        ("-10000000000000", "EUR"),
+        ("1" + "0" * 30, "USD"),
+        (Decimal("1E+30"), "USD"),  # used to become 10**32 and overflow BIGINT at insert
+        (Decimal("1E+10000000"), "INR"),  # used to build a 33-million-bit int
+    ],
+)
+def test_from_major_rejects_amounts_of_10_to_the_15_minor_units_or_more(
+    major: str | Decimal, currency: str
+) -> None:
+    with pytest.raises(InvalidAmountError, match="too large"):
+        Money.from_major(major, currency)
+
+
+@pytest.mark.parametrize(
+    ("major", "currency", "amount_minor"),
+    [
+        ("9999999999999.99", "USD", 999999999999999),
+        ("999999999999999", "JPY", 999999999999999),
+        ("-9999999999999.99", "EUR", -999999999999999),
+        pytest.param("1." + "0" * 100000, "USD", 100, id="100000-trailing-zeros"),
+    ],
+)
+def test_from_major_accepts_amounts_up_to_the_cap(
+    major: str, currency: str, amount_minor: int
+) -> None:
+    money = Money.from_major(major, currency)
+
+    assert money == Money(amount_minor, currency)
+
+
+@pytest.mark.parametrize(
     ("money", "major"),
     [
         (Money(123456, "USD"), "1234.56"),
@@ -147,7 +181,7 @@ def test_monthly_display_is_annual_over_12_rounded_half_even(annual: Money, mont
     assert result == monthly
 
 
-@given(amount_minor=st.integers(), currency=currencies)
+@given(amount_minor=amounts_minor, currency=currencies)
 def test_from_major_of_to_major_round_trips_every_amount(amount_minor: int, currency: str) -> None:
     money = Money(amount_minor, currency)
 
