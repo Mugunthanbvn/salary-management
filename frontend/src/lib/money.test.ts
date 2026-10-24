@@ -87,4 +87,16 @@ describe("formatMoney", () => {
       expect(formatMoney(amount, "EUR", { period })).toBe(text);
     },
   );
+
+  // Compact notation is for charts and short sentences; tables show full values.
+  it.each([
+    { amount: 82_350_000_000, currency: "USD", text: "US$823.5M" },
+    { amount: 125_000_000, currency: "EUR", text: "€1.2M" }, // 1.25 ties to even
+    { amount: 186_000_000, currency: "INR", text: "₹18.6L" },
+  ])(
+    "shortens $amount $currency to $text in compact mode",
+    ({ amount, currency, text }) => {
+      expect(formatMoney(amount, currency, { compact: true })).toBe(text);
+    },
+  );
 });
