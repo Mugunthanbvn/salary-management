@@ -5,6 +5,7 @@ directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 """
 
 from collections.abc import Mapping
+from dataclasses import replace
 from datetime import date
 from typing import Any
 
@@ -15,7 +16,13 @@ from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Comp, Money, SalaryBasis
 from salary_api.domain.currency import SUPPORTED_CURRENCIES
-from salary_api.domain.money import FxRate, FxRateMissingError, max_local_amount, min_local_amount
+from salary_api.domain.money import (
+    FxRate,
+    FxRateMissingError,
+    max_local_amount,
+    min_local_amount,
+    usd_sort_key,
+)
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.search import employee_search_text, fold
 from salary_api.modules.audit.service import AuditAction, record_event
@@ -123,6 +130,8 @@ def list_employees(
     _refuse_salary_query_without_salary_read(principal, query, order)
     _check_salary_comparison(query, order)
     usd_rates = _usd_rates_for(session, query)
+    if usd_rates:
+        order = _by_usd_value(order, usd_rates)
     where = repository.EmployeeFilter(
         search=fold(query.q) if query.q else None,
         countries=query.country,
@@ -173,6 +182,17 @@ def _salary_range(
             for currency, rate in usd_rates.items()
         },
     )
+
+
+def _by_usd_value(
+    order: list[repository.SortKey], usd_rates: Mapping[str, FxRate]
+) -> list[repository.SortKey]:
+    """Salary sort keys that order by USD value, the others unchanged."""
+    usd = {currency: usd_sort_key(rate) for currency, rate in usd_rates.items()}
+    return [
+        replace(key, usd=usd) if key.field in repository.SALARY_SORT_FIELDS else key
+        for key in order
+    ]
 
 
 def _usd_rates_for(session: Session, query: EmployeeListQuery) -> dict[str, FxRate]:

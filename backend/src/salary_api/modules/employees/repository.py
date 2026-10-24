@@ -1,11 +1,12 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, Select, and_, false, func, or_, select
+from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select
 from sqlalchemy.orm import QueryableAttribute, Session, contains_eager, joinedload
 
 from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
+from salary_api.domain.money import UsdSortKey
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import JobRole
 from salary_api.modules.salaries.models import SalaryRecord
@@ -66,6 +67,8 @@ SALARY_SORT_FIELDS = frozenset({"current_base", "current_total"})
 class SortKey:
     field: str  # a key of SORT_COLUMNS
     descending: bool = False
+    # A salary field sorted by USD value: the integer key per currency (domain usd_sort_key).
+    usd: Mapping[str, UsdSortKey] | None = None
 
 
 AMOUNT_COLUMNS: Mapping[Comp, QueryableAttribute[int]] = {
@@ -122,8 +125,7 @@ def page(
     Sorted by `order`, then by id, so every page boundary is stable.
     """
     order_by = [
-        SORT_COLUMNS[key.field].desc() if key.descending else SORT_COLUMNS[key.field].asc()
-        for key in order
+        _sort_value(key).desc() if key.descending else _sort_value(key).asc() for key in order
     ]
     query = (
         _matching(select(Employee), where)
@@ -134,6 +136,23 @@ def page(
         .limit(limit)
     )
     return session.scalars(query).all()
+
+
+def _sort_value(key: SortKey) -> ColumnElement[object]:
+    column = SORT_COLUMNS[key.field]
+    if key.usd is None:
+        return column.expression
+    # min(amount, cap) * factor per currency: whole numbers that order amounts by USD value.
+    return case(
+        *(
+            (
+                Employee.currency == currency,
+                case((column > usd.cap, usd.cap), else_=column) * usd.factor,
+            )
+            for currency, usd in key.usd.items()
+        ),
+        else_=None,
+    )
 
 
 def count(session: Session, where: EmployeeFilter) -> int:
