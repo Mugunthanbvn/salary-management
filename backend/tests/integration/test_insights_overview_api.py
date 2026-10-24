@@ -1,6 +1,8 @@
 """GET /insights/overview (docs/09-insights-pay-equity.md section 3.1, docs/07 section 8.3)."""
 
 from collections.abc import Callable
+from datetime import date
+from typing import Any
 
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
@@ -8,7 +10,7 @@ from sqlalchemy.orm import Session
 from salary_api.core.permissions import Principal, Role
 from salary_api.modules.insights import service
 from salary_api.modules.insights.schemas import InsightQuery
-from tests.factories import make_employee, make_fx_rates
+from tests.factories import make_employee, make_fx_rate, make_fx_rates
 
 OVERVIEW = "/api/v1/insights/overview"
 
@@ -77,3 +79,97 @@ def test_overview_refuses_an_unknown_query_parameter(
 
     assert response.status_code == 422
     assert response.json()["type"] == "https://acme.example/problems/validation"
+
+
+def _stats(currency: str, *values: int | None, suppressed: bool = False) -> dict[str, Any]:
+    """A stats object: count, min, p25, median, mean, p75, max (docs/07 section 8.2)."""
+    names = ("count", "min", "p25", "median", "mean", "p75", "max")
+    return dict(zip(names, values, strict=True)) | {"currency": currency, "suppressed": suppressed}
+
+
+def _germany_and_india(session: Session) -> None:
+    """Five salaries in Germany (EUR) and one in India (INR), whose rate is older."""
+    make_fx_rate(session, "INR", as_of=date(2026, 9, 15))
+    make_fx_rates(session)
+    for base in (5_000_000, 6_000_000, 7_000_000, 8_000_000, 9_000_000):
+        make_employee(session, country="DE", base_minor=base)
+    make_employee(session, country="IN", base_minor=240_000_000)
+
+
+def test_overview_converts_each_salary_to_usd_before_mixing_currencies(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    _germany_and_india(db_session)
+
+    body = as_role("HR_MANAGER").get(OVERVIEW).json()
+
+    # EUR at 1.085: 5,000,000 cents is 5,425,000 US cents. INR at 0.01198: 240,000,000 paise
+    # is 2,875,200 US cents. The org median sits between two German salaries, in USD.
+    assert body["currency"] == "USD"
+    assert body["fx_as_of"] == "2026-09-15"  # the oldest rate used
+    assert body["headcount"] == 6
+    assert body["total_payroll_usd"] == {"amount_minor": 40_850_200, "currency": "USD"}
+    assert body["stats"] == _stats(
+        "USD", 6, 2_875_200, 5_696_250, 7_052_500, 6_808_367, 8_408_750, 9_765_000
+    )
+    assert body["by_country"] == [
+        {
+            "country_code": "DE",
+            "local": _stats(
+                "EUR", 5, 5_000_000, 6_000_000, 7_000_000, 7_000_000, 8_000_000, 9_000_000
+            ),
+            "usd": _stats(
+                "USD", 5, 5_425_000, 6_510_000, 7_595_000, 7_595_000, 8_680_000, 9_765_000
+            ),
+        },
+        {
+            "country_code": "IN",
+            "local": _stats("INR", 1, *[240_000_000] * 6),
+            "usd": _stats("USD", 1, *[2_875_200] * 6),
+        },
+    ]
+
+
+def test_overview_of_one_currency_is_in_that_currency(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    _germany_and_india(db_session)
+
+    body = as_role("HR_MANAGER").get(OVERVIEW, params={"country": "DE"}).json()
+
+    assert body["currency"] == "EUR"
+    assert body["stats"] == _stats(
+        "EUR", 5, 5_000_000, 6_000_000, 7_000_000, 7_000_000, 8_000_000, 9_000_000
+    )
+    assert body["total_payroll_usd"] == {"amount_minor": 37_975_000, "currency": "USD"}
+    assert body["fx_as_of"] == "2026-10-01"  # only the EUR rate was used
+
+
+def test_overview_of_total_comp_uses_base_plus_allowances_and_bonus_target(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_fx_rates(db_session)
+    make_employee(
+        db_session,
+        base_minor=6_000_000,
+        components=[("ALLOWANCE", "Transport", 60_000), ("BONUS_TARGET", "Bonus", 600_000)],
+    )
+
+    body = as_role("HR_MANAGER").get(OVERVIEW, params={"comp": "total", "country": "DE"}).json()
+
+    assert body["stats"] == _stats("EUR", 1, *[6_660_000] * 6)
+    assert body["population"]["comp"] == "total"
+
+
+def test_overview_of_nobody_has_no_amounts(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_fx_rates(db_session)
+
+    body = as_role("HR_MANAGER").get(OVERVIEW).json()
+
+    assert body["headcount"] == 0
+    assert body["total_payroll_usd"] is None
+    assert body["fx_as_of"] is None
+    assert body["stats"] == _stats("USD", 0, *[None] * 6)
+    assert body["by_country"] == []
