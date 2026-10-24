@@ -57,7 +57,7 @@ Every insight takes `comp`:
 
 - All amounts are **integer minor units** plus an **ISO 4217 currency code** (see [adr/0004-money-integer-minor-units.md](adr/0004-money-integer-minor-units.md)).
 - The minor-unit exponent comes from currency metadata (JPY = 0, USD/EUR/GBP/INR/… = 2).
-- Arithmetic in the domain layer uses Python `int` (sums) and `decimal.Decimal` (means, percentiles, ratios, FX). **Floats are never used for money.**
+- Arithmetic in the domain layer uses Python `int` (sums, means) and `decimal.Decimal` (percentiles, ratios, FX). **Floats are never used for money.**
 - API responses carry amounts as `{ "amount_minor": 5200000, "currency": "EUR" }`. Rendering (thousands separators, symbols) is the client's job.
 
 ### 2.5 Currency-context rules (the core anti-misleading rule)
