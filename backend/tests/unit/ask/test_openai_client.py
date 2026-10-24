@@ -1,13 +1,13 @@
 """The OpenAI-compatible adapter (docs/10 section 7), against a mocked HTTP transport.
 
-No request leaves the process: httpx.MockTransport answers in memory.
+No request leaves the process: httpx2.MockTransport answers in memory.
 """
 
 import json
 from collections.abc import Callable
 from typing import Any
 
-import httpx
+import httpx2
 import pytest
 
 from salary_api.modules.ask.llm import LLMRateLimited, LLMUnavailable, ToolCall
@@ -19,16 +19,16 @@ TOOLS: list[dict[str, Any]] = [
 ]
 
 
-def _client(handler: Callable[[httpx.Request], httpx.Response]) -> OpenAICompatibleLLMClient:
+def _client(handler: Callable[[httpx2.Request], httpx2.Response]) -> OpenAICompatibleLLMClient:
     return OpenAICompatibleLLMClient(
         base_url=BASE_URL,
         api_key="test-key",
         model="test-model",
-        http_client=httpx.Client(transport=httpx.MockTransport(handler)),
+        http_client=httpx2.Client(transport=httpx2.MockTransport(handler)),
     )
 
 
-def _completion(message: dict[str, Any]) -> httpx.Response:
+def _completion(message: dict[str, Any]) -> httpx2.Response:
     body = {
         "id": "chatcmpl-1",
         "object": "chat.completion",
@@ -36,13 +36,13 @@ def _completion(message: dict[str, Any]) -> httpx.Response:
         "model": "test-model",
         "choices": [{"index": 0, "finish_reason": "stop", "message": message}],
     }
-    return httpx.Response(200, json=body)
+    return httpx2.Response(200, json=body)
 
 
 def test_sends_the_model_messages_tools_and_an_output_cap() -> None:
     sent: list[dict[str, Any]] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         sent.append(json.loads(request.content))
         assert str(request.url) == f"{BASE_URL}chat/completions"
         assert request.headers["authorization"] == "Bearer test-key"
@@ -59,7 +59,7 @@ def test_sends_the_model_messages_tools_and_an_output_cap() -> None:
 def test_leaves_tools_out_when_there_are_none() -> None:
     sent: list[dict[str, Any]] = []
 
-    def handler(request: httpx.Request) -> httpx.Response:
+    def handler(request: httpx2.Request) -> httpx2.Response:
         sent.append(json.loads(request.content))
         return _completion({"role": "assistant", "content": "{}"})
 
@@ -98,8 +98,8 @@ def test_returns_the_tool_calls_the_model_asks_for() -> None:
 
 
 def test_a_provider_429_is_rate_limited_with_its_retry_after() -> None:
-    def handler(_request: httpx.Request) -> httpx.Response:
-        return httpx.Response(429, headers={"retry-after": "2.5"}, json={"error": {}})
+    def handler(_request: httpx2.Request) -> httpx2.Response:
+        return httpx2.Response(429, headers={"retry-after": "2.5"}, json={"error": {}})
 
     with pytest.raises(LLMRateLimited) as raised:
         _client(handler).complete([{"role": "user", "content": "Hi"}], TOOLS)
@@ -109,7 +109,7 @@ def test_a_provider_429_is_rate_limited_with_its_retry_after() -> None:
 
 def test_a_provider_429_without_retry_after_has_no_wait() -> None:
     with pytest.raises(LLMRateLimited) as raised:
-        _client(lambda _: httpx.Response(429, json={"error": {}})).complete(
+        _client(lambda _: httpx2.Response(429, json={"error": {}})).complete(
             [{"role": "user", "content": "Hi"}], TOOLS
         )
 
@@ -119,14 +119,14 @@ def test_a_provider_429_without_retry_after_has_no_wait() -> None:
 @pytest.mark.parametrize("status", [400, 401, 404, 500, 503])
 def test_any_other_provider_error_is_unavailable(status: int) -> None:
     with pytest.raises(LLMUnavailable):
-        _client(lambda _: httpx.Response(status, json={"error": {}})).complete(
+        _client(lambda _: httpx2.Response(status, json={"error": {}})).complete(
             [{"role": "user", "content": "Hi"}], TOOLS
         )
 
 
 def test_a_timeout_is_unavailable() -> None:
-    def handler(request: httpx.Request) -> httpx.Response:
-        raise httpx.ReadTimeout("slow", request=request)
+    def handler(request: httpx2.Request) -> httpx2.Response:
+        raise httpx2.ReadTimeout("slow", request=request)
 
     with pytest.raises(LLMUnavailable):
         _client(handler).complete([{"role": "user", "content": "Hi"}], TOOLS)
@@ -136,7 +136,7 @@ def test_a_response_without_choices_is_unavailable() -> None:
     body = {"id": "1", "object": "chat.completion", "created": 1, "model": "m", "choices": []}
 
     with pytest.raises(LLMUnavailable):
-        _client(lambda _: httpx.Response(200, json=body)).complete(
+        _client(lambda _: httpx2.Response(200, json=body)).complete(
             [{"role": "user", "content": "Hi"}], TOOLS
         )
 
