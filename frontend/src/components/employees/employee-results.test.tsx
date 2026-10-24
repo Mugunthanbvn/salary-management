@@ -102,6 +102,20 @@ describe("EmployeeResults layout", () => {
     );
   });
 
+  it("scrolls the rows inside the table, with the header row pinned", () => {
+    renderInApp(
+      <EmployeeResults page={makeEmployeePage()} reference={reference} />,
+    );
+
+    // jsdom has no layout: check the classes that bound the box and pin the headers.
+    const box = table().closest("[data-slot=results-table]");
+    expect(box).toHaveClass("overflow-auto");
+    expect(box?.className).toMatch(/max-h-\[/);
+    for (const header of within(table()).getAllByRole("columnheader")) {
+      expect(header).toHaveClass("sticky", "top-0", "bg-paper");
+    }
+  });
+
   it("links every row and card to the employee's page", () => {
     renderInApp(
       <EmployeeResults page={makeEmployeePage()} reference={reference} />,
