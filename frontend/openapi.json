@@ -1,0 +1,59 @@
+{
+  "components": {
+    "schemas": {
+      "HealthResponse": {
+        "properties": {
+          "db": {
+            "const": "ok",
+            "title": "Db",
+            "type": "string"
+          },
+          "status": {
+            "const": "ok",
+            "title": "Status",
+            "type": "string"
+          },
+          "version": {
+            "title": "Version",
+            "type": "string"
+          }
+        },
+        "required": [
+          "status",
+          "db",
+          "version"
+        ],
+        "title": "HealthResponse",
+        "type": "object"
+      }
+    }
+  },
+  "info": {
+    "title": "ACME Salary Management API",
+    "version": "0.1.0"
+  },
+  "openapi": "3.1.0",
+  "paths": {
+    "/api/v1/health": {
+      "get": {
+        "operationId": "health_api_v1_health_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/HealthResponse"
+                }
+              }
+            },
+            "description": "Successful Response"
+          }
+        },
+        "summary": "Health check (public)",
+        "tags": [
+          "health"
+        ]
+      }
+    }
+  }
+}
