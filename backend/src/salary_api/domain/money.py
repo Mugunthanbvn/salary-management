@@ -9,6 +9,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Self
 
+from salary_api.domain.constants import MAX_AMOUNT_DIGITS, MAX_AMOUNT_MINOR
 from salary_api.domain.currency import USD, minor_unit_exponent
 from salary_api.domain.rounding import divide_half_even, round_half_even
 
@@ -62,14 +63,23 @@ class Money:
 
         Too many decimals are rejected, never rounded: `"1000.5"` JPY raises
         TooManyDecimalsError. Trailing zeros lose nothing, so `"1000.0"` JPY is ¥1000.
+        An amount of 10**15 minor units or more raises InvalidAmountError.
+
+        Works on the digits and exponent, so a hostile input never becomes a huge int.
         """
-        numerator, denominator = _parse_major(amount).as_integer_ratio()
-        amount_minor, remainder = divmod(
-            numerator * 10 ** minor_unit_exponent(currency), denominator
-        )
-        if remainder:
+        sign, digits, exponent = _parse_major(amount).as_tuple()
+        if not isinstance(exponent, int):  # NaN or Infinity
+            raise InvalidAmountError(f"{amount!r} is not a number")
+        if not any(digits):
+            return cls(0, currency)
+        shift = exponent + minor_unit_exponent(currency)  # amount_minor = digits x 10**shift
+        if len(digits) + shift > MAX_AMOUNT_DIGITS:
+            raise InvalidAmountError(f"{amount} is too large: the limit is {MAX_AMOUNT_MINOR}")
+        if shift < 0 and any(digits[shift:]):
             raise TooManyDecimalsError(f"{amount} has more decimals than {currency} allows")
-        return cls(amount_minor, currency)
+        kept = digits[:shift] if shift < 0 else digits + (0,) * shift
+        amount_minor = int("".join(map(str, kept)))
+        return cls(-amount_minor if sign else amount_minor, currency)
 
     def to_major(self) -> Decimal:
         """The exact amount in major units: 123456 USD cents is `Decimal("1234.56")`."""
@@ -142,9 +152,6 @@ def _parse_major(amount: str | Decimal) -> Decimal:
         kind = type(amount).__name__
         raise TypeError(f"a major-unit amount must be a str or Decimal, not {kind}")
     try:
-        value = Decimal(amount)
+        return Decimal(amount)
     except InvalidOperation:
         raise InvalidAmountError(f"{amount!r} is not a number") from None
-    if not value.is_finite():
-        raise InvalidAmountError(f"{amount!r} is not a number")
-    return value

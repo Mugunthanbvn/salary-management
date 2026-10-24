@@ -1,7 +1,11 @@
-"""Named business thresholds from docs/glossary.md §3. Change them here and nowhere else."""
+"""Named business thresholds (docs/glossary.md §3, docs/06 §5.1). Change them here only."""
 
 from decimal import Decimal
 from typing import Final
+
+MAX_AMOUNT_DIGITS: Final = 15
+MAX_AMOUNT_MINOR: Final = 10**MAX_AMOUNT_DIGITS - 1
+"""The largest amount accepted as input, in minor units: 15 digits, far below BIGINT."""
 
 MIN_GROUP_SIZE: Final = 5
 """Groups with fewer people are suppressed for callers without SALARY_READ (docs/09 §2.8)."""
