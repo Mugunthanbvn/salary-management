@@ -1,5 +1,6 @@
 """Engine behaviour (docs/06-data-model.md section 7). Each test builds its own engine."""
 
+import secrets
 from pathlib import Path
 
 import pytest
@@ -122,3 +123,19 @@ def test_test_sessions_use_the_same_options_as_the_app(engine: Engine, db_sessio
         app_session.expire_on_commit,
     )
     app_session.close()
+
+
+def test_production_engine_builds_from_a_turso_url_without_connecting() -> None:
+    settings = make_settings(
+        app_env="production",
+        jwt_secret=secrets.token_urlsafe(32),
+        cookie_secure=True,
+        database_url="sqlite+libsql://salary-prod-acme.turso.io?secure=true",
+        database_auth_token="turso-token",
+    )
+
+    engine = create_db_engine(settings)  # sockets are disabled: building must not connect
+
+    assert (engine.dialect.name, engine.dialect.driver) == ("sqlite", "libsql")
+    assert engine.url.host == "salary-prod-acme.turso.io"
+    assert isinstance(engine.pool, NullPool)
