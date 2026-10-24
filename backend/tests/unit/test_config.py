@@ -1,11 +1,16 @@
-"""APP_ENV=production refuses unsafe settings (docs/17-deployment.md section 4)."""
+"""Settings: production safety checks, env parsing and backend/.env.example."""
 
+from pathlib import Path
 from typing import Any
 
 import pytest
+from dotenv import dotenv_values
 from pydantic import ValidationError
 
+from salary_api.core.config import Settings
 from tests.factories import make_settings, settings_from_environment
+
+ENV_EXAMPLE = Path(__file__).resolve().parents[2] / ".env.example"
 
 SAFE_PRODUCTION: dict[str, Any] = {
     "app_env": "production",
@@ -72,3 +77,12 @@ def test_empty_cors_origins_env_var_means_no_origins(monkeypatch: pytest.MonkeyP
     settings = settings_from_environment()
 
     assert settings.cors_origins == []
+
+
+def test_env_example_documents_every_setting_with_a_valid_value() -> None:
+    values = dotenv_values(ENV_EXAMPLE)
+
+    settings = make_settings(**{name.lower(): value for name, value in values.items()})
+
+    assert {name.upper() for name in Settings.model_fields} <= values.keys()
+    assert settings.app_env == "development"
