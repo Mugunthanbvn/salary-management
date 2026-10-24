@@ -157,6 +157,25 @@ describe("AskChat", () => {
     expect(screen.queryByText("How I got this")).toBeNull();
   });
 
+  it.each([
+    "//evil.example/insights",
+    "https://evil.example",
+    "javascript:alert(1)",
+  ])(
+    "reproduce: shows no dashboard link to %s, only a path on this site",
+    async (link) => {
+      answering(makeAnswer({ dashboard_link: link }));
+      render(<AskChat />);
+
+      await ask();
+
+      await screen.findByRole("article", { name: "Question and answer" });
+      expect(
+        screen.queryByRole("link", { name: "View in dashboard" }),
+      ).toBeNull();
+    },
+  );
+
   it("says how many minutes to wait when rate limited", async () => {
     failing(
       429,
