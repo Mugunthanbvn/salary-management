@@ -162,22 +162,25 @@ def min_local_amount(usd_minor: int, rate: FxRate) -> int:
 
     "Worth" means what `to_usd` gives, half-even rounding included, so a USD salary range
     becomes an exact local range: amount >= min_local_amount(usd_min, rate).
+
+    The first amount with amount * rate >= usd_minor - 0.5 can still round down to
+    usd_minor - 1 (a tie with an odd usd_minor), so the estimate may need one step up; it is
+    never too high, since the one before it is worth less than usd_minor - 0.5.
     """
     estimate = (Decimal(usd_minor) - _HALF) / _usd_minor_per_minor(rate)
     amount = max(0, int(estimate.to_integral_value(rounding=ROUND_CEILING)))
-    while amount > 0 and _worth(amount - 1, rate) >= usd_minor:
-        amount -= 1
     while _worth(amount, rate) < usd_minor:
         amount += 1
     return amount
 
 
 def max_local_amount(usd_minor: int, rate: FxRate) -> int:
-    """The largest amount (minor units of `rate.currency`) worth `usd_minor` or less (see above)."""
+    """The largest amount (minor units of `rate.currency`) worth `usd_minor` or less.
+
+    The mirror of min_local_amount: the estimate may need one step down, never up.
+    """
     estimate = (Decimal(usd_minor) + _HALF) / _usd_minor_per_minor(rate)
     amount = int(estimate.to_integral_value(rounding=ROUND_FLOOR))
-    while _worth(amount + 1, rate) <= usd_minor:
-        amount += 1
     while amount > 0 and _worth(amount, rate) > usd_minor:
         amount -= 1
     return amount
