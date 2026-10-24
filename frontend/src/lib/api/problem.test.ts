@@ -35,4 +35,51 @@ describe("toProblem", () => {
       requestId: "req-123",
     });
   });
+
+  it("keeps the field errors of a validation problem", async () => {
+    const response = problemResponse({
+      type: "https://acme.example/problems/validation",
+      title: "Validation failed",
+      status: 422,
+      detail: "1 field is invalid.",
+      instance: "/api/v1/employees",
+      request_id: "req-456",
+      errors: [
+        {
+          loc: ["body", "email"],
+          code: "invalid_format",
+          message: "Not an email.",
+        },
+      ],
+    });
+
+    const problem = await toProblem(response);
+
+    expect(problem.errors).toEqual([
+      {
+        loc: ["body", "email"],
+        code: "invalid_format",
+        message: "Not an email.",
+      },
+    ]);
+  });
+
+  it("describes an error whose body is not a problem, keeping the request id", async () => {
+    const response = new Response("<html>Bad gateway</html>", {
+      status: 502,
+      statusText: "Bad Gateway",
+      headers: { "Content-Type": "text/html", "X-Request-ID": "req-789" },
+    });
+
+    const problem = await toProblem(response);
+
+    expect(problem).toMatchObject({
+      slug: null,
+      type: "about:blank",
+      title: "Bad Gateway",
+      status: 502,
+      detail: null,
+      requestId: "req-789",
+    });
+  });
 });
