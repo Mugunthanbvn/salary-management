@@ -10,8 +10,16 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
+from sqlalchemy.orm.exc import StaleDataError
 
-from salary_api.core.errors import Duplicate, FieldError, Forbidden, NotFound, ValidationFailed
+from salary_api.core.errors import (
+    Duplicate,
+    FieldError,
+    Forbidden,
+    NotFound,
+    ValidationFailed,
+    VersionConflict,
+)
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Comp, Money, SalaryBasis
@@ -121,15 +129,42 @@ def update_employee(
     session: Session, principal: Principal, employee_id: int, request: EmployeeUpdate
 ) -> EmployeeDetail:
     """Change profile fields of the version the client read; the version goes up by one."""
-    employee = _get(session, employee_id)
+    employee = _get_version(session, employee_id, request.version)
     for field, value in request.model_dump(exclude_unset=True, exclude={"version"}).items():
         setattr(employee, field, value)
     employee.search_text = employee_search_text(
         employee.first_name, employee.last_name, employee.employee_code, employee.email
     )
     employee.version += 1
-    session.commit()
+    _commit_versioned(session, employee_id)
     return get_employee(session, principal, employee_id)
+
+
+def _get_version(session: Session, employee_id: int, version: int) -> Employee:
+    """The employee, if `version` is still the current one (VersionConflict otherwise)."""
+    employee = _get(session, employee_id)
+    if employee.version != version:
+        raise _version_conflict(employee_id, employee.version)
+    return employee
+
+
+def _commit_versioned(session: Session, employee_id: int) -> None:
+    """Commit; the UPDATE says WHERE version = <read version>, so a change committed by
+    someone else since the read matches no row and becomes a VersionConflict."""
+    try:
+        session.commit()
+    except StaleDataError:
+        session.rollback()
+        raise _version_conflict(
+            employee_id, repository.current_version(session, employee_id) or 0
+        ) from None
+
+
+def _version_conflict(employee_id: int, current_version: int) -> VersionConflict:
+    return VersionConflict(
+        f"Employee {employee_id} was changed by someone else. Reload and try again.",
+        current_version=current_version,
+    )
 
 
 def _get(session: Session, employee_id: int) -> Employee:

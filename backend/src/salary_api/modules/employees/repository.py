@@ -30,6 +30,11 @@ def get_detail(session: Session, employee_id: int) -> Employee | None:
     return session.scalars(query).one_or_none()
 
 
+def current_version(session: Session, employee_id: int) -> int | None:
+    """The committed version, read past the session's identity map."""
+    return session.scalar(select(Employee.version).where(Employee.id == employee_id))
+
+
 def highest_employee_code(session: Session) -> str | None:
     """The greatest `ACME-######` code. Codes have a fixed width, so text order is number order."""
     return session.scalar(
