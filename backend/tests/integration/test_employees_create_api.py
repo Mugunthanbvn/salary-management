@@ -11,6 +11,7 @@ from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
+from salary_api.domain.constants import MAX_AMOUNT_MINOR
 from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.salaries.models import SalaryRecord
@@ -292,3 +293,80 @@ def test_create_accepts_the_country_currency_when_it_is_given(
 
     assert response.status_code == 201
     assert response.json()["current_base"] == {"amount_minor": 6_000_000, "currency": "JPY"}
+
+
+def _component(**overrides: Any) -> dict[str, Any]:
+    return {"type": "ALLOWANCE", "name": "Transport", "amount_minor": 60_000} | overrides
+
+
+MALFORMED = [
+    ("base is a fraction", {"salary": _salary(base_minor=5_400_000.5)}, ["salary", "base_minor"]),
+    ("base is a float", {"salary": _salary(base_minor=5_400_000.0)}, ["salary", "base_minor"]),
+    ("base is text", {"salary": _salary(base_minor="5400000")}, ["salary", "base_minor"]),
+    ("base is zero", {"salary": _salary(base_minor=0)}, ["salary", "base_minor"]),
+    (
+        "base is too large",
+        {"salary": _salary(base_minor=MAX_AMOUNT_MINOR + 1)},
+        ["salary", "base_minor"],
+    ),
+    (
+        "component is negative",
+        {"salary": _salary(components=[_component(amount_minor=-1)])},
+        ["salary", "components", 0, "amount_minor"],
+    ),
+    (
+        "component is too large",
+        {"salary": _salary(components=[_component(amount_minor=MAX_AMOUNT_MINOR + 1)])},
+        ["salary", "components", 0, "amount_minor"],
+    ),
+    (
+        "component is a float",
+        {"salary": _salary(components=[_component(amount_minor=1.0)])},
+        ["salary", "components", 0, "amount_minor"],
+    ),
+    (
+        "component name is blank",
+        {"salary": _salary(components=[_component(name="  ")])},
+        ["salary", "components", 0, "name"],
+    ),
+    (
+        "component listed twice",
+        {"salary": _salary(components=[_component(), _component(amount_minor=1)])},
+        ["salary", "components"],
+    ),
+    (
+        "more than 20 components",
+        {"salary": _salary(components=[_component(name=f"A{n}") for n in range(21)])},
+        ["salary", "components"],
+    ),
+    ("note is too long", {"salary": _salary(note="x" * 501)}, ["salary", "note"]),
+    ("code is not ACME-######", {"employee_code": "EMP-1"}, ["employee_code"]),
+    ("code has non-ASCII digits", {"employee_code": "ACME-" + "\u0661" * 6}, ["employee_code"]),
+    ("email has no @", {"email": "lena.acme.example"}, ["email"]),
+    ("first name is blank", {"first_name": "   "}, ["first_name"]),
+    ("last name is too long", {"last_name": "x" * 101}, ["last_name"]),
+    ("country code is lower case", {"country_code": "de"}, ["country_code"]),
+    ("level is not in the glossary", {"level": "L9"}, ["level"]),
+    ("an unknown field", {"department_id": 1}, ["department_id"]),
+]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "loc"),
+    [pytest.param(overrides, loc, id=case) for case, overrides, loc in MALFORMED],
+)
+def test_create_refuses_a_malformed_request(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    overrides: dict[str, Any],
+    loc: list[str | int],
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "DE")
+
+    response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id) | overrides)
+
+    assert response.status_code == 422
+    assert response.json()["type"] == f"{PROBLEMS}validation"
+    assert ["body", *loc] in [error["loc"] for error in response.json()["errors"]]
