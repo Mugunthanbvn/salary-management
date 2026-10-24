@@ -61,4 +61,27 @@ describe("getMe", () => {
     await expect(getMe()).rejects.toThrow("redirect to /login");
     expect(redirect).toHaveBeenCalledWith("/login");
   });
+
+  it("throws any other problem for the error page to show", async () => {
+    server.use(
+      http.get<never, never, Problem>(ME_URL, () =>
+        HttpResponse.json(
+          {
+            type: "about:blank",
+            title: "Service Unavailable",
+            status: 503,
+            instance: "/api/v1/auth/me",
+            request_id: "req-503",
+          },
+          { status: 503 },
+        ),
+      ),
+    );
+
+    await expect(getMe()).rejects.toMatchObject({
+      status: 503,
+      requestId: "req-503",
+    });
+    expect(redirect).not.toHaveBeenCalled();
+  });
 });
