@@ -76,4 +76,15 @@ describe("formatMoney", () => {
       );
     },
   );
+
+  // A salary decrease is a negative change; it rounds like the positive amount.
+  it.each([
+    { amount: -150, period: "annual", text: "-€1.50" },
+    { amount: -18, period: "monthly", text: "-€0.02" },
+  ] as const)(
+    "shows $amount ($period) as $text",
+    ({ amount, period, text }) => {
+      expect(formatMoney(amount, "EUR", { period })).toBe(text);
+    },
+  );
 });
