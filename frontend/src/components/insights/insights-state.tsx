@@ -9,7 +9,7 @@ import {
   type TransitionStartFunction,
 } from "react";
 
-import { insightsParsers } from "@/lib/insights-params";
+import { insightsParsers, payEquityParsers } from "@/lib/insights-params";
 
 type Transition = {
   isPending: boolean;
@@ -39,6 +39,17 @@ export function InsightsProvider({ children }: { children: ReactNode }) {
 export function useInsightsState() {
   const transition = use(InsightsTransition);
   return useQueryStates(insightsParsers, {
+    shallow: false,
+    history: "push",
+    scroll: false,
+    startTransition: transition?.startTransition,
+  });
+}
+
+/** The pay-equity screen's URL state: its country and department. */
+export function usePayEquityState() {
+  const transition = use(InsightsTransition);
+  return useQueryStates(payEquityParsers, {
     shallow: false,
     history: "push",
     scroll: false,
