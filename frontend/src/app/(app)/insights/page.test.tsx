@@ -203,6 +203,17 @@ describe("/insights", () => {
     expect(india).toHaveTextContent("₹18,60,000");
   });
 
+  it("gives each country's link a 44 px touch target on phones", async () => {
+    serveInsights();
+
+    await renderPage();
+
+    const phoneRows = within(section(COUNTRY_QUESTION)).getByRole("list");
+    expect(
+      within(phoneRows).getByRole("link", { name: "Germany" }),
+    ).toHaveClass("inline-flex", "min-h-11", "items-center");
+  });
+
   it("shows the lowest and highest pay to HR", async () => {
     serveInsights();
 
