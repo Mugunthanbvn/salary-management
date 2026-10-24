@@ -231,3 +231,83 @@ def test_a_salary_change_for_an_unknown_employee_is_404(
 def _records(session: Session, employee: Employee) -> list[SalaryRecord]:
     query = select(SalaryRecord).where(SalaryRecord.employee_id == employee.id)
     return list(session.scalars(query).all())
+
+
+def test_a_promotion_to_a_higher_level_moves_the_employee_and_snapshots_the_level(
+    app: FastAPI,
+    client: TestClient,
+    db_session: Session,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    hr = make_user(db_session, role="HR_MANAGER")
+    employee = make_employee(db_session, level="L3")
+
+    response = signed_in_client(app, hr, settings).post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes",
+        json=salary_change(reason="PROMOTION", level="L4"),
+    )
+
+    assert response.status_code == 201
+    assert response.json()["record"]["level"] == "L4"
+    assert db_session.get(Employee, employee.id).level == "L4"  # type: ignore[union-attr]
+    event = db_session.scalars(select(AuditEvent)).one()
+    assert event.diff is not None
+    assert event.diff["level"] == ["L3", "L4"]
+
+
+def test_a_new_job_role_moves_the_employee_and_snapshots_the_role(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    engineer = make_job_role(db_session, "Software Engineer")
+    manager = make_job_role(db_session, "Engineering Manager")
+    employee = make_employee(db_session, job_role=engineer, level="L4")
+    hr = as_role("HR_MANAGER")
+
+    response = hr.post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes",
+        json=salary_change(reason="PROMOTION", job_role_id=manager.id),
+    )
+
+    assert response.json()["record"]["job_role"] == {
+        "id": manager.id,
+        "title": "Engineering Manager",
+    }
+    assert hr.get(f"{EMPLOYEES}/{employee.id}").json()["job_role"]["id"] == manager.id
+    history = _records(db_session, employee)
+    assert [record.job_role_id for record in history] == [engineer.id, manager.id]
+
+
+@pytest.mark.parametrize(
+    ("overrides", "error"),
+    [
+        pytest.param(
+            {"reason": "PROMOTION"}, (["body", "reason"], "not_a_promotion"), id="same level, role"
+        ),
+        pytest.param(
+            {"reason": "PROMOTION", "level": "L2"},
+            (["body", "reason"], "not_a_promotion"),
+            id="lower level",
+        ),
+        pytest.param(
+            {"job_role_id": 999}, (["body", "job_role_id"], "not_found"), id="unknown role"
+        ),
+    ],
+)
+def test_a_salary_change_refuses_a_false_promotion_or_an_unknown_role(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    overrides: dict[str, Any],
+    error: tuple[list[str], str],
+) -> None:
+    employee = make_employee(db_session, level="L3")
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes", json=salary_change(**overrides)
+    )
+
+    assert response.status_code == 422
+    assert [(e["loc"], e["code"]) for e in response.json()["errors"]] == [error]
