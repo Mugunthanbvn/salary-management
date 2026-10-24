@@ -1,15 +1,19 @@
 """Auth endpoints (docs/07-api-spec.md section 4, docs/08-security-rbac.md section 5)."""
 
+import hashlib
+
 import pytest
 import time_machine
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from sqlalchemy import select
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
 from salary_api.core.deps import get_password_hasher, get_session
 from salary_api.core.security import PasswordHasher, decode_access_token
-from tests.conftest import create_test_app
+from salary_api.modules.audit.models import AuditEvent
+from tests.conftest import FROZEN_NOW, create_test_app
 from tests.factories import DEFAULT_PASSWORD, FAST_ARGON2, make_settings, make_user
 
 LOGIN = "/api/v1/auth/login"
@@ -136,3 +140,65 @@ def test_login_with_an_unknown_email_still_checks_a_password_hash(
     client.post(LOGIN, json={"email": "nobody@acme.example", "password": DEFAULT_PASSWORD})
 
     assert hasher.verify_calls == 1  # against a dummy hash, so it takes as long as a real check
+
+
+def _committed_events(session: Session) -> list[AuditEvent]:
+    """Events the service committed: anything it only added is rolled back first."""
+    session.rollback()
+    return list(session.scalars(select(AuditEvent).order_by(AuditEvent.id)))
+
+
+def test_a_successful_login_is_audited_as_auth_login(
+    client: TestClient, db_session: Session, frozen_time: time_machine.Traveller
+) -> None:
+    user = make_user(db_session, email="hr@acme.example")
+    db_session.commit()
+
+    client.post(
+        LOGIN,
+        json={"email": "hr@acme.example", "password": DEFAULT_PASSWORD},
+        headers={"X-Request-ID": "req-login"},
+    )
+
+    [event] = _committed_events(db_session)
+    assert (event.actor_id, event.action, event.entity, event.entity_id, event.diff) == (
+        user.id,
+        "auth.login",
+        "user",
+        str(user.id),
+        {"result": "success"},
+    )
+    assert (event.at, event.request_id) == (FROZEN_NOW, "req-login")
+
+
+def test_a_successful_login_stamps_last_login_at(
+    client: TestClient, db_session: Session, frozen_time: time_machine.Traveller
+) -> None:
+    user = make_user(db_session, email="hr@acme.example")
+    db_session.commit()
+
+    client.post(LOGIN, json={"email": "hr@acme.example", "password": DEFAULT_PASSWORD})
+
+    db_session.rollback()
+    db_session.refresh(user)
+    assert user.last_login_at == FROZEN_NOW
+
+
+@pytest.mark.parametrize("email_is_known", [True, False])
+def test_a_failed_login_is_audited_with_the_email_hash_never_the_email(
+    client: TestClient,
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    email_is_known: bool,
+) -> None:
+    user = make_user(db_session, email="hr@acme.example")
+    db_session.commit()
+    email = "hr@acme.example" if email_is_known else "nobody@acme.example"
+
+    client.post(LOGIN, json={"email": email, "password": "not the password"})
+
+    [event] = _committed_events(db_session)
+    assert (event.actor_id, event.action, event.entity) == (None, "auth.login_failed", "auth")
+    assert event.entity_id == (str(user.id) if email_is_known else None)
+    assert event.diff == {"email_hash": hashlib.sha256(email.encode()).hexdigest()}
+    assert email not in str(event.diff)
