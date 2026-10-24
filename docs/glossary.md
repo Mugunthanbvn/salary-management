@@ -113,7 +113,7 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | Job-title split | `split_by_level=true` |
 | Pay-equity views | `view=cohorts\|departments` |
 | Import job | `id` (int), `status`, `format`, `filename`, `row_count`, `valid_count`, `error_count`, `errors[]`, `preview[]`, `expires_at` |
-| Import row error | `{ row, column, code, message, value }`; codes include `duplicate_in_file`, `duplicate_in_db`, `unknown_value`, `too_many_decimals`, `required`, `invalid_format` |
+| Import row error | `{ row, column, code, message, value }`; codes `required`, `invalid_format`, `unknown_value` (the message lists the allowed values), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, plus `future_date`, `before_hire_date` and `currency_mismatch`, as `POST /employees` names the same rules |
 | Import commit response | `{ id, status: "COMMITTED", inserted }` |
 | Import commit allowed for | the job's creator or an `ADMIN` |
 | Import headers | case-insensitive, trimmed, any order; unknown columns are an error |

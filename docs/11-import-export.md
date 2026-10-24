@@ -47,7 +47,7 @@ One row per employee. Header names are **case-insensitive and trimmed**. Column 
 
 | Column | Type / format | Required | Rules | Example |
 |---|---|---|---|---|
-| `employee_code` | string | ✅ | Pattern `ACME-\d{6}` **(proposed)**; unique in file and DB | `ACME-010001` |
+| `employee_code` | string | ✅ | Pattern `ACME-` + six ASCII digits (as `POST /employees`); unique in file and DB | `ACME-010001` |
 | `first_name` | string 1–100 | ✅ | Trimmed; Unicode allowed | `Jürgen` |
 | `last_name` | string 1–100 | ✅ | Trimmed; Unicode allowed | `Müller` |
 | `email` | email ≤ 254 | ✅ | Valid syntax; lowercased; unique in file and DB | `jurgen.muller@acme.example` |
@@ -58,8 +58,8 @@ One row per employee. Header names are **case-insensitive and trimmed**. Column 
 | `hire_date` | date `YYYY-MM-DD` (or an Excel date cell) | ✅ | Not in the future; not before 1970-01-01 | `2022-04-01` |
 | `currency` | ISO 4217 | ⬜ | Defaults to the country's `default_currency`; if given, must equal it | `EUR` |
 | `base_salary` | decimal, **major units**, annual | ✅ | > 0; at most as many decimals as the currency allows (JPY: 0, EUR: 2); no thousands separators | `52000.00` |
-| `bonus_target` | decimal, major units, annual | ⬜ | ≥ 0; same precision rule | `4160.00` |
-| `allowance_1_name` … `allowance_3_name` | string 1–50 | ⬜ | Required if the matching amount is present | `Transport` |
+| `bonus_target` | decimal, major units, annual | ⬜ | ≥ 0; same precision rule. Stored as a `BONUS_TARGET` component named `Target bonus` | `4160.00` |
+| `allowance_1_name` … `allowance_3_name` | string 1–60 (the API's component name rule) | ⬜ | Required if the matching amount is present; two allowances of one row can't share a name | `Transport` |
 | `allowance_1_amount` … `allowance_3_amount` | decimal, major units, annual | ⬜ | > 0; precision rule | `1200.00` |
 | `salary_effective_date` | date | ⬜ | Defaults to `hire_date`; not in the future; ≥ `hire_date` | `2022-04-01` |
 

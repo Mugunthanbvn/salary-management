@@ -223,7 +223,8 @@ def test_each_broken_rule_is_a_row_error_with_its_code(
     assert rows == []
     assert [(e.row, e.column, e.code) for e in errors] == [(7, column, RowErrorCode(code))]
     assert message in errors[0].message
-    assert errors[0].value == (cells[column].strip() if cells.get(column) else None)
+    written = cells.get(column)
+    assert errors[0].value == (written.strip() if written else None)
 
 
 def test_every_error_of_every_row_is_reported_in_row_and_column_order() -> None:
