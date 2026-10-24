@@ -11,6 +11,7 @@ import type { components } from "./schema";
 import { serverApi } from "./server";
 
 type MeResponse = components["schemas"]["MeResponse"];
+type Problem = components["schemas"]["Problem"];
 
 vi.mock("next/headers", () => ({ cookies: vi.fn() }));
 
@@ -43,5 +44,33 @@ describe("serverApi", () => {
 
     expect(data?.user.email).toBe("hr@acme.example");
     expect(authorization).toBe("Bearer jwt-from-cookie");
+  });
+
+  it("sends no Authorization header when there is no session cookie", async () => {
+    withCookies({});
+    let authorization: string | null = "not called";
+    server.use(
+      http.get<never, never, Problem>(
+        `${API_ORIGIN}/api/v1/auth/me`,
+        ({ request }) => {
+          authorization = request.headers.get("Authorization");
+          return HttpResponse.json(
+            {
+              type: "https://acme.example/problems/unauthenticated",
+              title: "Not authenticated",
+              status: 401,
+              instance: "/api/v1/auth/me",
+            },
+            { status: 401 },
+          );
+        },
+      ),
+    );
+
+    const api = await serverApi();
+    const { response } = await api.GET("/api/v1/auth/me");
+
+    expect(response.status).toBe(401);
+    expect(authorization).toBeNull();
   });
 });
