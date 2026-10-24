@@ -4,6 +4,7 @@ from typing import Literal, Self
 
 from pydantic import Field, SecretStr, model_validator
 from pydantic_settings import BaseSettings, SettingsConfigDict
+from sqlalchemy import make_url
 
 type AppEnv = Literal["development", "test", "production"]
 type LogLevel = Literal["DEBUG", "INFO", "WARNING", "ERROR"]
@@ -49,7 +50,15 @@ def _production_problems(settings: Settings) -> list[str]:
         )
     if not settings.cookie_secure:
         problems.append("COOKIE_SECURE must be true")
+    if _is_local_sqlite(settings.database_url):
+        problems.append("DATABASE_URL must be a hosted database, not a local or in-memory SQLite")
     return problems
+
+
+def _is_local_sqlite(database_url: str) -> bool:
+    """A SQLite URL without a host is a file on this machine or in memory."""
+    url = make_url(database_url)
+    return url.get_backend_name() == "sqlite" and not url.host
 
 
 def _is_weak_secret(secret: str) -> bool:
