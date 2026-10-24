@@ -11,6 +11,18 @@ import { LoginForm } from "./login-form";
 
 type LoginRequest = components["schemas"]["LoginRequest"];
 type LoginResponse = components["schemas"]["LoginResponse"];
+type Problem = components["schemas"]["Problem"];
+
+function problem(status: number, slug: string, title: string): Problem {
+  return {
+    type: `https://acme.example/problems/${slug}`,
+    title,
+    status,
+    detail: "Invalid email or password",
+    instance: "/api/v1/auth/login",
+    request_id: "req-1",
+  };
+}
 
 const { hardNavigate, search } = vi.hoisted(() => ({
   hardNavigate: vi.fn(),
@@ -80,4 +92,27 @@ describe("LoginForm", () => {
       await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith(opens));
     },
   );
+
+  it("says the email or password is wrong, without saying which", async () => {
+    server.use(
+      http.post<never, LoginRequest, Problem>(LOGIN_URL, () =>
+        HttpResponse.json(
+          problem(401, "unauthenticated", "Not authenticated"),
+          {
+            status: 401,
+          },
+        ),
+      ),
+    );
+
+    await signIn("hr@acme.example", "wrong");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "Email or password is incorrect",
+    );
+    expect(screen.getByLabelText("Password")).toHaveAccessibleDescription(
+      "Email or password is incorrect",
+    );
+    expect(hardNavigate).not.toHaveBeenCalled();
+  });
 });
