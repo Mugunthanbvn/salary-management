@@ -52,6 +52,7 @@ export function EmployeeResults({
       <NoResults
         page={page}
         state={state}
+        filterContext={{ canReadSalaries: showPay, reference }}
         onClear={() => void setState(CLEARED_FILTERS)}
       />
     );
@@ -378,10 +379,12 @@ function Paging({
 function NoResults({
   page,
   state,
+  filterContext,
   onClear,
 }: {
   page: EmployeePage;
   state: DirectoryState;
+  filterContext: { canReadSalaries: boolean; reference: ReferenceData };
   onClear: () => void;
 }) {
   if (page.total > 0) {
@@ -402,7 +405,7 @@ function NoResults({
       </EmptyState>
     );
   }
-  if (hasFilters(state)) {
+  if (hasFilters(state, filterContext)) {
     return (
       <EmptyState
         title="No employees match these filters"

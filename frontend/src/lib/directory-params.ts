@@ -12,6 +12,7 @@ import {
   parseAsString,
   parseAsStringLiteral,
   type inferParserType,
+  type Nullable,
 } from "nuqs/server";
 
 import type { components, paths } from "@/lib/api/schema";
@@ -76,7 +77,11 @@ export const CLEARED_FILTERS = {
 } as const;
 
 /** True when anything narrows the list beyond the default (active employees). */
-export function hasFilters(state: DirectoryState): boolean {
+export function hasFilters(
+  state: DirectoryState,
+  options: { canReadSalaries: boolean; reference: ReferenceData },
+): boolean {
+  void options;
   return (
     state.q.trim() !== "" ||
     state.country.length > 0 ||
@@ -94,6 +99,15 @@ export function hasFilters(state: DirectoryState): boolean {
 /** Just "ACTIVE": the list the API gives when no status is asked for. */
 export function isDefaultStatus(status: DirectoryState["status"]): boolean {
   return status.length === 1 && status[0] === "ACTIVE";
+}
+
+export function withPayBoundsChecked(
+  state: DirectoryState,
+  patch: Partial<Nullable<DirectoryState>>,
+  reference: ReferenceData,
+): Partial<Nullable<DirectoryState>> {
+  void [state, reference];
+  return patch;
 }
 
 /** Fields GET /employees can sort by (docs/07-api-spec.md §6.1). */

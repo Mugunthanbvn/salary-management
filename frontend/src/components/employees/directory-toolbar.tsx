@@ -117,7 +117,7 @@ export function DirectoryToolbar({
         {showPay ? (
           <PayPopover state={state} reference={reference} onChange={update} />
         ) : null}
-        {hasFilters(state) ? (
+        {hasFilters(state, { canReadSalaries: showPay, reference }) ? (
           <Button variant="link" className="ml-1 text-sm" onClick={clear}>
             Clear filters
           </Button>

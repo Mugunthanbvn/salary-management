@@ -213,6 +213,48 @@ describe("sort", () => {
 
     expect(lastQuery(onUrlUpdate)).toBe("?country=DE&sort=-current_base");
   });
+
+  it("shows the default once a pay sort no longer applies", () => {
+    renderInApp(<DirectoryToolbar reference={reference} total={3} />, {
+      searchParams: "?country=DE&country=JP&sort=-current_base",
+    });
+
+    expect(screen.getByRole("combobox", { name: "Sort by" })).toHaveValue("");
+  });
+});
+
+describe("pay bounds and the pay currency", () => {
+  it("are cleared when a filter changes the currency pay is compared in", async () => {
+    const onUrlUpdate = vi.fn();
+    renderInApp(<DirectoryToolbar reference={reference} total={3} />, {
+      searchParams: "?country=DE&salary_min=4000000",
+      onUrlUpdate,
+    });
+
+    await userEvent.click(
+      within(desktopFilters()).getByRole("button", { name: /^Country/ }),
+    );
+    await userEvent.click(screen.getByRole("checkbox", { name: "Germany" }));
+    await userEvent.click(screen.getByRole("checkbox", { name: "Japan" }));
+
+    expect(lastQuery(onUrlUpdate)).toBe("?country=JP");
+  });
+
+  it("empty the phone sheet's pay fields after Clear filters", async () => {
+    renderInApp(<DirectoryToolbar reference={reference} total={3} />, {
+      searchParams: "?country=DE&salary_min=4000000",
+    });
+
+    await userEvent.click(screen.getByRole("button", { name: /^Filters/ }));
+    const sheet = screen.getByRole("dialog", { name: "Filters" });
+    const from = () => within(sheet).getByRole("textbox", { name: /^From/ });
+    expect(from()).toHaveValue("40000");
+    await userEvent.click(
+      within(sheet).getByRole("button", { name: "Clear filters" }),
+    );
+
+    await waitFor(() => expect(from()).toHaveValue(""));
+  });
 });
 
 describe("the pay range", () => {
