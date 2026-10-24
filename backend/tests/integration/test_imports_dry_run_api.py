@@ -386,3 +386,20 @@ def test_the_upload_is_parsed_outside_a_database_transaction(
     as_role("HR_MANAGER").post(IMPORTS, **upload("q4.csv", import_csv(hire(1))))
 
     assert in_transaction == [False]
+
+
+def test_a_body_declared_over_the_cap_is_refused_before_it_is_read(
+    as_role: Callable[[str], TestClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def never(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the upload reached the service")
+
+    monkeypatch.setattr(imports_service, "dry_run", never)
+    content = b"x" * (MAX_UPLOAD_BYTES + 100_000)
+
+    response = as_role("HR_MANAGER").post(IMPORTS, **upload("big.csv", content))
+
+    assert response.status_code == 413
+    body = response.json()
+    assert (body["type"], body["instance"]) == (f"{PROBLEMS}payload-too-large", IMPORTS)
+    assert body["request_id"] == response.headers["x-request-id"]
