@@ -1,7 +1,12 @@
 "use client";
 
 import { cn } from "cn";
-import { useState, type ChangeEvent, type DragEvent } from "react";
+import {
+  useState,
+  type ChangeEvent,
+  type DragEvent,
+  type ReactNode,
+} from "react";
 
 import { MarginNote, PageTitle, Section } from "@/components/print";
 
@@ -120,9 +125,12 @@ export function UploadStep({
 export function ProblemNote({
   id,
   problem,
+  children,
 }: {
   id?: string;
   problem: Explained;
+  /** More detail under the message, e.g. the rows a commit found in the way. */
+  children?: ReactNode;
 }) {
   return (
     <div id={id} role="alert" className="mt-4 max-w-[720px]">
@@ -134,6 +142,7 @@ export function ProblemNote({
           {problem.more}
         </p>
       ) : null}
+      {children}
     </div>
   );
 }

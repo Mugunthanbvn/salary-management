@@ -6,8 +6,10 @@ import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/dates";
 import { formatCount } from "@/lib/numbers";
 
+import type { CommitProblem } from "./messages";
 import { PreviewRows } from "./preview-rows";
 import { RowErrors } from "./row-errors";
+import { ProblemNote } from "./upload-step";
 
 type ImportJobReport = components["schemas"]["ImportJobReport"];
 
@@ -26,9 +28,15 @@ function employees(count: number): string {
  */
 export function ReviewStep({
   report,
+  committing,
+  commitProblem,
+  onCommit,
   onUploadAgain,
 }: {
   report: ImportJobReport;
+  committing: boolean;
+  commitProblem: CommitProblem | null;
+  onCommit: () => void;
   onUploadAgain: () => void;
 }) {
   const badRows = report.row_count - report.valid_count;
@@ -36,7 +44,11 @@ export function ReviewStep({
   const title = hasErrors
     ? `${rows(badRows)} ${badRows === 1 ? "needs" : "need"} fixing`
     : `Ready to import ${employees(report.valid_count)}`;
-  const canCommit = !hasErrors && report.status === "DRY_RUN";
+  const canCommit =
+    !hasErrors &&
+    report.status === "DRY_RUN" &&
+    !committing &&
+    (commitProblem?.retry ?? true);
 
   return (
     <>
@@ -80,12 +92,33 @@ export function ReviewStep({
         </Section>
       ) : null}
 
+      {commitProblem ? (
+        <div className="mb-6">
+          <ProblemNote problem={commitProblem}>
+            {commitProblem.conflicts.length > 0 ? (
+              <div className="mt-4">
+                <RowErrors
+                  errors={commitProblem.conflicts}
+                  label="Already in the directory"
+                />
+              </div>
+            ) : null}
+          </ProblemNote>
+        </div>
+      ) : null}
+
       <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-3 border-t-2 border-ink pt-6">
-        <Button disabled={!canCommit}>
-          Import {employees(report.valid_count)}
+        <Button disabled={!canCommit} onClick={onCommit}>
+          {committing
+            ? "Importing…"
+            : `Import ${employees(report.valid_count)}`}
         </Button>
         <Button variant="secondary" onClick={onUploadAgain}>
-          {hasErrors ? "Upload the fixed file" : "Upload a different file"}
+          {commitProblem && !commitProblem.retry
+            ? "Upload the file again"
+            : hasErrors
+              ? "Upload the fixed file"
+              : "Upload a different file"}
         </Button>
         <p className="text-[14px] text-ink-2">
           {hasErrors

@@ -1,4 +1,7 @@
 import type { ProblemError } from "@/lib/api/problem";
+import type { components } from "@/lib/api/schema";
+
+type ImportRowError = components["schemas"]["ImportRowError"];
 
 /** What to tell the person about a problem: one sentence, and sometimes a second line. */
 export type Explained = { message: string; more?: string };
@@ -30,6 +33,57 @@ export function explainUploadProblem(problem: ProblemError): Explained {
     return { message: `This file has more than 10,000 rows. ${SPLIT_IT}` };
   }
   return fallback("Couldn't check the file.", problem);
+}
+
+/** A refused commit: what to say, the rows now in the way, and whether to try again. */
+export type CommitProblem = Explained & {
+  /** Rows someone added since the check (409 `duplicate`). */
+  conflicts: ImportRowError[];
+  /** False when trying the same check again can't work: upload the file again instead. */
+  retry: boolean;
+};
+
+/** Why POST /imports/{id}/commit refused, in plain words (docs/11-import-export.md §5.6). */
+export function explainCommitProblem(problem: ProblemError): CommitProblem {
+  const final = { conflicts: [], retry: false };
+  if (problem.slug === "duplicate") {
+    const conflicts = problem.body.conflicts;
+    return {
+      ...final,
+      message:
+        "Nothing was imported: some of these people were added after the check.",
+      more: "Remove or fix these rows in your spreadsheet, then upload it again.",
+      conflicts: Array.isArray(conflicts)
+        ? (conflicts as ImportRowError[])
+        : [],
+    };
+  }
+  if (problem.slug === "invalid-state") {
+    return {
+      ...final,
+      message: sentence("This check can't be imported any more.", problem),
+    };
+  }
+  if (problem.slug === "import-failed") {
+    return {
+      ...final,
+      message: sentence("The import failed, and nothing was saved.", problem),
+      more: problem.requestId
+        ? `If it fails again, quote request ID ${problem.requestId}.`
+        : undefined,
+    };
+  }
+  if (problem.status === 404) {
+    return {
+      ...final,
+      message: "This check was not found. Upload the file again.",
+    };
+  }
+  return {
+    ...fallback("Couldn't import the file.", problem),
+    ...final,
+    retry: true,
+  };
 }
 
 /** "The columns don't match the template. Unknown column 'emial'." */
