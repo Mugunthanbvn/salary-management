@@ -44,4 +44,12 @@ describe("formatMoney", () => {
 
     expect(text).toBe("₹18,60,000");
   });
+
+  // Larger than Number.MAX_SAFE_INTEGER: a float would lose the last digits.
+  it.each([
+    { kind: "bigint", amount: BigInt("123456789012345678901") },
+    { kind: "string", amount: "123456789012345678901" },
+  ])("keeps every digit of a huge $kind amount", ({ amount }) => {
+    expect(formatMoney(amount, "EUR")).toBe("€1,234,567,890,123,456,789.01");
+  });
 });
