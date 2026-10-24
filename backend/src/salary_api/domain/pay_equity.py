@@ -15,6 +15,7 @@ from salary_api.domain.money import Money
 class NoCompaRatioReason(StrEnum):
     """Why an employee has no compa-ratio."""
 
+    NOT_FULL_TIME = "not_full_time"
     NO_BAND = "no_band"
 
 
@@ -30,7 +31,13 @@ class CompaRatio:
 
 
 def compa_ratio(base: Money, band_mid: Money | None, employment_type: EmploymentType) -> CompaRatio:
-    """An employee's annual base pay against the midpoint of their pay band."""
+    """An employee's annual base pay against the midpoint of their pay band.
+
+    Only FULL_TIME employees get a ratio: part-time pay is not FTE-normalised, so comparing
+    it with a full-time band would be wrong. That check comes before the band check.
+    """
+    if employment_type is not EmploymentType.FULL_TIME:
+        return CompaRatio(None, NoCompaRatioReason.NOT_FULL_TIME)
     if band_mid is None:
         return CompaRatio(None, NoCompaRatioReason.NO_BAND)
     return CompaRatio(Decimal(base.amount_minor) / Decimal(band_mid.amount_minor))

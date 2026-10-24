@@ -233,6 +233,7 @@ compa_ratio(employee) = employee_base / band(job_role, level, country).mid
 - Uses **base salary only**. Bands are defined on base pay, and allowances follow country policy (for example India's HRA), not the role's market value. The `comp` toggle doesn't apply to this endpoint, and the UI disables it there with a tooltip.
 - Computed in `Decimal`. Shown rounded to 2 dp; full precision is kept for flag decisions.
 - An employee whose role + level + country has **no band** gets `compa_ratio: null` and `no_band: true`, is excluded from the rollups, and is counted in `summary.employees_without_band` (expected to be 0 with seeded data; a test asserts this).
+- A **non-`FULL_TIME`** employee (part-time or contractor) also gets `compa_ratio: null` and is excluded from the rollups: their pay isn't FTE-normalised, so comparing it with a full-time band would mislead. This check comes before the band check (`domain/pay_equity.py`, reason `not_full_time`).
 
 #### Flags
 
