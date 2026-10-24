@@ -168,3 +168,41 @@ def test_a_usd_range_without_a_needed_rate_is_a_configuration_error(db_session: 
 
     with pytest.raises(FxRateMissingError):
         service.list_employees(db_session, hr, query)
+
+
+@pytest.mark.parametrize(
+    ("sort", "last_names"),
+    [
+        # ¥16,194,030 is $108,500.0001 before rounding, so it sorts just above $108,500.00.
+        ("-current_base", ["Yen", "Dollar", "Euro", "Euro cent less", "Rupee"]),
+        ("current_base", ["Rupee", "Euro cent less", "Dollar", "Euro", "Yen"]),
+    ],
+)
+@pytest.mark.usefixtures("salaries_worth_about_108_500_usd")
+def test_a_usd_salary_sort_orders_every_currency_by_its_usd_value(
+    as_role: Callable[[str], TestClient], sort: str, last_names: list[str]
+) -> None:
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params={"salary_basis": "usd", "sort": sort})
+
+    assert response.status_code == 200
+    assert _last_names(response.json()) == last_names
+
+
+def test_a_usd_sort_on_total_uses_total_compensation(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_fx_rates(db_session)
+    make_employee(db_session, country="US", base_minor=9_000_000, last_name="Base only")
+    make_employee(
+        db_session,
+        country="DE",
+        base_minor=8_000_000,
+        components=[("BONUS_TARGET", "Target bonus", 1_000_000)],
+        last_name="With bonus",
+    )  # €90,000.00 total = $97,650.00
+
+    response = as_role("HR_MANAGER").get(
+        EMPLOYEES, params={"salary_basis": "usd", "sort": "-current_total"}
+    )
+
+    assert _last_names(response.json()) == ["With bonus", "Base only"]
