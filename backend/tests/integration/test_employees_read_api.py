@@ -1,12 +1,14 @@
 """Reading employees: detail and list (docs/07-api-spec.md sections 6.1 and 6.3)."""
 
 from collections.abc import Callable
+from typing import Any
 
 import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.factories import make_employee, make_job_role
+from salary_api.modules.reference.models import JobFamily
+from tests.factories import make_department, make_employee, make_job_role
 
 EMPLOYEES = "/api/v1/employees"
 PROBLEMS = "https://acme.example/problems/"
@@ -170,3 +172,72 @@ def test_list_refuses_a_page_outside_the_limits_or_an_unknown_parameter(
 
     assert response.status_code == 422
     assert response.json()["type"] == f"{PROBLEMS}validation"
+
+
+@pytest.fixture
+def population(db_session: Session) -> dict[str, Any]:
+    """Four employees, one per country, named after their country."""
+    engineer = make_job_role(db_session, "Software Engineer")
+    sales = make_department(db_session, "Sales")
+    account_executive = make_job_role(
+        db_session, "Account Executive", department=sales, family=JobFamily.SALES
+    )
+    make_employee(db_session, country="DE", job_role=engineer, level="L3", last_name="Germany")
+    make_employee(
+        db_session,
+        country="FR",
+        job_role=account_executive,
+        level="L2",
+        employment_type="PART_TIME",
+        last_name="France",
+    )
+    make_employee(
+        db_session,
+        country="JP",
+        job_role=engineer,
+        level="L5",
+        employment_type="CONTRACTOR",
+        last_name="Japan",
+    )
+    make_employee(
+        db_session, country="US", job_role=account_executive, status="TERMINATED", last_name="Usa"
+    )
+    return {"engineer": engineer, "sales": sales}
+
+
+FILTERS = [
+    ("countries", lambda _: {"country": ["DE", "JP"]}, ["Germany", "Japan"]),
+    ("department", lambda p: {"department_id": [p["sales"].id]}, ["France"]),
+    ("job role", lambda p: {"job_role_id": [p["engineer"].id]}, ["Germany", "Japan"]),
+    ("levels", lambda _: {"level": ["L2", "L5"]}, ["France", "Japan"]),
+    (
+        "employment types",
+        lambda _: {"employment_type": ["PART_TIME", "CONTRACTOR"]},
+        ["France", "Japan"],
+    ),
+    ("terminated only", lambda _: {"status": ["TERMINATED"]}, ["Usa"]),
+    (
+        "every status",
+        lambda _: {"status": ["ACTIVE", "TERMINATED"]},
+        ["France", "Germany", "Japan", "Usa"],
+    ),
+    ("currency", lambda _: {"currency": ["EUR"]}, ["France", "Germany"]),
+    ("filters combine with AND", lambda _: {"country": ["DE"], "level": ["L5"]}, []),
+]
+
+
+@pytest.mark.parametrize(
+    ("params", "last_names"),
+    [pytest.param(params, names, id=case) for case, params, names in FILTERS],
+)
+def test_list_filters_combine_values_of_one_key_with_or_and_keys_with_and(
+    as_role: Callable[[str], TestClient],
+    population: dict[str, Any],
+    params: Callable[[dict[str, Any]], dict[str, Any]],
+    last_names: list[str],
+) -> None:
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params=params(population))
+
+    body = response.json()
+    assert [item["last_name"] for item in body["items"]] == last_names
+    assert body["total"] == len(last_names)
