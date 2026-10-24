@@ -93,6 +93,10 @@ def _salary_change(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{employee.id}/salary-changes", "json": body}
 
 
+def _template_query(_session: Session) -> dict[str, Any]:
+    return {"params": {"format": "csv"}}
+
+
 def _import_file(session: Session) -> dict[str, Any]:
     make_import_reference(session)
     return upload("hires.csv", import_csv(hire(1)))
@@ -126,6 +130,7 @@ MATRIX = [
     Endpoint("POST", f"{EMPLOYEE}/reactivate", (401, 403, 200, 200), _terminated_employee),
     Endpoint("POST", f"{EMPLOYEE}/salary-changes", (401, 403, 201, 201), _salary_change),
     Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
+    Endpoint("GET", "/api/v1/imports/template", (401, 403, 200, 200), _template_query),
     Endpoint("POST", "/api/v1/imports", (401, 403, 201, 201), _import_file),
     Endpoint("GET", IMPORT, (401, 403, 404, 200), _someone_elses_import),
     Endpoint("POST", f"{IMPORT}/commit", (401, 403, 404, 200), _someone_elses_import_commit),
