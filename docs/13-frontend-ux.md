@@ -222,7 +222,8 @@ A three-step flow ([11-import-export.md](11-import-export.md)):
 | Input | Text box (max 1,000 chars, same cap as the API) + Send; Enter sends, Shift+Enter adds a new line |
 | Waiting | **Spinner** with "Thinking…" (no streaming in v1) |
 | History | Kept in page state only; last 6 turns sent; "New conversation" clears it; a note says history is not saved |
-| Errors | `429 rate-limited` → "The assistant is busy, try again in N s" (N from `Retry-After`; the problem `detail` says whether it's the hourly limit); `502 upstream-unavailable` → "The assistant is unavailable right now"; `503 feature-disabled` → the page isn't linked at all (`features.ask = false` from `/auth/me`) |
+| Errors | `429 rate-limited` → the problem `detail` (which limit) + "Try again in N minutes" (N from `Retry-After`, rounded up); `502 upstream-unavailable` → "The assistant is unavailable right now. Try again in a moment."; `503 feature-disabled` → the page isn't linked (`features.ask = false` from `/auth/me`); opened directly it says "Ask is turned off on this deployment." |
+| Transport | Client `fetch` to `/api/v1/ask` through the rewrite (not a Server Action: JSON for this page only, nothing to revalidate, and the browser needs `Retry-After`) |
 | Viewer | Same UI; access-limited answers are explained by the assistant |
 
 ### 4.9 Admin
