@@ -127,7 +127,7 @@ Defined in [06-data-model.md](06-data-model.md); listed here with the query each
 | `ix_audit_events_actor_action_at` | Ask rate limit; login failure limit |
 | `ix_audit_events_at` | Admin audit log, newest first |
 
-Rule: every filter and sort exposed by the API must have a supporting index, or a note here explaining why a scan is acceptable. `EXPLAIN QUERY PLAN` output for the main queries is captured in this doc during milestone 7.
+Rule: every filter and sort exposed by the API must have a supporting index, or a note here explaining why a scan is acceptable. Scans accepted at 10k rows (each well under the list budget): infix search (`LIKE '%term%'`), sorts by `first_name`, `hire_date`, `level` or `current_total`, a `comp=total` salary range, and a `salary_basis=usd` range or sort (an `OR` of one range per currency, or a `CASE` key). `employee_code` sorts use `uq_employees_employee_code`; a range on `current_base` within one currency uses `ix_employees_currency_base`. `EXPLAIN QUERY PLAN` output for the main queries is captured in this doc during milestone 7.
 
 ---
 

@@ -271,11 +271,20 @@ Writes `reference.country.update` with the diff. `default_currency` must be a su
 | `employment_type` | string[] | |
 | `status` | string[] | Default `ACTIVE` |
 | `currency` | string[] | |
-| `salary_min`, `salary_max` | int (minor units) | **Requires `SALARY_READ`.** Requires exactly one `currency`, or `salary_basis=usd` for USD-normalized comparison |
-| `salary_basis` | `local` \| `usd` | Default `local` |
-| `comp` | `base` \| `total` | Which amount the salary filter/sort uses. Default `base` |
-| `sort` | string | Whitelist: `last_name`, `first_name`, `employee_code`, `hire_date`, `country`, `level`, `current_base`*, `current_total`* (*needs `SALARY_READ`) |
+| `salary_min`, `salary_max` | int (minor units) | **Requires `SALARY_READ`.** Inclusive. In the one currency of the list (see below), or US cents with `salary_basis=usd`. `salary_min > salary_max` → 422 `invalid_range` |
+| `salary_basis` | `local` \| `usd` | Default `local`. **Requires `SALARY_READ`** when given |
+| `comp` | `base` \| `total` | Which amount the salary range uses (the sort fields name their amount). Default `base`. **Requires `SALARY_READ`** when given |
+| `sort` | string | Comma-separated, `-` for descending. Allow-list: `last_name`, `first_name`, `employee_code`, `hire_date`, `country`, `level`, `current_base`*, `current_total`* (*needs `SALARY_READ`). Unknown field → 422 `unknown_sort_field`. Ties are always broken by `last_name`, `first_name`, `id` |
 | `page`, `page_size` | int | See §1.3 |
+
+Unknown query parameters are refused with 422, like unknown body fields.
+
+**Salary ranges and salary sorts across currencies (decided in B4).** Raw minor units of two currencies are never compared (¥6,000,000 is not more than €60,000.00). So a salary range or a salary sort needs one of:
+
+- **exactly one `currency`**, or **exactly one `country`** (every salary is in its country's currency): amounts are compared in that local currency;
+- **`salary_basis=usd`**: amounts are compared by USD value. For a range, the service turns the USD bounds into exact local bounds per currency in Python with `Decimal` (`domain/money.py` `min_local_amount` / `max_local_amount`, which agree with `to_usd`'s half-even rounding at the boundary), so SQL still compares within one currency. For a sort, SQL orders by `min(amount, cap) × factor` per currency, where the integer `factor` (US cents per local minor unit × 10⁶, half-even) and `cap` (so the key fits 64 bits) come from `usd_sort_key`. It is an ordering key only; amounts in the response stay local, and no USD figure is computed in SQL. With `salary_basis=usd`, every currency the list can hold (the `currency` filter, else every supported currency) needs a row in `fx_rates`; a missing rate is a configuration error (500), never a rate of 0 or 1.
+
+Otherwise the request is a 422 `validation` with code `currency_required` on `salary_min`/`salary_max` or `sort`: "choose one currency (or one country), or use salary_basis=usd".
 
 ```json
 // 200
@@ -306,7 +315,7 @@ Writes `reference.country.update` with the diff. `default_currency` must be a su
 
 For a VIEWER: `current_base` and `current_total` are `null`, and `salary_masked` is `true`.
 
-Errors: 403 if a salary filter/sort is used without `SALARY_READ`; 422 for a salary range without a single currency (and no `salary_basis=usd`).
+Errors: 403 if a salary filter/sort is used without `SALARY_READ` (checked in the service, so exports and Ask tools get it too); 422 for a salary range or salary sort without one currency or one country (and no `salary_basis=usd`).
 
 ### 6.2 `POST /employees`: `EMPLOYEE_WRITE` + `SALARY_WRITE`
 

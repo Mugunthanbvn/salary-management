@@ -405,7 +405,7 @@ usd_major    = major_amount * Decimal(rate_to_usd)
 usd_minor    = round_half_even(usd_major * 100)
 ```
 
-- Conversion happens in `domain/money.py`, never in SQL and never in the frontend.
+- Conversion happens in `domain/money.py`, never in SQL and never in the frontend. The one use of rates in SQL is the ordering key of a USD salary sort (`ORDER BY min(amount, cap) × factor`, with integer factors from `usd_sort_key`): it orders rows and produces no figure ([07-api-spec.md](07-api-spec.md) §6.1).
 - Every API response containing a USD figure includes `fx_as_of` (the oldest `as_of` among the rates used) ([07-api-spec.md](07-api-spec.md)).
 - Statistics within one country are computed in **local currency**. Cross-country comparisons use USD. Mixed-currency sums in local units are never produced ([09-insights-pay-equity.md](09-insights-pay-equity.md)).
 
