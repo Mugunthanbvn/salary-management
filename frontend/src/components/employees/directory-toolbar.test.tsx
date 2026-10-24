@@ -41,7 +41,8 @@ describe("search", () => {
 
     await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
     expect(onUrlUpdate).toHaveBeenCalledTimes(1);
-    expect(lastQuery(onUrlUpdate)).toBe("?q=m%C3%BCl");
+    // nuqs keeps non-ASCII letters readable in the URL.
+    expect(lastQuery(onUrlUpdate)).toBe("?q=mül");
   });
 
   it("asks for a second character before it searches", async () => {
