@@ -227,6 +227,8 @@ As committed in `.claude/settings.json`:
       "Edit(./**/.env)", "Edit(./**/.env.local)", "Edit(./**/.env.development)",
       "Edit(./**/.env.production)", "Edit(./**/.env.test)",
       "Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git push --force-with-lease:*)",
+      "Bash(git checkout -- :*)", "Bash(git checkout .:*)", "Bash(git branch -D:*)",
+      "Bash(git reset --hard:*)", "Bash(git clean:*)", "Bash(git worktree remove --force:*)",
       "Bash(rm -rf:*)",
       "Bash(curl:*)", "Bash(wget:*)"
     ],
@@ -238,7 +240,7 @@ As committed in `.claude/settings.json`:
 ```
 
 - **Allow:** routine, reversible, local operations so TDD loops run without prompts. Plain `git push` is allowed because the build is run by an autonomous orchestrator that pushes after each block.
-- **Deny:** reading or editing secrets, force pushes, destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible). Deny wins over allow.
+- **Deny:** reading or editing secrets, force pushes, git commands that discard work (checkout `--`/`.`, `branch -D`, `reset --hard`, `clean`, `worktree remove --force`), destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible). Deny wins over allow.
 - **Ask:** deploy and database cloud CLIs (`vercel`, `turso`).
 - `.env.example` remains readable and editable (it holds no secrets): the deny patterns name `.env` and `.env.<env>` files explicitly instead of `.env.*`. The PreToolUse hooks (§7.2) cover every other `.env.<name>` (e.g. `.env.development.local`) for Read, Edit and Write, and in Bash commands.
 - Allow rules match a command prefix only, so `Bash(uv:*)`, `Bash(npx:*)` and `Bash(pnpm:*)` would let `uv run cat .env`, `npx vercel` or `git push origin main --force` through. `guard-bash.sh` closes that gap.
