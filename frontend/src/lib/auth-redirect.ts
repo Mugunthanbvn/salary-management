@@ -27,10 +27,12 @@ export const AFTER_LOGIN_PATH = "/insights";
 
 /**
  * The `next` page to open after signing in: a path on this site ("/…"), or /insights.
- * "//host" and "/\\host" are refused: browsers read both as another site.
+ * "//host" and "/\\host" are refused: browsers read both as another site. So is any
+ * whitespace or control character, which browsers drop ("/<tab>/host" is "//host").
  */
 export function safeNextPath(next: string | null): string {
   if (!next || !next.startsWith("/")) return AFTER_LOGIN_PATH;
+  if (/[\s\p{Cc}]/u.test(next)) return AFTER_LOGIN_PATH;
   if (next.startsWith("//") || next.startsWith("/\\")) return AFTER_LOGIN_PATH;
   return next;
 }
