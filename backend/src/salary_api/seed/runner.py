@@ -56,10 +56,7 @@ def run_seed(
     with clock.phase("users"):
         users = demo_users(settings, hasher)  # refuses unsafe production passwords
     database_url = options.db_url or settings.database_url
-    token = settings.database_auth_token
-    engine = create_engine_for_url(
-        database_url, auth_token=token.get_secret_value() if token else None
-    )
+    engine = create_engine_for_url(database_url, auth_token=_auth_token(settings, database_url))
     try:
         with clock.phase("migrate"):
             migrate(engine)
@@ -80,6 +77,15 @@ def run_seed(
     out.write(summary(dataset, seed=options.seed, database=shown_url, users=len(users)))
     out.write(clock.report() + "\n")
     return dataset
+
+
+def _auth_token(settings: SeedSettings, database_url: str) -> str | None:
+    """DATABASE_AUTH_TOKEN for a hosted database (Turso) only: a local SQLite file takes none,
+    and `make seed-turso` must work on a machine whose environment holds the token."""
+    token = settings.database_auth_token
+    if token is None or not make_url(database_url).host:
+        return None
+    return token.get_secret_value() or None
 
 
 def summary(dataset: Dataset, *, seed: int, database: str, users: int) -> str:
