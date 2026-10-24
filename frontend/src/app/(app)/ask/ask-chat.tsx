@@ -53,6 +53,9 @@ const TOOL_STEPS: Record<string, string> = {
 
 const COUNT = new Intl.NumberFormat("en-US");
 
+/** A path on this site: one leading slash, never `//host` (protocol-relative). */
+const SITE_PATH = /^\/(?!\/)/;
+
 /**
  * The Ask conversation (docs/13-frontend-ux.md §4.8). History lives in this component's
  * state only and is never saved; each question sends the last 6 turns. Every figure, the
@@ -277,7 +280,7 @@ function AnswerView({ answer }: { answer: AskResponse }) {
           </ol>
         </details>
       ) : null}
-      {answer.dashboard_link?.startsWith("/") ? (
+      {answer.dashboard_link && SITE_PATH.test(answer.dashboard_link) ? (
         <Link
           href={answer.dashboard_link}
           className="mt-1 inline-flex min-h-11 items-center text-[15px] font-bold"
