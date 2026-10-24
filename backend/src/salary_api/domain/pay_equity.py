@@ -5,7 +5,7 @@ cohort's own median, so a team-wide gap shows up (docs/09-insights-pay-equity.md
 """
 
 from collections import Counter, defaultdict
-from collections.abc import Iterable
+from collections.abc import Iterable, Iterator
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -140,10 +140,8 @@ def department_rollup(employees: Iterable[EmployeePay]) -> list[DepartmentRollup
     Employees without a compa-ratio (no band, or not full-time) are left out entirely.
     """
     ratios: defaultdict[tuple[int, str], list[Decimal]] = defaultdict(list)
-    for pay in employees:
-        ratio = compa_ratio(pay.base, pay.band_mid, pay.employment_type).value
-        if ratio is not None:
-            ratios[pay.department_id, pay.country_code].append(ratio)
+    for pay, ratio in _evaluated(employees):
+        ratios[pay.department_id, pay.country_code].append(ratio)
     return [
         DepartmentRollup(department_id, country_code, CompaRatioSummary.of(values))
         for (department_id, country_code), values in sorted(ratios.items())
@@ -169,11 +167,17 @@ def cohort_rollup(employees: Iterable[EmployeePay]) -> list[CohortRollup]:
     Only employees with a compa-ratio count, so a cohort without a band is not listed.
     """
     members: defaultdict[CohortKey, list[tuple[Money, Decimal]]] = defaultdict(list)
+    for pay, ratio in _evaluated(employees):
+        members[pay.cohort].append((pay.base, ratio))
+    return [_cohort_rollup(cohort, group) for cohort, group in sorted(members.items())]
+
+
+def _evaluated(employees: Iterable[EmployeePay]) -> Iterator[tuple[EmployeePay, Decimal]]:
+    """Each employee who has a compa-ratio, with that ratio. The others are skipped."""
     for pay in employees:
         ratio = compa_ratio(pay.base, pay.band_mid, pay.employment_type).value
         if ratio is not None:
-            members[pay.cohort].append((pay.base, ratio))
-    return [_cohort_rollup(cohort, group) for cohort, group in sorted(members.items())]
+            yield pay, ratio
 
 
 def _cohort_rollup(cohort: CohortKey, group: list[tuple[Money, Decimal]]) -> CohortRollup:
