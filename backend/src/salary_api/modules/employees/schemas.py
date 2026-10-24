@@ -116,7 +116,9 @@ class EmployeeListItem(BaseModel):
     current_base: Money | None
     current_total: Money | None
     salary_masked: bool
-    version: int
+    # Needed to change the employee. Null without SALARY_READ: it goes up with every salary
+    # change, so it would tell when someone's pay changed (such callers cannot write anyway).
+    version: int | None
 
 
 class CurrentSalary(BaseModel):

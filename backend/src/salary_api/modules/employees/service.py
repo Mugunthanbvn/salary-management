@@ -406,7 +406,7 @@ def _list_fields(employee: Employee, *, salary_visible: bool) -> dict[str, Any]:
         "current_base": _money(employee.current_base_minor, employee.currency, salary_visible),
         "current_total": _money(employee.current_total_minor, employee.currency, salary_visible),
         "salary_masked": not salary_visible,
-        "version": employee.version,
+        "version": employee.version if salary_visible else None,
     }
 
 

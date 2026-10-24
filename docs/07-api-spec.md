@@ -122,7 +122,7 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 
 ### 1.7 Masking for users without `SALARY_READ` (VIEWER)
 
-- Individual salary fields (`current_base`, `current_total`, and the detail's `current_salary` with its components) are returned as `null`, and the item carries `"salary_masked": true`. The employee service masks, so exports and Ask tools that call it get the same result.
+- Individual salary fields (`current_base`, `current_total`, and the detail's `current_salary` with its components) are returned as `null`, and the item carries `"salary_masked": true`. `version` is `null` too: it goes up with every salary change, so it would date them (only writers need it). The employee service masks, so exports and Ask tools that call it get the same result.
 - Endpoints that exist only to reveal individual pay (salary history, top earners, cohort member lists) return **403**.
 - Filtering or sorting by individual salary returns **403**. Otherwise repeated range queries could reveal one person's pay.
 - Aggregates are allowed, but any group with fewer than **5** people is suppressed: values and `count` are `null`, `"suppressed": true` (the small-group rule, [ADR 0009](adr/0009-permission-rbac-small-group-rule.md)).
@@ -317,7 +317,7 @@ Otherwise the request is a 422 `validation` with code `currency_required` on `sa
 }
 ```
 
-For a VIEWER: `current_base` and `current_total` are `null`, and `salary_masked` is `true`.
+For a VIEWER: `current_base`, `current_total` and `version` are `null`, and `salary_masked` is `true`.
 
 Errors: 403 if a salary filter/sort is used without `SALARY_READ` (checked in the service, so exports and Ask tools get it too); 422 for a salary range or salary sort without one currency or one country (and no `salary_basis=usd`).
 

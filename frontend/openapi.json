@@ -348,8 +348,15 @@
             "title": "Termination Date"
           },
           "version": {
-            "title": "Version",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
@@ -447,8 +454,15 @@
             "$ref": "#/components/schemas/EmployeeStatus"
           },
           "version": {
-            "title": "Version",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
