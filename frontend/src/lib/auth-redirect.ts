@@ -20,7 +20,26 @@ export function loginRedirectFor({
   hasSession,
 }: RequestInfo): string | null {
   if (hasSession || PUBLIC_PATH.test(pathname)) return null;
-  return `/login?${new URLSearchParams({ next: pathname + search }).toString()}`;
+  return loginPath(pathname + search);
+}
+
+/** /login, with the page to come back to after signing in when there is one. */
+export function loginPath(next: string | null): string {
+  return next ? `/login?${new URLSearchParams({ next }).toString()}` : "/login";
+}
+
+/**
+ * Request header proxy.ts sets to the page's path and query. Server Components can't read
+ * the URL, and getMe() needs it to send an expired session to /login?next=<page>.
+ */
+export const PAGE_HEADER = "x-pathname";
+
+/** The page's path and query, without Next's internal `_rsc` parameter. */
+export function pageOf(url: URL): { pathname: string; search: string } {
+  const params = new URLSearchParams(url.search);
+  params.delete("_rsc");
+  const query = params.toString();
+  return { pathname: url.pathname, search: query ? `?${query}` : "" };
 }
 
 export const AFTER_LOGIN_PATH = "/insights";

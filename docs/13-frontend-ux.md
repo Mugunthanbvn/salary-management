@@ -46,7 +46,7 @@ Design consequence: this is a **data-dense internal tool used daily**. Speed, le
 
 Navigation is a **top bar** from 640 px up and a **bottom bar** on phones (Insights, Employees, Ask; §8). The top bar always holds the **account menu**: the person's name, role and email, *Import employees* for `IMPORT` holders, and *Sign out*. The Admin menu is cut from v1. Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
 
-**Auth redirect:** `proxy.ts` (Next 16's middleware) redirects unauthenticated requests to `/login?next=…`. Routes the user's permissions don't allow show a 403 page with a link home. The **backend is the enforcement point**; the UI only hides things ([08-security-rbac.md](08-security-rbac.md)).
+**Auth redirect:** `proxy.ts` (Next 16's middleware) redirects requests without a `session` cookie to `/login?next=…`. When the cookie is there but the session has expired, the shell's `GET /auth/me` answers 401 and `getMe()` sends the person to `/login?next=…` too, using the page that `proxy.ts` passes on in the `x-pathname` request header. Routes the user's permissions don't allow show a 403 page with a link home. The **backend is the enforcement point**; the UI only hides things ([08-security-rbac.md](08-security-rbac.md)).
 
 ## 3. Global UI patterns
 
