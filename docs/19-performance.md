@@ -82,7 +82,7 @@ SELECT count(*) FROM employees e JOIN ... WHERE <same filters>;
 - Joins to small reference tables are cheap (35 job roles, 9 departments).
 - **No N+1:** role and department come from the join, not lazy loads. A test with SQLAlchemy query counting asserts "≤ 3 queries" for the list endpoint (loading the current user, the page, the count) ([14-testing-strategy.md](14-testing-strategy.md)).
 - **Offset pagination** is fine: the deepest page (400 × 25) still scans at most 10k index entries. Keyset pagination is the documented upgrade path (§7).
-- **Search:** `search_text LIKE '%term%'` can't use a B-tree index, so it scans about 10k short strings, about a millisecond in SQLite. Prefix searches (`term%`) can use `ix_employees_search_text`. FTS5 is the upgrade path if search ever slows down.
+- **Search:** `search_text LIKE '%term%'` can't use a B-tree index, so it scans at most 10k short strings: about 3 ms for the page and its count (measured, SQLite in memory, 10k rows). There is no `search_text` index: SQLite would not use it even for a prefix `LIKE` (case-insensitive by default), so it would only cost writes. FTS5 is the upgrade path if search ever slows down.
 
 ### 4.2 Insights
 
@@ -120,7 +120,6 @@ Defined in [06-data-model.md](06-data-model.md); listed here with the query each
 | `ix_employees_status_employment_type` | Default insight population (ACTIVE + FULL_TIME) |
 | `ix_employees_currency_base` | Salary range filter within one currency; top/bottom earners |
 | `ix_employees_last_first` | Default list sort |
-| `ix_employees_search_text` | Prefix search |
 | `ix_salary_records_employee_effective` | Salary timeline; current-record lookup |
 | `ix_salary_records_effective_reason` | Raise statistics by period |
 | `ix_salary_components_record` | Components for a record |

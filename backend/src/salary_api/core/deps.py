@@ -3,13 +3,14 @@
 from collections.abc import Callable, Iterator
 from typing import Annotated
 
-from fastapi import Depends, Request
+from fastapi import Depends, Path, Request
 from fastapi.security import APIKeyCookie, HTTPAuthorizationCredentials, HTTPBearer
 from sqlalchemy.orm import Session, sessionmaker
 
 from salary_api.core.config import Settings
 from salary_api.core.errors import Forbidden
 from salary_api.core.permissions import Permission, Principal
+from salary_api.core.schemas import MAX_ID
 from salary_api.core.security import SESSION_COOKIE, PasswordHasher
 from salary_api.modules.auth import service as auth_service
 
@@ -47,6 +48,8 @@ def get_password_hasher() -> PasswordHasher:
 
 
 SessionDep = Annotated[Session, Depends(get_session)]
+# A row id in a path: 1 to MAX_ID (a 64-bit integer), else 422 like a query or body id.
+IdPath = Annotated[int, Path(ge=1, le=MAX_ID)]
 SettingsDep = Annotated[Settings, Depends(get_settings)]
 PasswordHasherDep = Annotated[PasswordHasher, Depends(get_password_hasher)]
 

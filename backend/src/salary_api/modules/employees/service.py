@@ -56,6 +56,7 @@ from salary_api.modules.salaries.schemas import Component
 
 ENTITY = "employee"  # audit events name the entity they change
 CODE_PREFIX = "ACME-"
+LAST_CODE_NUMBER = 999_999  # codes have six digits
 # After the requested sort fields; the repository ends every order with the id.
 TIEBREAK = ("last_name", "first_name")
 
@@ -405,7 +406,7 @@ def _list_fields(employee: Employee, *, salary_visible: bool) -> dict[str, Any]:
         "current_base": _money(employee.current_base_minor, employee.currency, salary_visible),
         "current_total": _money(employee.current_total_minor, employee.currency, salary_visible),
         "salary_masked": not salary_visible,
-        "version": employee.version,
+        "version": employee.version if salary_visible else None,
     }
 
 
@@ -441,12 +442,13 @@ def _check_new_employee(session: Session, request: EmployeeCreate) -> Country:
     if country is None:
         message = f"Unknown country {request.country_code}."
         errors.append(_field_error(("country_code",), "not_found", message))
-    elif not country.is_active:
-        message = f"{country.name} is not an active country."
-        errors.append(_field_error(("country_code",), "inactive", message))
-    elif request.salary.currency not in (None, country.default_currency):
-        message = f"Salaries in {country.name} are paid in {country.default_currency}."
-        errors.append(_field_error(("salary", "currency"), "currency_mismatch", message))
+    else:
+        if not country.is_active:
+            message = f"{country.name} is not an active country."
+            errors.append(_field_error(("country_code",), "inactive", message))
+        if request.salary.currency not in (None, country.default_currency):
+            message = f"Salaries in {country.name} are paid in {country.default_currency}."
+            errors.append(_field_error(("salary", "currency"), "currency_mismatch", message))
     if request.hire_date > _today():
         message = "The hire date cannot be in the future."
         errors.append(_field_error(("hire_date",), "future_date", message))
@@ -470,6 +472,10 @@ def _next_employee_code(session: Session) -> str:
     """`ACME-` and six digits: one more than the highest code in use."""
     highest = repository.highest_employee_code(session)
     number = int(highest.removeprefix(CODE_PREFIX)) + 1 if highest else 1
+    if number > LAST_CODE_NUMBER:
+        raise InvalidState(
+            f"No employee code can follow {highest}: give a free employee_code (ACME-######)."
+        )
     return f"{CODE_PREFIX}{number:06d}"
 
 

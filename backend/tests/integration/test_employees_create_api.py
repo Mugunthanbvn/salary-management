@@ -16,7 +16,13 @@ from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.salaries.models import SalaryRecord
 from tests.conftest import signed_in_client
-from tests.factories import employee_request, make_country, make_job_role, make_user
+from tests.factories import (
+    employee_request,
+    make_country,
+    make_employee,
+    make_job_role,
+    make_user,
+)
 
 EMPLOYEES = "/api/v1/employees"
 PROBLEMS = "https://acme.example/problems/"
@@ -370,3 +376,53 @@ def test_create_refuses_a_malformed_request(
     assert response.status_code == 422
     assert response.json()["type"] == f"{PROBLEMS}validation"
     assert ["body", *loc] in [error["loc"] for error in response.json()["errors"]]
+
+
+def test_a_code_outside_the_six_digit_format_is_not_the_highest(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    make_employee(db_session, employee_code="ACME-000041")
+    make_employee(db_session, employee_code="ACME-1000000")  # e.g. written before validation
+    role = make_job_role(db_session)
+
+    response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id))
+
+    assert response.json()["employee_code"] == "ACME-000042"
+
+
+def test_no_code_is_generated_past_acme_999999(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    make_employee(db_session, employee_code="ACME-999999")
+    role = make_job_role(db_session)
+    hr = as_role("HR_MANAGER")
+
+    generated = hr.post(EMPLOYEES, json=employee_request(role.id))
+    given = hr.post(EMPLOYEES, json=employee_request(role.id, employee_code="ACME-000001"))
+
+    assert generated.status_code == 409
+    assert generated.json()["type"] == f"{PROBLEMS}invalid-state"
+    assert "ACME-999999" in generated.json()["detail"]
+    assert given.status_code == 201
+
+
+def test_create_reports_an_inactive_country_and_a_wrong_currency_together(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "FR", is_active=False)
+
+    response = as_role("HR_MANAGER").post(
+        EMPLOYEES, json=employee_request(role.id, country_code="FR", salary=_salary(currency="USD"))
+    )
+
+    assert [(e["loc"], e["code"]) for e in response.json()["errors"]] == [
+        (["body", "country_code"], "inactive"),
+        (["body", "salary", "currency"], "currency_mismatch"),
+    ]

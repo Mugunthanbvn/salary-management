@@ -395,3 +395,22 @@ def test_the_country_currency_may_be_given_explicitly(
     )
 
     assert response.status_code == 201
+
+
+def test_a_relocation_reports_an_inactive_country_and_a_wrong_currency_together(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    employee = make_employee(db_session, country="DE")
+    make_country(db_session, "BR", is_active=False)
+
+    response = as_role("HR_MANAGER").post(
+        f"{EMPLOYEES}/{employee.id}/salary-changes",
+        json=salary_change(country_code="BR", currency="USD"),
+    )
+
+    assert [(e["loc"], e["code"]) for e in response.json()["errors"]] == [
+        (["body", "country_code"], "inactive"),
+        (["body", "currency"], "currency_mismatch"),
+    ]

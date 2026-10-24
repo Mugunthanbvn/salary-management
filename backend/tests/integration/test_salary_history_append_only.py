@@ -103,3 +103,27 @@ def test_bulk_statements_cannot_change_or_delete_salary_history(
 
     with pytest.raises(AppendOnlyError):
         db_session.execute(statement)
+
+
+def test_a_component_cannot_be_added_to_a_record_already_written(db_session: Session) -> None:
+    record = _record_with_a_component(db_session)
+
+    record.components.append(
+        SalaryComponent(type=ComponentType.BONUS_TARGET, name="Backdated", amount_minor=999)
+    )
+
+    with pytest.raises(AppendOnlyError):
+        db_session.flush()
+
+
+def test_a_component_cannot_point_at_a_record_already_written(db_session: Session) -> None:
+    record = _record_with_a_component(db_session)
+
+    db_session.add(
+        SalaryComponent(
+            salary_record_id=record.id, type=ComponentType.ALLOWANCE, name="Late", amount_minor=1
+        )
+    )
+
+    with pytest.raises(AppendOnlyError):
+        db_session.flush()

@@ -347,7 +347,7 @@ export interface components {
             /** Termination Date */
             termination_date: string | null;
             /** Version */
-            version: number;
+            version: number | null;
         };
         /**
          * EmployeeListItem
@@ -382,7 +382,7 @@ export interface components {
             salary_masked: boolean;
             status: components["schemas"]["EmployeeStatus"];
             /** Version */
-            version: number;
+            version: number | null;
         };
         /** EmployeePage */
         EmployeePage: {
