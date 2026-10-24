@@ -13,6 +13,7 @@ import type { CommitProblem } from "./messages";
 import { PreviewRows } from "./preview-rows";
 import { RowErrors } from "./row-errors";
 import { ProblemNote } from "./upload-step";
+import { ImportSteps } from "./import-steps";
 
 type ImportJobReport = components["schemas"]["ImportJobReport"];
 
@@ -55,6 +56,7 @@ export function ReviewStep({
 
   return (
     <>
+      <ImportSteps current="Check" />
       <PageTitle title={title}>
         {report.filename} has {rows(report.row_count)}.{" "}
         {hasErrors ? (

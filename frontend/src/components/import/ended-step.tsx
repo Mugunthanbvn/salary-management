@@ -5,6 +5,8 @@ import { Button, buttonVariants } from "@/components/ui/button";
 import type { components } from "@/lib/api/schema";
 import { formatDateTime } from "@/lib/dates";
 
+import { ImportSteps } from "./import-steps";
+
 type ImportJobReport = components["schemas"]["ImportJobReport"];
 
 /**
@@ -21,6 +23,7 @@ export function EndedStep({
   const committed = report.status === "COMMITTED";
   return (
     <>
+      <ImportSteps current="Import" />
       <PageTitle title={TITLES[report.status]}>
         {committed
           ? report.committed_at

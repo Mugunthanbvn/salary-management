@@ -4,6 +4,8 @@ import { PageTitle } from "@/components/print";
 import { Button, buttonVariants } from "@/components/ui/button";
 import { formatCount } from "@/lib/numbers";
 
+import { ImportSteps } from "./import-steps";
+
 /** Step 3: the import went through, every row at once. */
 export function DoneStep({
   inserted,
@@ -17,6 +19,7 @@ export function DoneStep({
   const people = `${formatCount(inserted)} ${inserted === 1 ? "employee" : "employees"}`;
   return (
     <>
+      <ImportSteps current="Import" />
       <PageTitle title={`${people} imported`}>
         Every row of {filename} was added, each with a starting salary record
         dated as in the file.

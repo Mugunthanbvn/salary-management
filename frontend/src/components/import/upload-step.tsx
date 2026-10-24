@@ -11,6 +11,7 @@ import {
 import { MarginNote, PageTitle, Section } from "@/components/print";
 
 import type { Explained } from "./messages";
+import { ImportSteps } from "./import-steps";
 
 const ERROR_ID = "upload-error";
 
@@ -46,6 +47,7 @@ export function UploadStep({
 
   return (
     <>
+      <ImportSteps current="Upload" />
       <PageTitle title="Import employees">
         Upload a CSV or Excel file of new hires, check it, then add them all at
         once.
