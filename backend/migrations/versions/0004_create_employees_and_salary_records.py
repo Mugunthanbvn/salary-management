@@ -16,6 +16,13 @@ down_revision: str | Sequence[str] | None = "0003"
 branch_labels: str | Sequence[str] | None = None
 depends_on: str | Sequence[str] | None = None
 
+CURRENT_SALARY_RECORD_FK = "fk_employees_current_salary_record_id_salary_records"
+
+
+def _supports_alter_constraint() -> bool:
+    """SQLite cannot ALTER TABLE ... ADD CONSTRAINT (it has the key inline instead)."""
+    return op.get_context().dialect.name != "sqlite"
+
 
 def upgrade() -> None:
     op.create_table(
@@ -89,13 +96,13 @@ def upgrade() -> None:
         sa.ForeignKeyConstraint(
             ["country_code"], ["countries.code"], name=op.f("fk_employees_country_code_countries")
         ),
-        # employees and salary_records reference each other. SQLite accepts this forward
-        # reference inline. On Postgres, CREATE TABLE leaves a use_alter constraint out, so a
-        # Postgres migration would add it with op.create_foreign_key once salary_records exists.
+        # employees and salary_records reference each other. SQLite takes this forward
+        # reference inline; elsewhere CREATE TABLE leaves a use_alter constraint out, and it is
+        # added below once salary_records exists.
         sa.ForeignKeyConstraint(
             ["current_salary_record_id"],
             ["salary_records.id"],
-            name=op.f("fk_employees_current_salary_record_id_salary_records"),
+            name=op.f(CURRENT_SALARY_RECORD_FK),
             use_alter=True,
         ),
         sa.ForeignKeyConstraint(
@@ -185,6 +192,14 @@ def upgrade() -> None:
             ["employee_id", "effective_date", "id"],
             unique=False,
         )
+    if _supports_alter_constraint():
+        op.create_foreign_key(
+            CURRENT_SALARY_RECORD_FK,
+            "employees",
+            "salary_records",
+            ["current_salary_record_id"],
+            ["id"],
+        )
 
     op.create_table(
         "salary_components",
@@ -226,6 +241,8 @@ def downgrade() -> None:
         batch_op.drop_index("ix_salary_components_record")
 
     op.drop_table("salary_components")
+    if _supports_alter_constraint():
+        op.drop_constraint(CURRENT_SALARY_RECORD_FK, "employees", type_="foreignkey")
     with op.batch_alter_table("salary_records", schema=None) as batch_op:
         batch_op.drop_index("ix_salary_records_employee_effective")
         batch_op.drop_index("ix_salary_records_effective_reason")

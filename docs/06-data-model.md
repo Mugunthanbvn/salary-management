@@ -248,7 +248,7 @@ Department is derived through `job_role → department`; `employees` does not st
 | `currency` | CHAR(3) | no | | Currency of the current salary; always the country's `default_currency` |
 | `current_base_minor` | BIGINT | no | CHECK `> 0` | Denormalized from the current salary record |
 | `current_total_minor` | BIGINT | no | CHECK `>= current_base_minor` | base + sum(components) |
-| `current_salary_record_id` | INTEGER | yes* | FK → `salary_records.id` | *Nullable only for the instant inside the creating transaction (the employee row must exist before its first salary record). The service guarantees it is set before commit; an integration test asserts no committed employee has it null |
+| `current_salary_record_id` | INTEGER | yes* | FK → `salary_records.id` (inline on SQLite; added with `ALTER TABLE` once `salary_records` exists elsewhere, as the two tables reference each other) | *Nullable only for the instant inside the creating transaction (the employee row must exist before its first salary record). The service guarantees it is set before commit; an integration test asserts no committed employee has it null |
 | `version` | INTEGER | no | default `1` | Optimistic locking: every update does `WHERE id=? AND version=?` (SQLAlchemy `version_id_col`; the service sets the next version) and increments it ([ADR 0013](adr/0013-soft-delete-optimistic-locking.md)). `employees/locking.py` turns a stale version into `409 version-conflict` |
 | `created_at`, `updated_at` | TIMESTAMP tz | no | | |
 
