@@ -1,11 +1,3 @@
-import type { ReactNode } from "react";
-
-export function PageTitle(props: { title: string; children?: ReactNode }) {
-  void props;
-  return null;
-}
-
-export function Section(props: { question: string; children: ReactNode }) {
-  void props;
-  return null;
-}
+// The "Marked-up printout" building blocks (docs/design/DESIGN.md). See README.md here.
+export { PageTitle } from "./page-title";
+export { Section } from "./section";
