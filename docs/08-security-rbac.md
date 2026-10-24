@@ -222,7 +222,7 @@ A cell such as `=HYPERLINK("http://evil","click")` becomes a live formula when H
 | Formulas or macros in XLSX | Read **values only** (`data_only=True`); `.xlsm` and other formats rejected (415) |
 | Wrong type disguised by extension | Check the extension **and** content (CSV decodes as UTF-8; XLSX opens as a valid workbook) |
 | Malicious names/strings stored and later rendered | Stored as plain text; React escapes on render; exports escape formulas (§7.1) |
-| Filename tricks | The original filename is stored for display only, never used as a path; nothing is written to disk |
+| Filename tricks | The original filename is stored for display only (folders a browser sends are cut off), never used as a path; the app writes nothing to disk (the framework may spool a large upload to a temporary file, which it deletes) |
 | Partial writes | Commit is all-or-nothing in one transaction ([ADR 0012](adr/0012-bulk-import-dry-run.md)) |
 
 Details: [11-import-export.md](11-import-export.md).

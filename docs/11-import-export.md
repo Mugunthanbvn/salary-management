@@ -280,12 +280,12 @@ Each export writes `export.download` to `audit_events` with: format, filters, ro
 
 | Action | When | `diff` payload |
 |---|---|---|
-| `import.dry_run` | Upload validated | `{ job_id, filename, format, row_count, error_count }` |
-| `import.commit` | Commit succeeded | `{ job_id, inserted, employee_code_range }` |
-| `import.fail` | Commit rolled back | `{ job_id, failure_reason }` |
+| `import.dry_run` | Upload validated (row errors or not) | `{ job_id, filename, format, file_sha256, row_count, valid_count, error_count }` |
+| `import.commit` | Commit succeeded | `{ job_id, inserted, employee_code_range: [lowest, highest] }` |
+| `import.fail` | Commit rolled back (written after the rollback, with the `FAILED` status) | `{ job_id, failure_reason }` |
 | `export.download` | Export downloaded | `{ format, filters, row_count, salary_included }` |
 
-**(Proposed)** A committed import writes **one summary event** rather than 10k per-employee events. The job ID links the summary to the stored rows.
+A committed import writes **one summary event** rather than 10k `employee.create` events. The job id links the summary to the job; the imported employees' `HIRE` records carry the importer as `changed_by`. The entity is `import_job` for the import events and `employee` (no id) for `export.download`.
 
 ---
 
