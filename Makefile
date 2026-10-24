@@ -93,11 +93,29 @@ api-sync: ## Export openapi.json, regenerate frontend/src/lib/api/schema.d.ts, t
 	$(PNPM) api:types
 	$(PNPM) typecheck
 
-api-drift: api-sync ## Fail if the generated API client differs from what is committed
-	@if [ -n "$$(git status --porcelain -- $(API_GENERATED))" ]; then \
-	  git --no-pager diff -- $(API_GENERATED); \
-	  echo "API drift: run 'make api-sync' and commit $(API_GENERATED)"; \
-	  exit 1; \
+api-drift: ## Fail if the generated API client was stale (in CI: also if it is not committed)
+	@if [ "$${CI:-}" = "true" ]; then \
+	  $(MAKE) api-sync || exit 1; \
+	  if [ -n "$$(git status --porcelain -- $(API_GENERATED))" ]; then \
+	    git --no-pager diff -- $(API_GENERATED); \
+	    echo "API drift: run 'make api-sync' and commit $(API_GENERATED)"; \
+	    exit 1; \
+	  fi; \
+	else \
+	  snapshot="$$(mktemp -d)"; \
+	  for file in $(API_GENERATED); do \
+	    if [ -f "$$file" ]; then cp "$$file" "$$snapshot/$$(basename "$$file")"; fi; \
+	  done; \
+	  $(MAKE) api-sync || { rm -rf "$$snapshot"; exit 1; }; \
+	  stale=""; \
+	  for file in $(API_GENERATED); do \
+	    cmp -s "$$file" "$$snapshot/$$(basename "$$file")" || stale="$$stale $$file"; \
+	  done; \
+	  rm -rf "$$snapshot"; \
+	  if [ -n "$$stale" ]; then \
+	    echo "Generated API files were stale; regenerated, commit them:$$stale"; \
+	    exit 1; \
+	  fi; \
 	fi
 
 verify: lint typecheck test build-frontend api-drift ## Everything CI checks: run before saying done

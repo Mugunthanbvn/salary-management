@@ -139,7 +139,7 @@ salary-management/
 | `api-sync` | Exports `openapi.json` from the FastAPI app (no server needed), regenerates `frontend/src/lib/api/schema.d.ts` with openapi-typescript, runs `tsc` | after any API change |
 | `knip` | `pnpm knip` | CI + locally |
 | `audit` **(proposed)** | `uvx pip-audit`, `pnpm audit --prod` | CI security job |
-| `verify` | `lint` + `typecheck` + `test` + `next build` + `api-drift` (runs `api-sync`, then fails if `frontend/openapi.json` or `schema.d.ts` differ from git). knip is cut from v1 | before pushing; mirrors CI |
+| `verify` | `lint` + `typecheck` + `test` + `next build` + `api-drift` (runs `api-sync` and fails if that changed `frontend/openapi.json` or `schema.d.ts`; with `CI=true` it also fails if they differ from git). knip is cut from v1 | before pushing; mirrors CI |
 | `eval-ask` | Runs the AI eval set: `PROVIDER=gemini\|groq` | manual ([14-testing-strategy.md](14-testing-strategy.md#9-ai-evaluation-not-in-ci)) |
 | `seed-turso` | Builds a seeded local SQLite file and prints the `turso db create --from-file` command ([17-deployment.md](17-deployment.md#6-migrations-and-seed-against-turso)) | deploy setup |
 | `clean` | Removes `.venv`, `node_modules`, `.next`, coverage, local DB files | troubleshooting |
