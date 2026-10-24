@@ -65,6 +65,7 @@ def test_the_service_masks_salaries_for_callers_without_salary_read(
 
     assert (page.items[0].current_base is None, page.items[0].salary_masked) == (masked, masked)
     assert (detail.current_salary is None, detail.salary_masked) == (masked, masked)
+    assert (page.items[0].version is None, detail.version is None) == (masked, masked)
 
 
 SALARY_QUERIES: list[dict[str, str | int]] = [
@@ -109,11 +110,12 @@ def test_the_service_refuses_a_salary_filter_from_a_caller_without_salary_read(
 
 
 def _amounts_in(body: object, path: str = "$") -> list[str]:
-    """Where a JSON body holds an amount: a non-null `*_minor` member, at any depth."""
+    """Where a JSON body reveals individual pay, at any depth: a non-null `*_minor` member, or a
+    non-null `version` (it goes up with every salary change, so it dates them)."""
     found: list[str] = []
     if isinstance(body, dict):
         for key, value in cast(dict[str, object], body).items():
-            if key.endswith("_minor") and value is not None:
+            if (key.endswith("_minor") or key == "version") and value is not None:
                 found.append(f"{path}.{key}")
             found += _amounts_in(value, f"{path}.{key}")
     elif isinstance(body, list):
@@ -141,7 +143,7 @@ def test_viewer_never_receives_an_amount_from_any_employee_endpoint(
         assert _amounts_in(response.json()) == []
 
 
-def test_the_amount_scan_finds_an_amount_at_any_depth() -> None:
-    body = {"items": [{"current_base": {"amount_minor": 1, "currency": "EUR"}}]}
+def test_the_amount_scan_finds_an_amount_or_a_version_at_any_depth() -> None:
+    body = {"items": [{"current_base": {"amount_minor": 1, "currency": "EUR"}, "version": 3}]}
 
-    assert _amounts_in(body) == ["$.items[0].current_base.amount_minor"]
+    assert _amounts_in(body) == ["$.items[0].current_base.amount_minor", "$.items[0].version"]
