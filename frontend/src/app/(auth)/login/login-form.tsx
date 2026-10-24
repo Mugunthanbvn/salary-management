@@ -10,9 +10,17 @@ import { api } from "@/lib/api/client";
 import { safeNextPath } from "@/lib/auth-redirect";
 import { hardNavigate } from "@/lib/hard-navigate";
 
+const ERROR_ID = "login-error";
+
 function text(form: FormData, name: string): string {
   const value = form.get(name);
   return typeof value === "string" ? value : "";
+}
+
+/** What to tell the person when the API refuses the sign-in. */
+function errorMessage(response: Response): string {
+  // Same words for an unknown email and a wrong password, like the API.
+  return response.status === 401 ? "Email or password is incorrect" : "";
 }
 
 /**
@@ -24,21 +32,25 @@ export function LoginForm() {
   // look-alike site.
   const next = safeNextPath(useSearchParams().get("next"));
   const [pending, setPending] = useState(false);
+  const [error, setError] = useState<string | null>(null);
 
   async function onSubmit(event: FormEvent<HTMLFormElement>) {
     event.preventDefault();
     const form = new FormData(event.currentTarget);
     setPending(true);
-    const { data } = await api.POST("/api/v1/auth/login", {
+    setError(null);
+    const { data, response } = await api.POST("/api/v1/auth/login", {
       body: { email: text(form, "email"), password: text(form, "password") },
     });
     if (data) {
       hardNavigate(next);
       return;
     }
+    setError(errorMessage(response));
     setPending(false);
   }
 
+  const describedBy = error ? ERROR_ID : undefined;
   return (
     <form
       onSubmit={(event) => void onSubmit(event)}
@@ -52,6 +64,8 @@ export function LoginForm() {
           type="email"
           autoComplete="username"
           required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
         />
       </div>
       <div className="flex flex-col gap-2">
@@ -62,8 +76,15 @@ export function LoginForm() {
           type="password"
           autoComplete="current-password"
           required
+          aria-invalid={error ? true : undefined}
+          aria-describedby={describedBy}
         />
       </div>
+      {error ? (
+        <p id={ERROR_ID} role="alert" className="text-[15px] text-ink red-pen">
+          {error}
+        </p>
+      ) : null}
       <Button type="submit" disabled={pending} className="w-full sm:w-auto">
         {pending ? "Signing in…" : "Sign in"}
       </Button>
