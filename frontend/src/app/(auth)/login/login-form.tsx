@@ -22,8 +22,10 @@ function errorMessage(response: Response): string {
   // Same words for an unknown email and a wrong password, like the API.
   if (response.status === 401) return "Email or password is incorrect";
   if (response.status === 429) return tooManyAttempts(response);
-  return "";
+  return COULD_NOT_SIGN_IN;
 }
+
+const COULD_NOT_SIGN_IN = "Couldn't sign you in. Try again in a moment.";
 
 /** 5 failures in 15 minutes lock the email; Retry-After says for how many seconds. */
 function tooManyAttempts(response: Response): string {
@@ -51,14 +53,19 @@ export function LoginForm() {
     const form = new FormData(event.currentTarget);
     setPending(true);
     setError(null);
-    const { data, response } = await api.POST("/api/v1/auth/login", {
-      body: { email: text(form, "email"), password: text(form, "password") },
-    });
-    if (data) {
-      hardNavigate(next);
-      return;
+    try {
+      const { data, response } = await api.POST("/api/v1/auth/login", {
+        body: { email: text(form, "email"), password: text(form, "password") },
+      });
+      if (data) {
+        hardNavigate(next);
+        return;
+      }
+      setError(errorMessage(response));
+    } catch {
+      // The network failed before the API could answer.
+      setError(COULD_NOT_SIGN_IN);
     }
-    setError(errorMessage(response));
     setPending(false);
   }
 
