@@ -5,7 +5,7 @@ from typing import Any
 import pytest
 from pydantic import ValidationError
 
-from tests.factories import make_settings
+from tests.factories import make_settings, settings_from_environment
 
 SAFE_PRODUCTION: dict[str, Any] = {
     "app_env": "production",
@@ -56,3 +56,19 @@ def test_production_accepts_a_hosted_postgres_database() -> None:
     )
 
     assert settings.database_url.startswith("postgresql")
+
+
+def test_cors_origins_env_var_is_a_comma_separated_list(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "http://localhost:3000, http://127.0.0.1:3000")
+
+    settings = settings_from_environment()
+
+    assert settings.cors_origins == ["http://localhost:3000", "http://127.0.0.1:3000"]
+
+
+def test_empty_cors_origins_env_var_means_no_origins(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setenv("CORS_ORIGINS", "")
+
+    settings = settings_from_environment()
+
+    assert settings.cors_origins == []

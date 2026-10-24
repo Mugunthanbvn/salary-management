@@ -27,3 +27,8 @@ def make_settings(**overrides: Any) -> Settings:
         "cors_origins": [],
     }
     return _SettingsWithoutEnvFile(**(values | overrides))
+
+
+def settings_from_environment() -> Settings:
+    """Settings read only from environment variables (use with monkeypatch.setenv)."""
+    return _SettingsWithoutEnvFile()
