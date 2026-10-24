@@ -510,7 +510,7 @@ Switching is a `DATABASE_URL` change plus `alembic upgrade head` on the new data
 | Table | Rows | Approx. size |
 |---|---|---|
 | employees | 10,000 | ~2.5 MB |
-| salary_records | ~30,000 | ~3 MB |
+| salary_records | ~24,000 | ~3 MB |
 | salary_components | ~40,000 | ~2 MB |
 | audit_events | grows with use (seed writes none) | — |
 | pay_bands | ~1,360 | ~0.2 MB |
