@@ -3,6 +3,7 @@
 import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pydantic import BaseModel
 
 from salary_api.core.errors import (
     Duplicate,
@@ -134,3 +135,22 @@ def test_version_conflict_returns_409_with_the_current_version(
     assert response.status_code == 409
     assert response.json()["type"] == f"{PROBLEMS}version-conflict"
     assert response.json()["current_version"] == 8
+
+
+def test_invalid_response_is_logged_by_type_without_the_response_body(
+    app: FastAPI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    class Salary(BaseModel):
+        amount_minor: int
+
+    @app.get("/api/v1/_test/salary", response_model=Salary)
+    def read_salary() -> dict[str, str]:
+        return {"amount_minor": "base-salary-6500000"}
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        response = client.get("/api/v1/_test/salary")
+
+    logged = capsys.readouterr().out
+    assert response.status_code == 500
+    assert "ResponseValidationError" in logged
+    assert "base-salary-6500000" not in logged
