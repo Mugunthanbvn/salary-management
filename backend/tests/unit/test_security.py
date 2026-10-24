@@ -44,7 +44,7 @@ def test_a_hash_needs_rehash_only_when_its_parameters_are_outdated() -> None:
     fast_hash = FAST_PASSWORD_HASHER.hash("correct horse battery")
 
     assert not FAST_PASSWORD_HASHER.needs_rehash(fast_hash)
-    assert PasswordHasher().needs_rehash(fast_hash)  # library defaults are stronger
+    assert get_password_hasher().needs_rehash(fast_hash)  # library defaults are stronger
 
 
 def test_a_token_carries_the_documented_claims(frozen_time: time_machine.Traveller) -> None:
@@ -152,7 +152,7 @@ def test_a_token_that_was_not_issued_by_us_as_is_invalid(
 
 
 def test_the_app_hashes_with_pwdlib_default_parameters() -> None:
-    default_hash = PasswordHasher(Argon2Hasher()).hash("correct horse battery")
+    default_hash = Argon2Hasher().hash("correct horse battery")
 
     assert not get_password_hasher().needs_rehash(default_hash)
 

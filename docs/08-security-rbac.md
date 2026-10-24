@@ -148,7 +148,7 @@ Known limitation: **differencing attacks** (comparing "all of Engineering DE" wi
 | Storage | Encoded hash only; never logged, never returned by the API |
 | Policy | Minimum 12 characters **(proposed)**; no composition rules (NIST SP 800-63B guidance) |
 | Seed users | Passwords from env (`SEED_*_PASSWORD`). Production refuses to start or seed with dev defaults |
-| Verification | Constant-time via the library; the same error message for unknown email, wrong password and inactive user. An unknown email is checked against a dummy hash made with the same parameters, so it costs the same time |
+| Verification | Constant-time via the library; the same error message for unknown email, wrong password and inactive user. An unknown email is checked against a dummy hash made with the same parameters, so it costs the same time. The dummy hash is made when the hasher is built (app start-up), so a cold instance's first unknown-email login is not slower |
 | Rehash | If pwdlib reports outdated parameters on successful login, the hash is upgraded transparently |
 | Tests | The test app overrides the `get_password_hasher` dependency with argon2id `time_cost=1, memory_cost=8 KiB, parallelism=1` (`tests/factories.py`), so hashing takes well under a millisecond. Production uses pwdlib's defaults, and a test pins that |
 
