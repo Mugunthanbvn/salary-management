@@ -21,7 +21,7 @@ The **source of truth** at build time is FastAPI's generated OpenAPI document (`
 | Field casing | `snake_case`, matching Pydantic models and the generated TS types |
 | IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key |
 | Dates | `YYYY-MM-DD`; timestamps ISO-8601 UTC with `Z` |
-| Auth | Session JWT in the `session` httpOnly cookie (browser) or `Authorization: Bearer <JWT>` (server-side fetches). Both are accepted |
+| Auth | Session JWT in the `session` httpOnly cookie (browser) or `Authorization: Bearer <JWT>` (server-side fetches). Both are accepted; when both are sent, the Bearer header is used |
 | Request ID | Optional `X-Request-ID` in; always echoed in the response header and in error bodies |
 | Unknown fields | Rejected (`extra="forbid"`) with 422, so typos are not silently ignored |
 
@@ -210,15 +210,21 @@ When the database can't be reached: `503` problem+json with `type: "about:blank"
 }
 ```
 
-Errors: 401 `unauthenticated` with the **same message** for unknown email and wrong password ("Invalid email or password"), so the endpoint doesn't reveal which emails exist. 429 after repeated failures **(proposed)**, see [08-security-rbac.md](08-security-rbac.md) §9.
+- `email` is trimmed and lowercased before lookup (≤ 254 chars); `password` is 1–1,024 chars. Unknown fields → 422.
+- The cookie's `Max-Age` is `JWT_TTL_MINUTES × 60`. `Secure` is set when `COOKIE_SECURE` is true, which production requires. `permissions` are listed in glossary order.
+- Writes `auth.login` on success and `auth.login_failed` on failure ([08-security-rbac.md](08-security-rbac.md) §6). A successful login also sets `last_login_at` and upgrades an outdated password hash.
+
+Errors: 401 `unauthenticated` with the **same message** for unknown email, wrong password and inactive user ("Invalid email or password"), so the endpoint doesn't reveal which emails exist; no cookie is set. 429 `rate-limited` with `Retry-After` (seconds) after 5 failures for the email in 15 minutes, even with the right password, see [08-security-rbac.md](08-security-rbac.md) §9.
 
 ### `POST /auth/logout`: Authenticated
 
-Clears the cookie (`Max-Age=0`). 204. Writes `auth.logout`.
+Clears the cookie (`Max-Age=0`, same `Path`, `HttpOnly`, `SameSite` and `Secure` as when it was set). 204. Writes `auth.logout`. Without a valid session: 401. The token itself stays valid until it expires (no denylist, [08-security-rbac.md](08-security-rbac.md) §5.2).
 
 ### `GET /auth/me`: Authenticated
 
-Same body as the login response, plus `"features": { "ask": true }` (`false` when no `LLM_API_KEY` is configured). Used by the frontend to render role-aware navigation and to hide Ask when it's disabled.
+Same body as the login response, plus `"features": { "ask": true }` (`false` when no `LLM_API_KEY` is configured). Used by the frontend to render role-aware navigation and to hide Ask when it's disabled. Writes nothing.
+
+In the OpenAPI document, the auth routes list their `401` (and `429` for login, with the `Retry-After` header) as `Problem`; routes that need a permission add `403` with `problem_responses(401, 403)` from `core/errors.py`. The cookie and the Bearer header are the `SessionCookie` and `BearerToken` security schemes.
 
 ---
 
