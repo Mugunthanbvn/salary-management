@@ -10,6 +10,7 @@ from salary_api.modules.employees.schemas import EmployeeCreate, EmployeeDetail
 
 router = APIRouter(prefix="/employees", tags=["employees"])
 
+CanRead = Annotated[Principal, Depends(require_permission(Permission.EMPLOYEE_READ))]
 CanCreate = Annotated[
     Principal, Depends(require_permission(Permission.EMPLOYEE_WRITE, Permission.SALARY_WRITE))
 ]
@@ -32,3 +33,14 @@ def create_employee(
     employee = service.create_employee(session, principal, body)
     response.headers["Location"] = f"{request.url.path}/{employee.id}"
     return employee
+
+
+# `:int`, so a sibling path such as /employees/export never reaches this route as an id.
+@router.get(
+    "/{employee_id:int}",
+    response_model=EmployeeDetail,
+    responses=problem_responses(401, 403, 404),
+    summary="One employee (salary masked without SALARY_READ)",
+)
+def get_employee(employee_id: int, principal: CanRead, session: SessionDep) -> EmployeeDetail:
+    return service.get_employee(session, principal, employee_id)
