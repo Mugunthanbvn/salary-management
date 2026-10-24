@@ -18,7 +18,12 @@ def create_db_engine(settings: Settings) -> Engine:
     if settings.database_auth_token and settings.database_auth_token.get_secret_value():
         # Turso: the token goes to the driver, never into the URL or the logs.
         connect_args["auth_token"] = settings.database_auth_token.get_secret_value()
-    engine = create_engine(url, poolclass=_pool_class(settings, url), connect_args=connect_args)
+    engine = create_engine(
+        url,
+        poolclass=_pool_class(settings, url),
+        connect_args=connect_args,
+        hide_parameters=True,  # bound values (salaries, emails) never reach errors or logs
+    )
     if url.get_backend_name() == "sqlite":
         on_connect = _sqlite_on_connect(
             local_file=_is_local_sqlite_file(url),
