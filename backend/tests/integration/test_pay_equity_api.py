@@ -314,3 +314,26 @@ def test_viewer_sees_a_small_department_hidden_with_its_complement(
     shown = [{key: group[key] for key in hidden} for group in body["groups"]]
     assert shown[:2] == [hidden, hidden]
     assert (shown[2]["count"], shown[2]["median_compa_ratio"]) == (10, "1.00")
+
+
+@pytest.mark.usefixtures("frozen_time")
+def test_viewer_has_cohorts_hidden_in_pairs_within_each_department(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    # Each department's total is visible in the department view, so one small cohort per
+    # department would be revealed by the total minus its other cohort.
+    for title, department in (("Customer Success Manager", "Customer Success"), ("SE", "Eng")):
+        role = make_job_role(
+            db_session,
+            title,
+            department=make_department(db_session, department),
+            family=JobFamily.SALES,
+        )
+        for level, size in (("L2", 3), ("L3", 10)):
+            make_pay_band(db_session, job_role=role, level=level, mid_minor=5_000_000)
+            for _ in range(size):
+                make_employee(db_session, job_role=role, level=level, base_minor=5_000_000)
+
+    body = as_role("VIEWER").get(PAY_EQUITY).json()
+
+    assert [cohort["suppressed"] for cohort in body["cohorts"]] == [True, True, True, True]
