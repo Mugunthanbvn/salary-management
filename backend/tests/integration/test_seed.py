@@ -1,0 +1,280 @@
+"""Loading the seed into a database (docs/12-seed-data.md sections 12-13, docs/14 section 5.6).
+
+A 200-employee seed is loaded once per module into its own in-memory database; the tests read it.
+"""
+
+import sqlite3
+from collections.abc import Iterator
+from contextlib import contextmanager
+from datetime import UTC, datetime, time
+from typing import Any
+
+import pytest
+from fastapi.testclient import TestClient
+from sqlalchemy import Engine, event, func, select
+from sqlalchemy.orm import Session
+
+from salary_api.core.db import create_db_engine, create_session_factory
+from salary_api.core.permissions import Principal, Role
+from salary_api.domain.enums import EmployeeStatus, SalaryReason
+from salary_api.modules.audit.models import AuditEvent
+from salary_api.modules.audit.service import AuditAction, record_event
+from salary_api.modules.employees.models import Employee
+from salary_api.modules.reference.models import Country, Department, FxRate, JobRole, PayBand
+from salary_api.modules.salaries import repository as salary_history
+from salary_api.modules.salaries import service as salaries
+from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
+from salary_api.modules.users.models import User
+from salary_api.seed.errors import SeedRefused
+from salary_api.seed.generator import generate
+from salary_api.seed.loader import clear, load
+from salary_api.seed.rows import UserRow
+from salary_api.seed.users import demo_users
+from tests.conftest import upgrade_to_head
+from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings, make_settings
+from tests.seed_checks import employee_checksum, history_checksum
+
+DATASET = generate(seed=42, employees=200)
+# sha256 checksums for --seed 42 --employees 200 (tests/seed_checks.py): the employees, and every
+# salary record with its components. If the generator changes on purpose, update them in the
+# same commit and say why in the message.
+GOLDEN_200 = "45c96eb0fc73bc10151024b13bf6b32dee7c413c404177d64d4d129e143b4ea8"
+GOLDEN_HISTORY_200 = "3e505e6e655c898143b2a2c86551f58734316853af582ff105a0d1c0cdc49f85"
+
+
+def _users() -> list[UserRow]:
+    return demo_users(make_seed_settings(), FAST_PASSWORD_HASHER)
+
+
+@contextmanager
+def _fresh_engine() -> Iterator[Engine]:
+    """A new, migrated in-memory database of its own, disposed afterwards."""
+    engine = create_db_engine(make_settings())
+    try:
+        upgrade_to_head(engine)
+        yield engine
+    finally:
+        engine.dispose()
+
+
+def _count(session: Session, model: type[Any]) -> int:
+    return session.scalar(select(func.count()).select_from(model)) or 0
+
+
+@pytest.fixture(scope="module")
+def seeded() -> Iterator[Engine]:
+    with _fresh_engine() as engine:
+        with engine.begin() as connection:
+            load(connection, DATASET, _users())
+        yield engine
+
+
+@pytest.fixture
+def fresh() -> Iterator[Engine]:
+    with _fresh_engine() as engine:
+        yield engine
+
+
+@pytest.fixture
+def session(seeded: Engine) -> Iterator[Session]:
+    with create_session_factory(seeded)() as session:
+        yield session
+
+
+@pytest.mark.parametrize(
+    ("model", "rows"),
+    [
+        (User, lambda d: 3),
+        (Country, lambda d: len(d.countries)),
+        (Department, lambda d: len(d.departments)),
+        (JobRole, lambda d: len(d.job_roles)),
+        (PayBand, lambda d: len(d.pay_bands)),
+        (FxRate, lambda d: len(d.fx_rates)),
+        (Employee, lambda d: len(d.employees)),
+        (SalaryRecord, lambda d: len(d.salary_records)),
+        (SalaryComponent, lambda d: len(d.salary_components)),
+    ],
+)
+def test_every_table_holds_the_generated_rows(
+    session: Session, model: type[Any], rows: Any
+) -> None:
+    assert _count(session, model) == rows(DATASET)
+
+
+def test_seed_42_with_200_employees_matches_its_golden_checksums(seeded: Engine) -> None:
+    with seeded.connect() as connection:
+        assert employee_checksum(connection) == GOLDEN_200
+        assert history_checksum(connection) == GOLDEN_HISTORY_200
+
+
+def test_another_seed_gives_other_checksums(fresh: Engine) -> None:
+    with fresh.begin() as connection:
+        load(connection, generate(seed=43, employees=200), _users())
+
+    with fresh.connect() as connection:
+        assert employee_checksum(connection) != GOLDEN_200
+        assert history_checksum(connection) != GOLDEN_HISTORY_200
+
+
+def test_the_latest_salary_record_is_every_employees_current_salary(session: Session) -> None:
+    for employee in session.scalars(select(Employee)):
+        latest = salary_history.latest_record(session, employee.id)
+        assert latest is not None
+        assert employee.current_salary_record_id == latest.id
+        assert (employee.currency, employee.current_base_minor, employee.current_total_minor) == (
+            latest.currency,
+            latest.base_minor,
+            latest.total_minor,
+        )
+        assert (employee.job_role_id, employee.level) == (latest.job_role_id, latest.level)
+
+
+def test_no_employee_is_left_without_a_current_salary_record(session: Session) -> None:
+    missing = select(func.count()).where(Employee.current_salary_record_id.is_(None))
+
+    assert session.scalar(missing) == 0
+
+
+def test_no_amount_is_zero_or_negative(session: Session) -> None:
+    smallest = [
+        session.scalar(select(func.min(column)))
+        for column in (SalaryRecord.base_minor, SalaryComponent.amount_minor, PayBand.min_minor)
+    ]
+
+    assert all(amount is not None and amount > 0 for amount in smallest)
+
+
+def test_japanese_amounts_are_whole_yen(session: Session) -> None:
+    yen = session.scalars(select(SalaryRecord.base_minor).where(SalaryRecord.currency == "JPY"))
+
+    amounts = list(yen)
+
+    assert amounts
+    assert all(amount % 10_000 == 0 for amount in amounts)
+
+
+def test_every_country_currency_has_an_fx_rate(session: Session) -> None:
+    currencies = set(session.scalars(select(Country.default_currency)))
+    rates = set(session.scalars(select(FxRate.currency)))
+
+    assert currencies <= rates
+
+
+def test_every_email_is_unique_and_lowercase(session: Session) -> None:
+    emails = list(session.scalars(select(Employee.email)))
+
+    assert len(emails) == len(set(emails)) == 200
+    assert all(email == email.lower() for email in emails)
+
+
+def test_seeded_timestamps_come_from_dates_not_the_clock(session: Session) -> None:
+    records = session.scalars(select(SalaryRecord)).all()
+    employees = session.scalars(select(Employee)).all()
+
+    assert all(
+        r.created_at == datetime.combine(r.effective_date, time(tzinfo=UTC)) for r in records
+    )
+    assert all(e.created_at == datetime.combine(e.hire_date, time(tzinfo=UTC)) for e in employees)
+    assert max(e.updated_at for e in employees) <= datetime(2026, 10, 1, tzinfo=UTC)
+
+
+def test_seeded_history_has_no_acting_user(session: Session) -> None:
+    assert session.scalar(select(func.count()).where(SalaryRecord.changed_by.is_not(None))) == 0
+
+
+def test_the_salary_history_service_reads_a_seeded_employee(session: Session) -> None:
+    hr = Principal(user_id=2, email="hr@acme.example", full_name="Hema", role=Role.HR_MANAGER)
+
+    employee = session.get_one(Employee, 1)
+
+    history = salaries.salary_history(session, hr, employee.id)
+
+    assert history.records[0].reason == SalaryReason.HIRE
+    assert history.records[-1].id == employee.current_salary_record_id
+
+
+def test_loading_into_a_database_that_has_data_is_refused_without_reset(seeded: Engine) -> None:
+    with seeded.connect() as connection, pytest.raises(SeedRefused, match="--reset"):
+        load(connection, DATASET, _users())
+
+
+def test_reset_replaces_everything_including_users_and_audit_events(fresh: Engine) -> None:
+    with fresh.begin() as connection:
+        load(connection, generate(seed=1, employees=50), _users())
+    with create_session_factory(fresh)() as session:
+        record_event(
+            session, actor_id=1, action=AuditAction.AUTH_LOGIN, entity="auth", entity_id=None
+        )
+        session.commit()
+    replacement = generate(seed=2, employees=30)
+
+    with fresh.begin() as connection:
+        load(connection, replacement, _users(), reset=True)
+
+    with create_session_factory(fresh)() as session:
+        codes = list(session.scalars(select(Employee.employee_code).order_by(Employee.id)))
+        assert codes == [e.employee_code for e in replacement.employees]
+        assert _count(session, SalaryRecord) == len(replacement.salary_records)
+        assert _count(session, User) == 3
+        assert _count(session, AuditEvent) == 0
+
+
+def test_reset_work_grows_with_the_rows_not_with_records_times_employees(fresh: Engine) -> None:
+    """Deleting a salary record must not scan every employee (current_salary_record_id has no
+    index). Counted in SQLite VM steps, not seconds, so the test does not depend on the machine."""
+    dataset = generate(seed=1, employees=1000)
+    with fresh.begin() as connection:
+        load(connection, dataset, _users())
+    rows = sum(
+        len(table)
+        for table in (dataset.employees, dataset.salary_records, dataset.salary_components)
+    )
+    steps = 0
+
+    def count_steps() -> int:
+        nonlocal steps
+        steps += 1000
+        return 0  # carry on
+
+    with fresh.begin() as connection:
+        driver = connection.connection.dbapi_connection
+        assert isinstance(driver, sqlite3.Connection)
+        driver.set_progress_handler(count_steps, 1000)
+        clear(connection)
+        driver.set_progress_handler(None, 0)
+
+    assert steps < 200 * rows
+
+
+def test_rows_are_inserted_in_chunks(fresh: Engine) -> None:
+    batches: list[int] = []
+
+    @event.listens_for(fresh, "before_cursor_execute")
+    def count_batches(
+        _conn: Any, _cursor: Any, statement: str, parameters: Any, _context: Any, many: bool
+    ) -> None:
+        if many and statement.startswith("INSERT INTO salary_components"):
+            batches.append(len(parameters))
+
+    with fresh.begin() as connection:
+        load(connection, DATASET, _users(), chunk_size=100)
+
+    assert sum(batches) == len(DATASET.salary_components)
+    assert max(batches) == 100
+    assert len(batches) == -(-len(DATASET.salary_components) // 100)
+
+
+def test_a_seeded_hr_manager_signs_in_and_finds_employees(
+    client: TestClient, db_session: Session
+) -> None:
+    load(db_session.connection(), DATASET, _users())
+    someone = DATASET.employees[0]
+
+    login = client.post(
+        "/api/v1/auth/login", json={"email": "hr@acme.example", "password": "change-me-hr"}
+    )
+    found = client.get("/api/v1/employees", params={"q": someone.employee_code})
+
+    assert login.status_code == 200
+    assert [item["employee_code"] for item in found.json()["items"]] == [someone.employee_code]
+    assert found.json()["items"][0]["status"] == EmployeeStatus(someone.status)

@@ -7,7 +7,7 @@ import pytest
 from hypothesis import given
 from hypothesis import strategies as st
 
-from salary_api.domain.rounding import divide_half_even, round_half_even, round_ratio
+from salary_api.domain.rounding import divide_half_even, round_half_even, round_ratio, round_share
 
 
 @pytest.mark.parametrize(
@@ -35,3 +35,16 @@ def test_round_ratio_shows_two_decimal_places_half_even(ratio: Decimal, shown: s
 @given(numerator=st.integers(), denominator=st.integers(min_value=1))
 def test_divide_half_even_matches_exact_fraction_rounding(numerator: int, denominator: int) -> None:
     assert divide_half_even(numerator, denominator) == round(Fraction(numerator, denominator))
+
+
+@pytest.mark.parametrize(
+    ("share", "shown"),
+    [
+        (Decimal(1) / 3, "0.3333"),
+        (Decimal("0.12345"), "0.1234"),
+        (Decimal("0.12355"), "0.1236"),
+        (Decimal(1), "1.0000"),
+    ],
+)
+def test_round_share_shows_four_decimal_places_half_even(share: Decimal, shown: str) -> None:
+    assert str(round_share(share)) == shown

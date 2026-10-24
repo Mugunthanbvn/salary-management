@@ -535,15 +535,15 @@ Returns the stored job (same shape as §7.2). Only its creator, or a caller with
 
 | Param | Default | Notes |
 |---|---|---|
-| `country` | — | ISO alpha-2. When set, statistics are in that country's **local currency** |
-| `department_id`, `job_role_id`, `level` | — | Narrow the population |
+| `country` | — | ISO alpha-2, repeatable. When the countries share one currency (one country, or DE + FR), statistics are in that **local currency**; otherwise in USD. An unknown country is a 422 (`not_found`) |
+| `department_id`, `job_role_id`, `level` | — | Narrow the population (repeatable) |
 | `employment_type` | `FULL_TIME` | Part-timers would distort averages; the override is explicit ([09-insights-pay-equity.md](09-insights-pay-equity.md)) |
 | `status` | `ACTIVE` | |
 | `comp` | `base` | `base` or `total` (base + allowances + bonus target) |
 
 There is **no** `period` parameter: annual is returned and the UI divides by 12 for the monthly toggle.
 
-Every response includes a `population` echo (the filters actually applied) and `fx_as_of` whenever USD appears.
+Every response includes a `population` echo (the filters actually applied: `country`, `department_id`, `job_role_id`, `level`, `employment_type`, `status` as lists, and `comp`) and `fx_as_of` whenever USD appears (`null` when no rate was used). Unknown query parameters are a 422. A missing USD rate is a `500` problem (`about:blank`) with a `currency` member, never a guessed rate.
 
 ### 8.2 Stats object
 
@@ -556,21 +556,25 @@ Every response includes a `population` echo (the filters actually applied) and `
 }
 ```
 
-All values are integers in minor units of `currency`. Percentiles use **linear interpolation** (the same result as SQL `PERCENTILE_CONT`); interpolated and mean values are rounded **half-even** to the minor unit. Full definitions are in [09-insights-pay-equity.md](09-insights-pay-equity.md). For callers without `SALARY_READ`, a group with `count < 5` returns `"suppressed": true` and nulls every value **including `count`**, to avoid confirming that one person exists in a narrow slice.
+All values are integers in minor units of `currency`. Percentiles use **linear interpolation** (the same result as SQL `PERCENTILE_CONT`); interpolated and mean values are rounded **half-even** to the minor unit. Full definitions are in [09-insights-pay-equity.md](09-insights-pay-equity.md). For callers without `SALARY_READ`, a group with `count < 5` returns `"suppressed": true` and nulls every value **including `count`**, to avoid confirming that one person exists in a narrow slice. For them `min` and `max` are always `null` (each is one person's pay), and complementary suppression hides one more group when a breakdown would otherwise hide exactly one ([09](09-insights-pay-equity.md) §2.8). An empty group shown to HR has `count: 0` and `null` values.
 
 ### 8.3 `GET /insights/overview`
 
+`stats` covers the whole population in the response `currency` (local for one currency, else USD); `by_country` gives each country in its own currency (`local`) and in USD (`usd`, each salary converted first). `headcount` and `total_payroll_usd` are `null` when the population is suppressed.
+
 ```json
 {
-  "population": { "employment_type": ["FULL_TIME"], "status": ["ACTIVE"], "comp": "base" },
+  "population": { "country": [], "department_id": [], "job_role_id": [], "level": [], "employment_type": ["FULL_TIME"], "status": ["ACTIVE"], "comp": "base" },
+  "currency": "USD",
+  "fx_as_of": "2026-10-01",
   "headcount": 9012,
   "total_payroll_usd": { "amount_minor": 82345600000, "currency": "USD" },
-  "fx_as_of": "2026-10-01",
+  "stats": { "count": 9012, "min": 1200000, "p25": 4100000, "median": 6900000, "mean": 7400000, "p75": 9800000, "max": 41000000, "currency": "USD", "suppressed": false },
   "by_country": [
     {
       "country_code": "DE",
       "local": { "count": 702, "min": 3600000, "p25": 4800000, "median": 5400000, "mean": 5523000, "p75": 6300000, "max": 14500000, "currency": "EUR", "suppressed": false },
-      "usd":   { "median": 5832000, "mean": 5964840, "currency": "USD" }
+      "usd":   { "count": 702, "min": 3906000, "p25": 5208000, "median": 5859000, "mean": 5992455, "p75": 6835500, "max": 15732500, "currency": "USD", "suppressed": false }
     }
   ]
 }
@@ -578,15 +582,15 @@ All values are integers in minor units of `currency`. Percentiles use **linear i
 
 ### 8.4 `GET /insights/by-department`
 
-Optional `country`. With a country: stats in local currency per department. Without: stats in USD per department (each employee converted at read time) and `fx_as_of`.
+Optional `country`. With one currency's countries: stats in that currency per department. Otherwise: stats in USD per department (each employee converted at read time) and `fx_as_of`. Groups are sorted by department name.
 
 ```json
-{ "currency": "EUR", "groups": [ { "department": { "id": 4, "name": "Customer Success" }, "stats": { "...": "Stats object" } } ] }
+{ "population": { "...": "..." }, "currency": "EUR", "fx_as_of": null, "groups": [ { "department": { "id": 4, "name": "Customer Success" }, "stats": { "...": "Stats object" } } ] }
 ```
 
 ### 8.5 `GET /insights/by-job-title`
 
-`country` **required** (titles are compared within one labour market). Returns `groups[]` keyed by `job_role` with stats, optionally split by `level` (`split_by_level=true`).
+`country` **required**, one value (titles are compared within one labour market and currency). Returns `{ population, currency, split_by_level, groups[] }`; each group is `{ job_role: { id, title }, level, stats }`, sorted by title then level. `level` is `null` unless `split_by_level=true`.
 
 ### 8.6 `GET /insights/distribution`
 
@@ -600,11 +604,23 @@ For callers without `SALARY_READ`, buckets with `count < 5` are merged into neig
 
 ### 8.7 `GET /insights/department-cost`
 
-Total compensation cost per department in **USD** (sum of converted amounts), with `fx_as_of`. Optional `country`.
+Total pay per department: the sum of each person's amount (`comp`), with `fx_as_of`. Optional `country`. In the response `currency` (local for one currency, else USD), with a USD equivalent next to it.
+
+```json
+{
+  "population": { "...": "..." }, "currency": "EUR", "fx_as_of": "2026-10-01",
+  "headcount": 702, "total": { "amount_minor": 3877146000, "currency": "EUR" }, "total_usd": { "amount_minor": 4206703410, "currency": "USD" }, "suppressed": false,
+  "groups": [
+    { "department": { "id": 4, "name": "Customer Success" }, "headcount": 41, "cost": { "amount_minor": 198000000, "currency": "EUR" }, "cost_usd": { "amount_minor": 214830000, "currency": "USD" }, "share_of_total": "0.0511", "suppressed": false }
+  ]
+}
+```
+
+`share_of_total` = `cost / total`, 4 decimals half-even, computed from the values after suppression: `null` when the department or the total is hidden.
 
 ### 8.8 `GET /insights/top-earners`: requires `SALARY_READ`
 
-`country` required; `n` (default 10, max 50); `direction=top|bottom`. Returns employee summaries with local amounts. 403 for VIEWER. Writes an `insights.individuals_view` audit event.
+`country` required (one value); `n` (default 10, 1–50); `direction=top|bottom`; the other §8.1 filters. Returns `{ population, country_code, currency, direction, n, items[] }`; each item is `{ employee_id, employee_code, first_name, last_name, job_role, level, department, amount }` with the local amount. Ties are broken by `employee_code`. 403 for VIEWER. Writes an `insights.individuals_view` audit event (`diff = { endpoint: "top-earners", filters }`).
 
 ### 8.9 `GET /insights/raises`
 
@@ -616,38 +632,43 @@ Total compensation cost per department in **USD** (sum of converted amounts), wi
 
 ### 8.10 `GET /insights/pay-equity`
 
-Compa-ratio = employee **base** ÷ **pay band midpoint** for their job role + level + country (local currency). See [09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8 and `pay_bands` in [06-data-model.md](06-data-model.md). The `comp` parameter is not accepted here (bands are base-only). Params: `view=cohorts|departments` (default `cohorts`), `country`, `department_id`.
+Compa-ratio = employee **base** ÷ **pay band midpoint** for their job role + level + country (local currency). See [09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8 and `pay_bands` in [06-data-model.md](06-data-model.md). The `comp` parameter is not accepted here (422: bands are base-only). Params: `view=cohorts|departments` (default `cohorts`) and the other §8.1 filters. The band used is the one in force today (the latest `effective_from` on or before today). The response is one of two shapes, told apart by `view`.
 
 `view=cohorts`:
 
 ```json
 {
   "view": "cohorts",
-  "thresholds": { "low": "0.80", "high": "1.20" },
+  "population": { "...": "...", "comp": "base" },
+  "thresholds": { "low": "0.80", "high": "1.20", "rollup": "0.95" },
   "cohorts": [
     {
       "job_role": { "id": 17, "title": "Customer Success Manager" }, "level": "L2", "country_code": "DE",
-      "stats": { "count": 41, "p25": 4300000, "median": 4800000, "p75": 5300000, "currency": "EUR", "suppressed": false },
+      "department": { "id": 4, "name": "Customer Success" },
+      "stats": { "count": 41, "min": 3600000, "p25": 4300000, "median": 4800000, "mean": 4790000, "p75": 5300000, "max": 6100000, "currency": "EUR", "suppressed": false },
       "band": { "min": 4176000, "mid": 5220000, "max": 6264000, "currency": "EUR" },
       "median_compa_ratio": "0.92",
-      "underpaid_count": 14, "overpaid_count": 1
+      "underpaid_count": 14, "overpaid_count": 1,
+      "suppressed": false
     }
   ],
-  "summary": { "employees_evaluated": 9012, "employees_without_band": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61 }
+  "summary": { "employees_evaluated": 9012, "employees_without_band": 0, "employees_not_full_time": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61, "suppressed": false }
 }
 ```
 
-`view=departments` (systemic-gap view; `country` required): `groups[]` keyed by department with `count`, `median_compa_ratio`, `mean_compa_ratio`, `pct_below_band`, `underpaid_count`, `overpaid_count`, `below_threshold` (median compa-ratio < 0.95, **proposed**), `suppressed`.
+Cohorts are sorted by job role id, level and country. `stats` covers the members with a compa-ratio. A cohort without a band is not listed; its people count in `employees_without_band`. Part-timers and contractors (only there when `employment_type` asks for them) get no ratio and count in `employees_not_full_time`.
 
-Flags: `underpaid` = compa-ratio < 0.80 (below band minimum); `overpaid` = compa-ratio > 1.20 (above band maximum). Values exactly 0.80 or 1.20 count as within band, and the comparison uses the unrounded ratio. Thresholds are server settings matching the band width (`min = 0.8 × mid`, `max = 1.2 × mid`), not request parameters. For a VIEWER, groups with `count < 5` return counts, ratios and stats as `null` with `suppressed: true`; band values stay visible.
+`view=departments` (systemic-gap view; exactly one `country`, else 422): `{ view, population, country_code, thresholds, groups[], summary }`; each group is `{ department: { id, name }, count, median_compa_ratio, mean_compa_ratio, pct_below_band, underpaid_count, overpaid_count, below_threshold, suppressed }`, sorted by department name. `below_threshold` is median compa-ratio < 0.95 on the unrounded median. Ratios and `pct_below_band` (0 to 1) are 2-decimal strings.
+
+Flags: `underpaid` = compa-ratio < 0.80 (below band minimum); `overpaid` = compa-ratio > 1.20 (above band maximum). Values exactly 0.80 or 1.20 count as within band, and the comparison uses the unrounded ratio. Thresholds are server settings matching the band width (`min = 0.8 × mid`, `max = 1.2 × mid`), not request parameters. For a VIEWER, groups with `count < 5` return counts, ratios and stats as `null` with `suppressed: true` (plus complementary suppression); band values stay visible. The summary is `null` with `suppressed: true` when fewer than 5 were evaluated.
 
 ### 8.11 `GET /insights/pay-equity/cohort`: requires `SALARY_READ`
 
-`job_role_id`, `level`, `country` required. Returns the band and each cohort member with `employee_code`, name, base, `compa_ratio` (decimal string, 2 dp) and flag `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20). 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event.
+`job_role_id`, `level`, `country` required (one of each); `employment_type` and `status` as in §8.1. Returns the cohort's `job_role`, `level`, `country_code`, `department`, `currency`, `band` (`null` if the cohort has no band), `thresholds`, and `members[]`, each with `employee_id`, `employee_code`, `first_name`, `last_name`, `employment_type`, `base`, `compa_ratio` (decimal string, 2 dp), `flag` `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20), and `no_compa_ratio_reason` (`not_full_time` or `no_band` when `compa_ratio` is `null`). Members are listed lowest ratio first, then those without one, ties by `employee_code`. 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event (`diff = { endpoint: "pay-equity/cohort", filters }`).
 
 ### 8.12 `GET /pay-bands`: `INSIGHTS_READ`
 
-Read-only list of bands, filterable by `country`, `job_role_id`, `level`: `{ job_role_id, level, country_code, currency, min, mid, max, effective_from }`. Bands are seeded; editing them is out of scope for v1.
+Read-only list of the bands in force today, filterable by `country`, `job_role_id`, `level` (repeatable): `{ "bands": [ { job_role_id, level, country_code, currency, min, mid, max, effective_from } ] }`, sorted by country, job role id and level. Bands are seeded; editing them is out of scope for v1.
 
 ---
 
@@ -658,6 +679,8 @@ Read-only list of bands, filterable by `country`, `job_role_id`, `level`: `{ job
 ```json
 { "rates": [ { "currency": "INR", "rate_to_usd": "0.01198", "as_of": "2026-10-01", "source": "Static snapshot (illustrative)" } ] }
 ```
+
+Sorted by currency. `rate_to_usd` is a decimal string (USD per one major unit).
 
 ### `PUT /fx-rates/{currency}`: `FX_ADMIN`
 

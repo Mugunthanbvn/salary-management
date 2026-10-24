@@ -9,7 +9,7 @@
 
 ## 1. Philosophy
 
-The problem is small: **10,000 employees, about 30,000 salary records, about 10 MB of data.** At this scale the main performance risks are not algorithmic. They are **network round-trips** (serverless function ↔ Turso), **cold starts**, and **accidental N+1 queries**. The design keeps the system simple (no cache layer, no queues, no materialized views) and spends effort on:
+The problem is small: **10,000 employees, about 24,000 salary records, about 10 MB of data.** At this scale the main performance risks are not algorithmic. They are **network round-trips** (serverless function ↔ Turso), **cold starts**, and **accidental N+1 queries**. The design keeps the system simple (no cache layer, no queues, no materialized views) and spends effort on:
 
 1. Few queries per request (one list query + one count; one aggregate query per insight).
 2. The right indexes for every filter and sort.
@@ -23,7 +23,7 @@ The problem is small: **10,000 employees, about 30,000 salary records, about 10 
 
 | Operation | Target | Environment | Notes |
 |---|---|---|---|
-| Seed 10,000 employees (+ ~30k salary records, ~40k components) | **< 5 s** | Local SQLite file, laptop | Bulk Core `insert()` in chunks of 1,000 |
+| Seed 10,000 employees (+ ~24k salary records, ~40k components) | **< 5 s** | Local SQLite file, laptop | Bulk Core `insert()` in chunks of 1,000 |
 | Load seed into Turso | **< 60 s** **(proposed)** | `turso db create --from-file` | Avoids remote row-by-row inserts entirely |
 | `GET /employees` (list, any filter/sort, page 25) | **p95 < 300 ms** | Deployed, warm function | Measured server-side (handler time) and end-to-end |
 | `GET /employees/{id}` | **p95 < 300 ms** | Deployed, warm | |
@@ -178,7 +178,7 @@ The trigger thresholds are estimates; the decision to act would come from measur
 
 | What | How | When | Where results go |
 |---|---|---|---|
-| Seed time | `make seed` prints elapsed time per phase (generate, insert employees, insert history) | Milestone 6 | §9 |
+| Seed time | `make seed` prints elapsed time per phase (users, migrate, generate, insert) and the total | Milestone 6 | §9 |
 | Query plans | `EXPLAIN QUERY PLAN` for list (each filter), each insight | Milestone 7 | §9 |
 | N+1 guard | pytest asserting query count per endpoint | Milestones 4–7 (permanent tests) | CI |
 | API latency (local) | Simple benchmark script (`make bench` **(proposed)**) hitting each endpoint 100× with the 10k seed, reporting p50/p95 | Milestone 7 | §9 |
@@ -196,7 +196,7 @@ To be filled in with measured values. Each row records the date, commit and envi
 
 | Metric | Target | Measured | Date / commit | Environment |
 |---|---|---|---|---|
-| Seed 10k (local) | < 5 s | TBD | | |
+| Seed 10k (local) | < 5 s | **3.2–3.4 s** with `make seed` (users 0.5–0.65 s of argon2, migrate < 0.1 s, generate 1.0–1.1 s, insert incl. reset 1.6–1.7 s); first build 2.9 s; **2.3 s** in memory (the golden test) | 2026-10-24 / after the B5 review | Linux, 4 vCPU shared with other jobs (load ≈ 4.5), Python 3.13, SQLite WAL |
 | Turso load | < 60 s | TBD | | |
 | `GET /employees` p95 | < 300 ms | TBD | | |
 | `GET /insights/overview` p95 | < 300 ms | TBD | | |

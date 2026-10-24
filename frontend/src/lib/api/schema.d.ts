@@ -193,6 +193,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/fx-rates": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Current USD rates with their date and source */
+        get: operations["fx_rates_api_v1_fx_rates_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -278,6 +295,142 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/by-department": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pay statistics per department */
+        get: operations["by_department_api_v1_insights_by_department_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/by-job-title": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pay statistics per job title within one country */
+        get: operations["by_job_title_api_v1_insights_by_job_title_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/department-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Total pay per department and its share of the total */
+        get: operations["department_cost_api_v1_insights_department_cost_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Headcount, payroll and pay by country */
+        get: operations["overview_api_v1_insights_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/pay-equity": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Compa-ratios against pay bands, per cohort or per department of one country */
+        get: operations["pay_equity_api_v1_insights_pay_equity_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/pay-equity/cohort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One cohort's members against their band (SALARY_READ; audited) */
+        get: operations["pay_equity_cohort_api_v1_insights_pay_equity_cohort_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/insights/top-earners": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Highest or lowest paid people in one country (SALARY_READ; audited) */
+        get: operations["top_earners_api_v1_insights_top_earners_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/pay-bands": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Pay bands in force today (read-only) */
+        get: operations["pay_bands_api_v1_pay_bands_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference": {
         parameters: {
             query?: never;
@@ -299,6 +452,20 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /**
+         * Band
+         * @description A pay band in minor units of `currency`. Policy, not anyone's pay: never hidden.
+         */
+        Band: {
+            /** Currency */
+            currency: string;
+            /** Max */
+            max: number;
+            /** Mid */
+            mid: number;
+            /** Min */
+            min: number;
+        };
         /** Body_upload_import_api_v1_imports_post */
         Body_upload_import_api_v1_imports_post: {
             /**
@@ -307,12 +474,94 @@ export interface components {
              */
             file: string;
         };
+        /**
+         * ByDepartment
+         * @description docs/09 section 3.2: in local currency for one currency's countries, else in USD.
+         */
+        ByDepartment: {
+            /** Currency */
+            currency: string;
+            /** Fx As Of */
+            fx_as_of: string | null;
+            /** Groups */
+            groups: components["schemas"]["DepartmentStats"][];
+            population: components["schemas"]["Population"];
+        };
+        /**
+         * ByJobTitle
+         * @description docs/09 section 3.3: always in the country's currency.
+         */
+        ByJobTitle: {
+            /** Currency */
+            currency: string;
+            /** Groups */
+            groups: components["schemas"]["JobTitleStats"][];
+            population: components["schemas"]["Population"];
+            /** Split By Level */
+            split_by_level: boolean;
+        };
         /** ChangedBy */
         ChangedBy: {
             /** Full Name */
             full_name: string;
             /** Id */
             id: number;
+        };
+        /**
+         * CohortEquity
+         * @description One job role + level + country against its band. Ratios are 2-decimal strings.
+         */
+        CohortEquity: {
+            band: components["schemas"]["Band"];
+            /** Country Code */
+            country_code: string;
+            department: components["schemas"]["Department"];
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"];
+            /** Median Compa Ratio */
+            median_compa_ratio: string | null;
+            /** Overpaid Count */
+            overpaid_count: number | null;
+            stats: components["schemas"]["Stats"];
+            /** Suppressed */
+            suppressed: boolean;
+            /** Underpaid Count */
+            underpaid_count: number | null;
+        };
+        /** CohortMember */
+        CohortMember: {
+            base: components["schemas"]["Money"];
+            /** Compa Ratio */
+            compa_ratio: string | null;
+            /** Employee Code */
+            employee_code: string;
+            /** Employee Id */
+            employee_id: number;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            flag: components["schemas"]["PayEquityFlag"] | null;
+            /** Last Name */
+            last_name: string;
+            no_compa_ratio_reason: components["schemas"]["NoCompaRatioReason"] | null;
+        };
+        /**
+         * CohortMembers
+         * @description One cohort's people against its band (docs/07 8.11). SALARY_READ only; audited.
+         */
+        CohortMembers: {
+            band: components["schemas"]["Band"] | null;
+            /** Country Code */
+            country_code: string;
+            /** Currency */
+            currency: string;
+            department: components["schemas"]["Department"];
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"];
+            /** Members */
+            members: components["schemas"]["CohortMember"][];
+            population: components["schemas"]["Population"];
+            thresholds: components["schemas"]["Thresholds"];
         };
         /**
          * Comp
@@ -355,6 +604,16 @@ export interface components {
             /** Name */
             name: string;
         };
+        /**
+         * CountryStats
+         * @description One country: in its own currency, and with each salary converted to USD.
+         */
+        CountryStats: {
+            /** Country Code */
+            country_code: string;
+            local: components["schemas"]["Stats"];
+            usd: components["schemas"]["Stats"];
+        };
         /** CurrencyOption */
         CurrencyOption: {
             /** Code */
@@ -384,6 +643,88 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+        };
+        /**
+         * DepartmentCost
+         * @description One department's pay bill: the sum of its people's amounts (docs/09 section 3.5).
+         */
+        DepartmentCost: {
+            cost: components["schemas"]["Money"] | null;
+            cost_usd: components["schemas"]["Money"] | null;
+            department: components["schemas"]["Department"];
+            /** Headcount */
+            headcount: number | null;
+            /** Share Of Total */
+            share_of_total: string | null;
+            /** Suppressed */
+            suppressed: boolean;
+        };
+        /**
+         * DepartmentCosts
+         * @description In local currency (with USD next to it) for one currency's countries, else in USD.
+         */
+        DepartmentCosts: {
+            /** Currency */
+            currency: string;
+            /** Fx As Of */
+            fx_as_of: string | null;
+            /** Groups */
+            groups: components["schemas"]["DepartmentCost"][];
+            /** Headcount */
+            headcount: number | null;
+            population: components["schemas"]["Population"];
+            /** Suppressed */
+            suppressed: boolean;
+            total: components["schemas"]["Money"] | null;
+            total_usd: components["schemas"]["Money"] | null;
+        };
+        /**
+         * DepartmentEquity
+         * @description One department in one country: is the team as a whole paid below its bands?
+         */
+        DepartmentEquity: {
+            /** Below Threshold */
+            below_threshold: boolean | null;
+            /** Count */
+            count: number | null;
+            department: components["schemas"]["Department"];
+            /** Mean Compa Ratio */
+            mean_compa_ratio: string | null;
+            /** Median Compa Ratio */
+            median_compa_ratio: string | null;
+            /** Overpaid Count */
+            overpaid_count: number | null;
+            /** Pct Below Band */
+            pct_below_band: string | null;
+            /** Suppressed */
+            suppressed: boolean;
+            /** Underpaid Count */
+            underpaid_count: number | null;
+        };
+        /** DepartmentStats */
+        DepartmentStats: {
+            department: components["schemas"]["Department"];
+            stats: components["schemas"]["Stats"];
+        };
+        /**
+         * Direction
+         * @enum {string}
+         */
+        Direction: "top" | "bottom";
+        /** Earner */
+        Earner: {
+            amount: components["schemas"]["Money"];
+            department: components["schemas"]["Department"];
+            /** Employee Code */
+            employee_code: string;
+            /** Employee Id */
+            employee_id: number;
+            /** First Name */
+            first_name: string;
+            job_role: components["schemas"]["JobRoleRef"];
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
         };
         /** EmployeeCreate */
         EmployeeCreate: {
@@ -540,6 +881,25 @@ export interface components {
          * @enum {string}
          */
         FileFormat: "csv" | "xlsx";
+        /** FxRateItem */
+        FxRateItem: {
+            /**
+             * As Of
+             * Format: date
+             */
+            as_of: string;
+            /** Currency */
+            currency: string;
+            /** Rate To Usd */
+            rate_to_usd: string;
+            /** Source */
+            source: string;
+        };
+        /** FxRates */
+        FxRates: {
+            /** Rates */
+            rates: components["schemas"]["FxRateItem"][];
+        };
         /** HealthResponse */
         HealthResponse: {
             /**
@@ -716,6 +1076,12 @@ export interface components {
             /** Title */
             title: string;
         };
+        /** JobTitleStats */
+        JobTitleStats: {
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"] | null;
+            stats: components["schemas"]["Stats"];
+        };
         /**
          * Level
          * @description Job level: L1 Associate, L2 Mid, L3 Senior, L4 Lead/Staff, L5 Principal, L6 Director.
@@ -762,10 +1128,140 @@ export interface components {
             currency: string;
         };
         /**
+         * NoCompaRatioReason
+         * @description Why an employee has no compa-ratio.
+         * @enum {string}
+         */
+        NoCompaRatioReason: "not_full_time" | "no_band";
+        /**
+         * Overview
+         * @description docs/09 section 3.1. `stats` is in `currency`: the population's one currency, else USD.
+         */
+        Overview: {
+            /** By Country */
+            by_country: components["schemas"]["CountryStats"][];
+            /** Currency */
+            currency: string;
+            /** Fx As Of */
+            fx_as_of: string | null;
+            /** Headcount */
+            headcount: number | null;
+            population: components["schemas"]["Population"];
+            stats: components["schemas"]["Stats"];
+            total_payroll_usd: components["schemas"]["Money"] | null;
+        };
+        /**
+         * PayBandItem
+         * @description The band in force for a job role + level + country, in minor units of `currency`.
+         */
+        PayBandItem: {
+            /** Country Code */
+            country_code: string;
+            /** Currency */
+            currency: string;
+            /**
+             * Effective From
+             * Format: date
+             */
+            effective_from: string;
+            /** Job Role Id */
+            job_role_id: number;
+            level: components["schemas"]["Level"];
+            /** Max */
+            max: number;
+            /** Mid */
+            mid: number;
+            /** Min */
+            min: number;
+        };
+        /** PayBands */
+        PayBands: {
+            /** Bands */
+            bands: components["schemas"]["PayBandItem"][];
+        };
+        /** PayEquityCohorts */
+        PayEquityCohorts: {
+            /** Cohorts */
+            cohorts: components["schemas"]["CohortEquity"][];
+            population: components["schemas"]["Population"];
+            summary: components["schemas"]["PayEquitySummary"];
+            thresholds: components["schemas"]["Thresholds"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            view: "cohorts";
+        };
+        /** PayEquityDepartments */
+        PayEquityDepartments: {
+            /** Country Code */
+            country_code: string;
+            /** Groups */
+            groups: components["schemas"]["DepartmentEquity"][];
+            population: components["schemas"]["Population"];
+            summary: components["schemas"]["PayEquitySummary"];
+            thresholds: components["schemas"]["Thresholds"];
+            /**
+             * @description discriminator enum property added by openapi-typescript
+             * @enum {string}
+             */
+            view: "departments";
+        };
+        /**
+         * PayEquityFlag
+         * @description Compa-ratio against the band: < 0.80, 0.80 to 1.20 inclusive, > 1.20.
+         * @enum {string}
+         */
+        PayEquityFlag: "UNDERPAID" | "IN_BAND" | "OVERPAID";
+        /**
+         * PayEquitySummary
+         * @description Who was evaluated, who was left out and why, and who was flagged.
+         *
+         *     For a caller without SALARY_READ, all counts are null when fewer than 5 were evaluated.
+         */
+        PayEquitySummary: {
+            /** Employees Evaluated */
+            employees_evaluated: number | null;
+            /** Employees Flagged Overpaid */
+            employees_flagged_overpaid: number | null;
+            /** Employees Flagged Underpaid */
+            employees_flagged_underpaid: number | null;
+            /** Employees Not Full Time */
+            employees_not_full_time: number | null;
+            /** Employees Without Band */
+            employees_without_band: number | null;
+            /** Suppressed */
+            suppressed: boolean;
+        };
+        /**
+         * PayEquityView
+         * @enum {string}
+         */
+        PayEquityView: "cohorts" | "departments";
+        /**
          * Permission
          * @enum {string}
          */
         Permission: "EMPLOYEE_READ" | "EMPLOYEE_WRITE" | "SALARY_READ" | "SALARY_WRITE" | "INSIGHTS_READ" | "EXPORT" | "IMPORT" | "ASK" | "USER_ADMIN" | "FX_ADMIN" | "REFERENCE_ADMIN" | "AUDIT_READ";
+        /**
+         * Population
+         * @description The filters actually applied. An empty list means no condition on that field.
+         */
+        Population: {
+            comp: components["schemas"]["Comp"];
+            /** Country */
+            country: string[];
+            /** Department Id */
+            department_id: number[];
+            /** Employment Type */
+            employment_type: components["schemas"]["EmploymentType"][];
+            /** Job Role Id */
+            job_role_id: number[];
+            /** Level */
+            level: components["schemas"]["Level"][];
+            /** Status */
+            status: components["schemas"]["EmployeeStatus"][];
+        };
         /**
          * Problem
          * @description An RFC 9457 problem. Some problems add members, e.g. `current_version`.
@@ -915,6 +1411,32 @@ export interface components {
             id: number;
             role: components["schemas"]["Role"];
         };
+        /**
+         * Stats
+         * @description One group's statistics in minor units of `currency` (docs/07 section 8.2).
+         *
+         *     Percentiles interpolate linearly; mean and percentiles are rounded half-even.
+         */
+        Stats: {
+            /** Count */
+            count: number | null;
+            /** Currency */
+            currency: string;
+            /** Max */
+            max: number | null;
+            /** Mean */
+            mean: number | null;
+            /** Median */
+            median: number | null;
+            /** Min */
+            min: number | null;
+            /** P25 */
+            p25: number | null;
+            /** P75 */
+            p75: number | null;
+            /** Suppressed */
+            suppressed: boolean;
+        };
         /** TerminateRequest */
         TerminateRequest: {
             /** Note */
@@ -923,6 +1445,35 @@ export interface components {
             termination_date?: string | null;
             /** Version */
             version: number;
+        };
+        /**
+         * Thresholds
+         * @description Compa-ratio limits as decimal strings: below `low` is UNDERPAID, above `high` is
+         *     OVERPAID, and a department whose median is below `rollup` is below threshold.
+         */
+        Thresholds: {
+            /** High */
+            high: string;
+            /** Low */
+            low: string;
+            /** Rollup */
+            rollup: string;
+        };
+        /**
+         * TopEarners
+         * @description docs/09 section 3.6: individuals, so SALARY_READ only. Ties go by employee code.
+         */
+        TopEarners: {
+            /** Country Code */
+            country_code: string;
+            /** Currency */
+            currency: string;
+            direction: components["schemas"]["Direction"];
+            /** Items */
+            items: components["schemas"]["Earner"][];
+            /** N */
+            n: number;
+            population: components["schemas"]["Population"];
         };
         /**
          * ValidationProblem
@@ -1949,6 +2500,71 @@ export interface operations {
             };
         };
     };
+    fx_rates_api_v1_fx_rates_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["FxRates"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -2308,6 +2924,587 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    by_department_api_v1_insights_by_department_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country?: string[];
+                comp?: components["schemas"]["Comp"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ByDepartment"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    by_job_title_api_v1_insights_by_job_title_get: {
+        parameters: {
+            query: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country: string;
+                comp?: components["schemas"]["Comp"];
+                split_by_level?: boolean;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ByJobTitle"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    department_cost_api_v1_insights_department_cost_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country?: string[];
+                comp?: components["schemas"]["Comp"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentCosts"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    overview_api_v1_insights_overview_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country?: string[];
+                comp?: components["schemas"]["Comp"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_equity_api_v1_insights_pay_equity_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                view?: components["schemas"]["PayEquityView"];
+                country?: string[];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayEquityCohorts"] | components["schemas"]["PayEquityDepartments"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_equity_cohort_api_v1_insights_pay_equity_cohort_get: {
+        parameters: {
+            query: {
+                job_role_id: number;
+                level: components["schemas"]["Level"];
+                country: string;
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortMembers"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    top_earners_api_v1_insights_top_earners_get: {
+        parameters: {
+            query: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country: string;
+                comp?: components["schemas"]["Comp"];
+                n?: number;
+                direction?: components["schemas"]["Direction"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["TopEarners"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_bands_api_v1_pay_bands_get: {
+        parameters: {
+            query?: {
+                country?: string[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["PayBands"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
                 };
             };
             /** @description Client error */

@@ -17,6 +17,7 @@ from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salary_api.core.request_id import REQUEST_ID_HEADER
+from salary_api.domain.money import FxRateMissingError
 
 PROBLEM_JSON = "application/problem+json"
 PROBLEM_TYPE_BASE = "https://acme.example/problems/"
@@ -303,6 +304,20 @@ def install_problem_handlers(app: FastAPI) -> None:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         return problem_response(request, _from_request_validation_error(exc))
+
+    @app.exception_handler(FxRateMissingError)
+    async def handle_fx_rate_missing(request: Request, exc: FxRateMissingError) -> JSONResponse:
+        # A configuration error (docs/09 section 4): say which rate is missing, never guess one.
+        _logger.error("fx_rate_missing", path=request.url.path, currency=exc.currency)
+        problem = ProblemError(
+            500,
+            None,
+            "Internal Server Error",
+            f"No USD rate for {exc.currency}, so USD figures cannot be computed. "
+            "An administrator must add the rate.",
+            currency=exc.currency,
+        )
+        return problem_response(request, problem)
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
