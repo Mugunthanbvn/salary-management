@@ -14,4 +14,10 @@ describe("formatMoney", () => {
 
     expect(text).toBe("¥7,200,000");
   });
+
+  it("leaves out minor units that are all zero, as on the printout", () => {
+    const text = formatMoney(5_400_000, "EUR");
+
+    expect(text).toBe("€54,000");
+  });
 });
