@@ -137,6 +137,7 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | `ASK_RATE_LIMIT_PER_HOUR`, `ASK_MAX_STEPS` | api | `20` · `4` |
 | `SEED_ADMIN_PASSWORD`, `SEED_HR_PASSWORD`, `SEED_VIEWER_PASSWORD` | seed | Production refuses defaults |
 | `API_ORIGIN` | web | API base URL for the rewrite and server-side fetches; never exposed to the browser |
+| `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | web | `true` on the demo deployment only: `/login` lists the three demo accounts (names, emails, roles, never passwords). Inlined at build time |
 
 ## 8. Commands, files and resources
 
