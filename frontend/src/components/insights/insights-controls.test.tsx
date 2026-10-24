@@ -6,7 +6,7 @@ import { describe, expect, it, vi } from "vitest";
 import { makeReference } from "@/test/fixtures";
 import { renderInApp } from "@/test/render";
 
-import { InsightsControls } from "./insights-controls";
+import { InsightsControls, PayToggles } from "./insights-controls";
 
 vi.mock("next/navigation", () => ({
   useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
@@ -21,10 +21,16 @@ function lastUpdate(onUrlUpdate: ReturnType<typeof vi.fn>): UrlUpdateEvent {
 
 function renderControls(searchParams = "") {
   const onUrlUpdate = vi.fn();
-  renderInApp(<InsightsControls reference={makeReference()} />, {
-    searchParams,
-    onUrlUpdate,
-  });
+  renderInApp(
+    <>
+      <PayToggles />
+      <InsightsControls reference={makeReference()} />
+    </>,
+    {
+      searchParams,
+      onUrlUpdate,
+    },
+  );
   return onUrlUpdate;
 }
 
