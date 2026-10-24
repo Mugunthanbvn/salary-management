@@ -165,3 +165,20 @@ def test_invalid_response_is_logged_by_type_without_the_response_body(
     assert response.status_code == 500
     assert "ResponseValidationError" in logged
     assert "base-salary-6500000" not in logged
+
+
+def test_an_unexpected_error_is_logged_with_its_type_and_frames_but_not_its_message(
+    app: FastAPI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    @app.get("/api/v1/_test/personal")
+    def personal() -> None:
+        raise ValueError("Lena Müller cannot be used in worksheets.")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        client.get("/api/v1/_test/personal", headers={"X-Request-ID": "req-log"})
+
+    logged = capsys.readouterr().out
+    assert "ValueError" in logged
+    assert "req-log" in logged
+    assert '"personal"' in logged  # the frame, by function name
+    assert "Lena" not in logged
