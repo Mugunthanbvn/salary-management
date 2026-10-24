@@ -4,9 +4,12 @@ Masking lives here, not in the router: the Ask tools and exports call these func
 directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 """
 
+from datetime import date
+
 from sqlalchemy.orm import Session
 
 from salary_api.core.errors import Duplicate, FieldError, NotFound, ValidationFailed
+from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.money import Money as DomainMoney
@@ -20,6 +23,7 @@ from salary_api.modules.employees.schemas import (
     EmployeeDetail,
 )
 from salary_api.modules.reference import repository as reference
+from salary_api.modules.reference.models import Country
 from salary_api.modules.reference.schemas import Department, JobRoleRef
 from salary_api.modules.salaries import service as salaries
 from salary_api.modules.salaries.models import SalaryRecord
@@ -33,11 +37,7 @@ def create_employee(
     session: Session, principal: Principal, request: EmployeeCreate
 ) -> EmployeeDetail:
     """Create the employee and its HIRE salary record together (docs/06 section 6.1)."""
-    country = reference.get_country(session, request.country_code)
-    if country is None:
-        raise ValidationFailed(
-            [_field_error("country_code", "not_found", f"Unknown country {request.country_code}.")]
-        )
+    country = _check_new_employee(session, request)
     pay = salaries.Pay(
         base=DomainMoney(request.salary.base_minor, country.default_currency),
         components=request.salary.components,
@@ -138,6 +138,35 @@ def _current_salary(record: SalaryRecord) -> CurrentSalary:
     )
 
 
+def _check_new_employee(session: Session, request: EmployeeCreate) -> Country:
+    """The employee's country, if every business rule holds; else one 422 listing each break."""
+    errors: list[FieldError] = []
+    if reference.get_job_role(session, request.job_role_id) is None:
+        errors.append(
+            _field_error(("job_role_id",), "not_found", f"Unknown job role {request.job_role_id}.")
+        )
+    country = reference.get_country(session, request.country_code)
+    if country is None:
+        message = f"Unknown country {request.country_code}."
+        errors.append(_field_error(("country_code",), "not_found", message))
+    elif not country.is_active:
+        message = f"{country.name} is not an active country."
+        errors.append(_field_error(("country_code",), "inactive", message))
+    elif request.salary.currency not in (None, country.default_currency):
+        message = f"Salaries in {country.name} are paid in {country.default_currency}."
+        errors.append(_field_error(("salary", "currency"), "currency_mismatch", message))
+    if request.hire_date > _today():
+        message = "The hire date cannot be in the future."
+        errors.append(_field_error(("hire_date",), "future_date", message))
+    if errors or country is None:
+        raise ValidationFailed(errors)
+    return country
+
+
+def _today() -> date:
+    return utc_now().date()
+
+
 def _refuse_duplicates(session: Session, *, employee_code: str, email: str) -> None:
     if repository.code_in_use(session, employee_code):
         raise Duplicate(f"The employee_code {employee_code} is already in use.")
@@ -152,5 +181,5 @@ def _next_employee_code(session: Session) -> str:
     return f"{CODE_PREFIX}{number:06d}"
 
 
-def _field_error(field: str, code: str, message: str) -> FieldError:
-    return {"loc": ["body", field], "code": code, "message": message}
+def _field_error(loc: tuple[str, ...], code: str, message: str) -> FieldError:
+    return {"loc": ["body", *loc], "code": code, "message": message}

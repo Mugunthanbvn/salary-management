@@ -252,7 +252,7 @@ def test_create_refuses_values_that_break_a_business_rule(
     make_country(db_session, "DE")
     make_country(db_session, "FR", is_active=False)
 
-    response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id, **overrides))
+    response = as_role("HR_MANAGER").post(EMPLOYEES, json=employee_request(role.id) | overrides)
 
     assert response.status_code == 422
     body = response.json()
