@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import { makeMe, VIEWER_PERMISSIONS } from "@/test/fixtures";
 
-import { can } from "./permissions";
+import { can, canAsk } from "./permissions";
 
 describe("can", () => {
   it("is true for a permission the person has", () => {
@@ -28,4 +28,22 @@ describe("can", () => {
 
     expect(can(admin, "IMPORT")).toBe(false);
   });
+});
+
+describe("canAsk", () => {
+  it.each([
+    { ask: true, permission: true, shown: true },
+    { ask: false, permission: true, shown: false },
+    { ask: true, permission: false, shown: false },
+  ])(
+    "is $shown when the feature is on: $ask and the ASK permission is held: $permission",
+    ({ ask, permission, shown }) => {
+      const me = makeMe({
+        features: { ask },
+        permissions: permission ? ["INSIGHTS_READ", "ASK"] : ["INSIGHTS_READ"],
+      });
+
+      expect(canAsk(me)).toBe(shown);
+    },
+  );
 });

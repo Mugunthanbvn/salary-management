@@ -12,3 +12,8 @@ export type Permission = components["schemas"]["Permission"];
 export function can(me: Me, permission: Permission): boolean {
   return me.permissions.includes(permission);
 }
+
+export function canAsk(me: Me): boolean {
+  void me;
+  throw new Error("canAsk is not implemented yet");
+}
