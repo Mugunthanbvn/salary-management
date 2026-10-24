@@ -10,10 +10,12 @@ MAKEFLAGS += --no-print-directory
 export TZ := UTC
 export LC_ALL := C.UTF-8
 export PYTHONHASHSEED := 0
+export COREPACK_ENABLE_DOWNLOAD_PROMPT := 0
 
 BACKEND := backend
 FRONTEND := frontend
-PNPM := pnpm --dir $(FRONTEND)
+# Run pnpm from inside frontend/ so corepack reads its packageManager pin (pnpm --dir from the root does not).
+PNPM := cd $(FRONTEND) && pnpm
 API_GENERATED := $(FRONTEND)/openapi.json $(FRONTEND)/src/lib/api/schema.d.ts
 
 .PHONY: help setup dev migrate fmt fmt-backend fmt-frontend lint lint-backend lint-frontend \
@@ -38,7 +40,7 @@ dev: migrate ## Run the API (:8000) and the web app (:3000) on backend/dev.db; C
 	@echo "API http://localhost:8000/api/v1/docs   web http://localhost:3000   (Ctrl-C stops both)"
 	@trap 'kill $$(jobs -p) 2>/dev/null || true' EXIT; \
 	  (cd $(BACKEND) && exec uv run uvicorn salary_api.main:app --reload --port 8000) & \
-	  $(PNPM) dev & \
+	  ($(PNPM) dev) & \
 	  wait -n
 
 migrate: ## Apply database migrations (alembic upgrade head) to DATABASE_URL
