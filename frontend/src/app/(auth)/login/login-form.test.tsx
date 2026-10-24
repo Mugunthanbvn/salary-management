@@ -139,6 +139,10 @@ describe("LoginForm", () => {
       await signIn();
 
       expect(await screen.findByRole("alert")).toHaveTextContent(message);
+      // The email and password may be right: don't mark them as wrong.
+      expect(screen.getByLabelText("Password")).not.toHaveAttribute(
+        "aria-invalid",
+      );
     },
   );
 

@@ -129,7 +129,7 @@ export function LoginForm() {
       <Button
         type="submit"
         disabled={!hydrated || pending}
-        className="w-full sm:w-auto"
+        className="w-full sm:w-auto sm:min-w-40 sm:self-start"
       >
         {pending ? "Signing in…" : "Sign in"}
       </Button>
