@@ -167,11 +167,10 @@ Each skill is a `SKILL.md` with a trigger-style `description` (so Claude invokes
 ### 5.6 `/new-module <name>`
 **Trigger:** adding a new backend feature slice.
 1. Read an existing module (e.g. `modules/employees/`) to mirror its conventions. Don't invent a new pattern.
-2. Create `modules/<name>/{__init__,router,schemas,service,repository,models}.py` with minimal typed skeletons.
-3. Create `tests/unit/test_<name>_*.py` and `tests/integration/test_<name>_api.py` with one placeholder **failing** test describing the first behaviour.
-4. Register the router in the app factory; add an entry to the authz matrix (it fails until permissions are declared).
-5. If there are models, create an Alembic revision stub.
-6. Hand over to `/tdd` for the first behaviour.
+2. Create `modules/<name>/{__init__,router,schemas,service,repository,models}.py` as an empty scaffold (an `APIRouter` with its prefix, no endpoints, no models).
+3. Register the empty router in the app factory.
+4. Commit it as `chore(<name>): scaffold module`: it has no behaviour, so it is neither `test:` nor `feat:`.
+5. Hand over to `/tdd` for the first failing test. Endpoints (each with its authz-matrix row), models and their Alembic revisions all come through TDD.
 
 ### 5.7 `/commit`
 **Trigger:** the user asks to commit, or a TDD step is complete.
