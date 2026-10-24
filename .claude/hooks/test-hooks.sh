@@ -100,6 +100,12 @@ guard 0 Read backend/uv.lock
 guard 0 Read frontend/pnpm-lock.yaml
 guard 0 Read frontend/src/lib/api/schema.d.ts
 guard 0 Read frontend/openapi.json
+expect "block-protected-files: python3 fallback allows Read of uv.lock" 0 block-protected-files.sh \
+  "$(json Read file_path backend/uv.lock)" "$repo" "$tmp/bin-py"
+expect "block-protected-files: python3 fallback blocks Read of .env.local" 2 block-protected-files.sh \
+  "$(json Read file_path frontend/.env.local)" "$repo" "$tmp/bin-py"
+expect "block-protected-files: sed fallback allows Read of schema.d.ts" 0 block-protected-files.sh \
+  "$(json Read file_path frontend/src/lib/api/schema.d.ts)" "$repo" "$tmp/bin-sed"
 guard 0 Edit frontend/src/lib/api/client.ts
 guard 0 Write docs/openapi.json
 guard 0 Edit frontend/../docs/schema.d.ts

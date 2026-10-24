@@ -38,8 +38,10 @@ frontend/CLAUDE.md             # loaded when working under frontend/
   agents/
     reviewer.md
   hooks/
-    block-protected-files.sh   # PreToolUse guard
+    block-protected-files.sh   # PreToolUse guard (Read/Edit/Write)
+    guard-bash.sh              # PreToolUse guard (Bash)
     format-changed-file.sh     # PostToolUse formatter
+    test-hooks.sh              # tests for the hooks: .claude/hooks/test-hooks.sh
 ```
 
 ---
@@ -238,14 +240,18 @@ As committed in `.claude/settings.json`:
 - **Allow:** routine, reversible, local operations so TDD loops run without prompts. Plain `git push` is allowed because the build is run by an autonomous orchestrator that pushes after each block.
 - **Deny:** reading or editing secrets, force pushes, destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible). Deny wins over allow.
 - **Ask:** deploy and database cloud CLIs (`vercel`, `turso`).
-- `.env.example` remains readable and editable (it holds no secrets): the deny patterns name `.env` and `.env.<env>` files explicitly instead of `.env.*`. The PreToolUse hook also blocks edits to any other `.env.<name>`.
+- `.env.example` remains readable and editable (it holds no secrets): the deny patterns name `.env` and `.env.<env>` files explicitly instead of `.env.*`. The PreToolUse hooks (§7.2) cover every other `.env.<name>` (e.g. `.env.development.local`) for Read, Edit and Write, and in Bash commands.
+- Allow rules match a command prefix only, so `Bash(uv:*)`, `Bash(npx:*)` and `Bash(pnpm:*)` would let `uv run cat .env`, `npx vercel` or `git push origin main --force` through. `guard-bash.sh` closes that gap.
 
 ### 7.2 Hooks
 
 | Event | Matcher | Script | Behaviour |
 |---|---|---|---|
-| **PreToolUse** | `Edit\|Write` | `.claude/hooks/block-protected-files.sh` | Exits with a blocking status and an explanation if the target path is `backend/uv.lock`, `frontend/pnpm-lock.yaml`, `frontend/src/lib/api/schema.d.ts` or `frontend/openapi.json` (generated) or any `.env` file except `.env.example`. The message tells Claude which command to use instead (`uv add`, `pnpm add`, `make api-sync`) |
-| **PostToolUse** | `Edit\|Write` | `.claude/hooks/format-changed-file.sh` | For `*.py` under `backend/`: `uv run ruff format <file>` and `uv run ruff check --fix <file>`. For `*.ts, *.tsx, *.css, *.json, *.md` under `frontend/`: `pnpm prettier --write <file>`. Non-blocking; a no-op until the tool is installed; failures are reported back to Claude (exit 2) |
+| **PreToolUse** | `Read\|Edit\|MultiEdit\|Write` | `.claude/hooks/block-protected-files.sh` | Read: blocks any `.env` / `.env.<name>` file except `.env.example` ("secrets files are not readable by agents"). Edit/Write: also blocks `uv.lock`, `pnpm-lock.yaml`, `frontend/src/lib/api/schema.d.ts` and `frontend/openapi.json` (generated), with a message naming the command to use instead (`uv add`, `pnpm add`, `make api-sync`). Paths match by name or suffix, after resolving `..`, so git worktrees are covered |
+| **PreToolUse** | `Bash` | `.claude/hooks/guard-bash.sh` | Parses the command (python3 `shlex`; quoted text and heredoc bodies are arguments) and finds command words, also through `env`, `sudo`, `uv run`, `uvx`, `npx`, `pnpm exec`/`dlx` and `bash -c`. Blocks a `.env` / `.env.<name>` reference other than `.env.example`, `curl`/`wget`, and `git push` with `--force`, `-f`, `--force-with-lease`, `--force-if-includes`, `--mirror`, `--delete`, `-d`, `--prune`, `+refspec` or `:ref`. Returns `permissionDecision: "ask"` for `vercel`/`turso` |
+| **PostToolUse** | `Edit\|MultiEdit\|Write` | `.claude/hooks/format-changed-file.sh` | For `*.py` under `backend/`: `uv run ruff format <file>` and `uv run ruff check --fix <file>`. For `*.ts, *.tsx, *.css, *.json, *.md` under `frontend/`: `pnpm prettier --write <file>`. The project root is the nearest folder above the file with `backend/pyproject.toml` or `frontend/package.json`, so a worktree uses its own tools. Non-blocking; a no-op until the tool is installed; failures are reported back to Claude (exit 2) |
+
+`.claude/hooks/test-hooks.sh` pipes sample hook JSON into each hook and checks the results (PASS/FAIL, non-zero exit on any failure). Run it after changing a hook.
 
 Why hooks instead of instructions: formatting and protected files are "every time, no exceptions" rules, and Anthropic's guidance is to move such rules from CLAUDE.md into hooks, which are deterministic.
 
