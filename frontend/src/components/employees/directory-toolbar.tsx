@@ -203,7 +203,7 @@ function SearchBox({
         value={draft}
         onChange={(event) => setDraft(event.target.value)}
         aria-describedby={tooShort ? `${id}-hint` : undefined}
-        className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent py-2 font-serif text-[22px] leading-tight text-ink outline-offset-4 placeholder:text-ink-3 sm:py-2.5 sm:text-[26px]"
+        className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent py-2 font-serif text-[22px] leading-tight text-ink placeholder:text-ink-3 focus-visible:-mb-px focus-visible:border-b-[3px] focus-visible:border-blue-pen focus-visible:outline-none sm:py-2.5 sm:text-[26px]"
       />
       {tooShort ? (
         <p id={`${id}-hint`} className="mt-2 text-sm text-ink-2">

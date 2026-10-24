@@ -165,7 +165,7 @@ export function AskChat() {
             rows={1}
             aria-describedby={counterId}
             placeholder="For example: what is the median pay for L4 engineers in the UK?"
-            className="[field-sizing:content] min-h-12 min-w-0 flex-[999_1_320px] resize-none border-0 border-b-2 border-ink bg-transparent py-3 font-serif text-[18px] leading-snug text-ink placeholder:text-ink-3 focus-visible:outline-2 focus-visible:outline-offset-4 focus-visible:outline-blue-pen sm:text-[20px]"
+            className="[field-sizing:content] min-h-12 min-w-0 flex-[999_1_320px] resize-none border-0 border-b-2 border-ink bg-transparent py-3 font-serif text-[18px] leading-snug text-ink placeholder:text-ink-3 focus-visible:-mb-px focus-visible:border-b-[3px] focus-visible:border-blue-pen focus-visible:outline-none sm:text-[20px]"
           />
           <Button
             type="submit"
