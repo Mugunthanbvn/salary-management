@@ -312,6 +312,13 @@ for spec in context7:@upstash/context7-mcp@4.4.4 playwright:@playwright/mcp@0.0.
     "$repo/.mcp.json" "${spec%%:*}" "${spec#*:}" 2>/dev/null; then ok "mcp: ${spec%%:*} pinned to ${spec#*:}"; else bad "mcp: ${spec%%:*} pinned to ${spec#*:}" "args differ"; fi
 done
 
+echo "== memory files =="
+# no hard-coded session link: each session stamps its own trailer (finding 5)
+self="${BASH_SOURCE[0]##*/}"
+stale="$(grep -rlE 'claude\.ai/code/session_|Claude-Session:' "$repo/CLAUDE.md" "$repo/AGENTS.md" \
+  "$repo/backend/CLAUDE.md" "$repo/frontend/CLAUDE.md" "$repo/.claude" --exclude="$self" --exclude-dir=worktrees 2>/dev/null)"
+if [ -z "$stale" ]; then ok "memory: no hard-coded session link"; else bad "memory: no hard-coded session link" "found in: $(echo $stale)"; fi
+
 echo
 printf '%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 [ "$fail" -eq 0 ]
