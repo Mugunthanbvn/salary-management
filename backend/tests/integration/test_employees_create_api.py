@@ -408,3 +408,21 @@ def test_no_code_is_generated_past_acme_999999(
     assert generated.json()["type"] == f"{PROBLEMS}invalid-state"
     assert "ACME-999999" in generated.json()["detail"]
     assert given.status_code == 201
+
+
+def test_create_reports_an_inactive_country_and_a_wrong_currency_together(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    role = make_job_role(db_session)
+    make_country(db_session, "FR", is_active=False)
+
+    response = as_role("HR_MANAGER").post(
+        EMPLOYEES, json=employee_request(role.id, country_code="FR", salary=_salary(currency="USD"))
+    )
+
+    assert [(e["loc"], e["code"]) for e in response.json()["errors"]] == [
+        (["body", "country_code"], "inactive"),
+        (["body", "salary", "currency"], "currency_mismatch"),
+    ]
