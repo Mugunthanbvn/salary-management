@@ -1,4 +1,4 @@
-"""App factory: settings, database, routers under /api/v1."""
+"""App factory: settings, database, middleware, routers under /api/v1."""
 
 from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from salary_api import __version__
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine, create_session_factory
+from salary_api.core.request_id import RequestIdMiddleware
 from salary_api.modules.health.router import router as health_router
 
 API_PREFIX = "/api/v1"
@@ -33,6 +34,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.session_factory = create_session_factory(engine)
 
+    app.add_middleware(RequestIdMiddleware)
     app.include_router(health_router, prefix=API_PREFIX)
     return app
 
