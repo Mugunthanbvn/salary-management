@@ -99,4 +99,10 @@ describe("formatMoney", () => {
       expect(formatMoney(amount, currency, { compact: true })).toBe(text);
     },
   );
+
+  it("follows a locale it is given, with a non-breaking space before the symbol", () => {
+    const text = formatMoney(5_400_050, "EUR", { locale: "de-DE" });
+
+    expect(text).toBe("54.000,50\u00a0€");
+  });
 });
