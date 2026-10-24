@@ -132,6 +132,24 @@ def test_from_major_accepts_amounts_up_to_the_cap(
 
 
 @pytest.mark.parametrize(
+    ("major", "error"),
+    [
+        (Decimal("1E+999999999"), InvalidAmountError),
+        (Decimal("1E-999999999"), TooManyDecimalsError),
+    ],
+)
+def test_from_major_rejects_extreme_exponents_at_once(
+    major: Decimal, error: type[Exception]
+) -> None:
+    with pytest.raises(error):
+        Money.from_major(major, "USD")
+
+
+def test_from_major_reads_zero_with_any_exponent_as_zero() -> None:
+    assert Money.from_major(Decimal("0E+999999999"), "USD") == Money(0, "USD")
+
+
+@pytest.mark.parametrize(
     ("money", "major"),
     [
         (Money(123456, "USD"), "1234.56"),
