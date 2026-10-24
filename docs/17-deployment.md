@@ -97,7 +97,7 @@ export default nextConfig;
 
 Rules:
 - `.env.example` in each app lists every variable with safe placeholders and comments. Real `.env` files are git-ignored and **denied to Claude Code** ([16-claude-code-setup.md](16-claude-code-setup.md#71-permissions-outline)).
-- **Production refuses to start** if `JWT_SECRET` is a known placeholder or shorter than 32 bytes, if `COOKIE_SECURE` isn't true, or if `DATABASE_URL` points to a local file (pydantic-settings validation).
+- **Production refuses to start** if `JWT_SECRET` is a known placeholder or shorter than 32 bytes, if `COOKIE_SECURE` isn't true, if `DATABASE_URL` points to a local file or memory, or if `CORS_ORIGINS` is set (pydantic-settings validation). `APP_ENV` is required, and the start-up error never shows the secret values it was given.
 - Preview columns above are unused in v1: **preview deployments are cut**. (They would also hit Vercel Deployment Protection, which by default blocks unauthenticated requests to preview URLs, including the web → API rewrite.)
 - Secrets are rotated by updating the Vercel env var and redeploying. A JWT secret rotation logs everyone out, which is acceptable.
 

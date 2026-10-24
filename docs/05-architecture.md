@@ -345,7 +345,7 @@ The browser never needs the API's address: it always calls the relative path `/a
 | Concern | Approach |
 |---|---|
 | **Errors** | Domain exceptions in `core/errors.py` (`Unauthenticated`, `Forbidden`, `NotFound`, `VersionConflict`, `Duplicate`, `InvalidState`, `ValidationFailed`, `ServiceUnavailable`) map to RFC 9457 `application/problem+json` ([07-api-spec.md](07-api-spec.md)) |
-| **Logging** | structlog JSON; every log line carries `request_id` (from a safe `X-Request-ID` header, at most 128 of `[A-Za-z0-9._-]`, or a new UUID4). Tracebacks without frame locals. No bodies, salary amounts or passwords in logs |
+| **Logging** | structlog JSON; every log line carries `request_id` (from a safe `X-Request-ID` header, at most 128 of `[A-Za-z0-9._-]`, or a new UUID4). Tracebacks without frame locals; SQLAlchemy hides bound parameters (`hide_parameters=True`); a response validation error is logged by type only. No bodies, salary amounts or passwords in logs |
 | **Observability** | Vercel function logs; `/api/v1/health` runs a read-only DB check (`SELECT 1`) |
 | **Time** | All timestamps UTC (`datetime` with tz). Dates (`hire_date`, `effective_date`) are plain dates. Tests freeze the clock with time-machine |
 | **IDs** | Integer surrogate primary keys internally; `employee_code` (`ACME-004217`) is the human-facing identifier |

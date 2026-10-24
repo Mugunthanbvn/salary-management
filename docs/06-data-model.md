@@ -468,7 +468,7 @@ fold(s)     = NFKD-normalize → strip combining marks → casefold
 | `BIGINT` | Stored as SQLite INTEGER (64-bit signed); the largest annual salary in minor units (e.g. ¥100,000,000 = 1e8, or ₹10 crore = 1e10 paise) is far below 9.2e18 |
 | Booleans | Stored as 0/1, transparent through SQLAlchemy |
 | Dates / timestamps | Stored as ISO-8601 text by SQLAlchemy; sort and compare correctly |
-| `ALTER TABLE` limits | Alembic configured with `render_as_batch=True` so migrations rebuild tables when needed |
+| `ALTER TABLE` limits | Alembic configured with `render_as_batch=True` so migrations rebuild tables when needed. `migrations/env.py` turns foreign keys off before the migration transaction (SQLite ignores the PRAGMA inside one) and back on after, so rebuilding a referenced table works |
 | `CHECK` constraints | Enforced by SQLite and Postgres alike; named via the naming convention |
 | JSON | `JSON` type → TEXT on SQLite; queried only in Python, never with JSON SQL functions |
 | Case-insensitive search | Via `search_text` (§6.4), not `COLLATE NOCASE` or `ILIKE` |
