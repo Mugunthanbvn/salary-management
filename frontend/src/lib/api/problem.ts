@@ -41,8 +41,44 @@ export class ProblemError extends Error {
   }
 }
 
-/** Reads the problem+json body of an error response. */
+/**
+ * Reads the problem+json body of an error response. A body that is not a problem (for
+ * example an HTML 502 from a proxy) becomes an "about:blank" problem with the status text,
+ * keeping the X-Request-ID header when there is one.
+ */
 export async function toProblem(response: Response): Promise<ProblemError> {
-  const body = (await response.json()) as Problem;
-  return new ProblemError(body);
+  const body = await readJson(response);
+  const requestId = response.headers.get("X-Request-ID");
+  if (isProblem(body)) {
+    return new ProblemError({
+      ...body,
+      request_id: body.request_id ?? requestId,
+    });
+  }
+  return new ProblemError({
+    type: "about:blank",
+    title: response.statusText || "Something went wrong",
+    status: response.status,
+    detail: null,
+    instance: "",
+    request_id: requestId,
+  });
+}
+
+async function readJson(response: Response): Promise<unknown> {
+  try {
+    return JSON.parse(await response.text());
+  } catch {
+    return undefined;
+  }
+}
+
+function isProblem(body: unknown): body is Problem {
+  if (typeof body !== "object" || body === null) return false;
+  const { type, title, status } = body as Record<string, unknown>;
+  return (
+    typeof type === "string" &&
+    typeof title === "string" &&
+    typeof status === "number"
+  );
 }
