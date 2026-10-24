@@ -127,6 +127,16 @@ describe("/insights/pay-equity", () => {
     ).toBeVisible();
   });
 
+  it("goes back to insights for the same country and department", async () => {
+    servePayEquity();
+
+    await renderPage({ country: "DE", department_id: "4" });
+
+    expect(
+      screen.getByRole("link", { name: "Back to insights" }),
+    ).toHaveAttribute("href", "/insights?country=DE&department_id=4");
+  });
+
   it("sums up who was evaluated, who was left out and who is flagged", async () => {
     servePayEquity();
 
@@ -256,6 +266,25 @@ describe("/insights/pay-equity", () => {
       ).toBeGreaterThanOrEqual(2);
       // The band is policy, not anyone's pay: it stays visible.
       expect(row).toHaveTextContent("Band €41,760 to €62,640");
+    });
+
+    it("tells a screen reader why the middle half is hidden, without an unseen button", async () => {
+      servePayEquity({
+        cohorts: makePayEquityCohorts({
+          cohorts: [makeCohort({ stats: suppressedStats(), suppressed: true })],
+        }),
+      });
+
+      await renderPage({ country: "DE" }, makeViewer());
+
+      const row = within(
+        screen.getByRole("region", { name: COHORTS }),
+      ).getByRole("listitem", { name: "Customer Success Manager, L2" });
+      const middleHalf = within(row).getByText(/^Middle half earns/);
+      expect(middleHalf).toHaveTextContent(
+        "Middle half earns: hidden to protect individual pay (fewer than 5 people)",
+      );
+      expect(within(middleHalf).queryByRole("button")).toBeNull();
     });
   });
 

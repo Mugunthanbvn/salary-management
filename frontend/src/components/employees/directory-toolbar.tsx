@@ -2,8 +2,7 @@
 
 import { cn } from "cn";
 import { XIcon } from "lucide-react";
-import { debounce } from "nuqs";
-import { useId } from "react";
+import { useEffect, useEffectEvent, useId, useState } from "react";
 
 import { useMe } from "@/components/shell/me-context";
 import { Button } from "@/components/ui/button";
@@ -82,13 +81,7 @@ export function DirectoryToolbar({
       <SearchBox
         value={state.q}
         onChange={(q) =>
-          void setState(
-            { q: q || null, page: null },
-            {
-              history: "replace",
-              limitUrlUpdates: debounce(SEARCH_DEBOUNCE_MS),
-            },
-          )
+          void setState({ q: q || null, page: null }, { history: "replace" })
         }
       />
 
@@ -175,7 +168,28 @@ function SearchBox({
   onChange: (value: string) => void;
 }) {
   const id = useId();
-  const tooShort = value.trim().length === 1;
+  // The box debounces, not nuqs: nuqs debounces each key on its own timer, so on a busy
+  // machine q and page could reach the URL as two updates (two server renders).
+  const [draft, setDraft] = useState(value);
+  const [seen, setSeen] = useState(value);
+  const [sent, setSent] = useState<string | null>(null);
+  if (value !== seen) {
+    // The URL moved (Back, Clear filters): show it, unless it is our own search landing
+    // while the user types on.
+    setSeen(value);
+    if (value === sent) setSent(null);
+    else setDraft(value);
+  }
+  const send = useEffectEvent((q: string) => {
+    setSent(q);
+    onChange(q);
+  });
+  useEffect(() => {
+    if (draft === value) return;
+    const timer = setTimeout(() => send(draft), SEARCH_DEBOUNCE_MS);
+    return () => clearTimeout(timer);
+  }, [draft, value]);
+  const tooShort = draft.trim().length === 1;
   return (
     <form role="search" onSubmit={(event) => event.preventDefault()}>
       <label htmlFor={id} className="mb-1 block text-sm text-ink-2 sm:mb-2">
@@ -186,8 +200,8 @@ function SearchBox({
         type="search"
         autoComplete="off"
         spellCheck={false}
-        value={value}
-        onChange={(event) => onChange(event.target.value)}
+        value={draft}
+        onChange={(event) => setDraft(event.target.value)}
         aria-describedby={tooShort ? `${id}-hint` : undefined}
         className="w-full rounded-none border-0 border-b-2 border-ink bg-transparent py-2 font-serif text-[22px] leading-tight text-ink outline-offset-4 placeholder:text-ink-3 sm:py-2.5 sm:text-[26px]"
       />

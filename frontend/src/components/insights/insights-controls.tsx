@@ -130,10 +130,13 @@ function PopulationChip() {
     <div className="flex flex-col gap-1.5">
       <span className="text-sm text-ink-2">People</span>
       <Popover>
-        <PopoverTrigger className="inline-flex h-11 cursor-pointer items-center gap-2 rounded-control border border-ink bg-paper px-3 text-base">
+        <PopoverTrigger className="inline-flex min-h-11 max-w-full cursor-pointer items-center gap-2 rounded-control border border-ink bg-paper px-3 py-1.5 text-left text-base">
           <span className="sr-only">Change who is counted: </span>
           {label}
-          <ChevronDownIcon className="size-5 text-ink-2" aria-hidden="true" />
+          <ChevronDownIcon
+            className="size-5 shrink-0 text-ink-2"
+            aria-hidden="true"
+          />
         </PopoverTrigger>
         <PopoverContent className="w-72">
           <CheckGroup

@@ -85,6 +85,16 @@ describe("InsightsControls", () => {
     );
   });
 
+  it("lets a long population wrap at 360 px instead of overflowing", () => {
+    renderControls(
+      "?employment_type=FULL_TIME&employment_type=PART_TIME&employment_type=CONTRACTOR&status=ACTIVE&status=ON_LEAVE",
+    );
+
+    const chip = screen.getByRole("button", { name: /Change who is counted/ });
+    expect(chip).toHaveClass("min-h-11", "text-left");
+    expect(chip).not.toHaveClass("h-11");
+  });
+
   it("keeps at least one employment type and one status", async () => {
     const user = userEvent.setup();
     renderControls();

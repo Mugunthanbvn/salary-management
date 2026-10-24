@@ -34,7 +34,7 @@ const JOB_URL = "/api/v1/imports/:id";
 
 function renderFlow(searchParams = "") {
   const urls: URLSearchParams[] = [];
-  renderInApp(
+  const { navigate } = renderInApp(
     <>
       <ImportFlow />
       <Toaster />
@@ -44,7 +44,7 @@ function renderFlow(searchParams = "") {
       onUrlUpdate: ({ searchParams: next }) => urls.push(next),
     },
   );
-  return urls;
+  return Object.assign(urls, { navigate });
 }
 
 beforeEach(async () => {
@@ -468,6 +468,75 @@ describe("ImportFlow: import", () => {
     expect(
       within(table).getByRole("rowgroup", { name: "Row 4" }),
     ).toHaveTextContent("ACME-010003");
+  });
+});
+
+describe("ImportFlow: a new file after going back", () => {
+  const SECOND = makeImportReport({ id: 32, filename: "q1-new-hires.csv" });
+
+  async function backThenUpload(navigate: (query: string) => void) {
+    // "?" rather than "": the adapter only resyncs when the query string changes.
+    navigate("?");
+    await screen.findByRole("heading", { level: 1, name: "Import employees" });
+    serveUpload(SECOND);
+    await upload(csvFile("q1-new-hires.csv"));
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "Ready to import 3 employees",
+    });
+  }
+
+  function serveCommit(status: number, body: ImportCommitResult | Problem) {
+    server.use(
+      http.post<{ id: string }, never, ImportCommitResult | Problem>(
+        COMMIT_URL,
+        () => HttpResponse.json(body, { status }),
+      ),
+    );
+  }
+
+  it("checks the new file instead of saying the last one was imported", async () => {
+    serveUpload();
+    serveCommit(200, { id: 31, status: "COMMITTED", inserted: 3 });
+    const { navigate } = renderFlow();
+    await upload();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Import 3 employees" }),
+    );
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "3 employees imported",
+    });
+
+    await backThenUpload(navigate);
+
+    expect(
+      screen.getByRole("button", { name: "Import 3 employees" }),
+    ).toBeEnabled();
+  });
+
+  it("forgets the last file's failed import", async () => {
+    serveUpload();
+    serveCommit(
+      409,
+      makeProblem("invalid-state", 409, {
+        title: "Invalid state",
+        detail: "This dry-run expired 24 hours after the upload.",
+      }),
+    );
+    const { navigate } = renderFlow();
+    await upload();
+    await userEvent.click(
+      await screen.findByRole("button", { name: "Import 3 employees" }),
+    );
+    await screen.findByRole("alert");
+
+    await backThenUpload(navigate);
+
+    expect(screen.queryByRole("alert")).toBeNull();
+    expect(
+      screen.getByRole("button", { name: "Import 3 employees" }),
+    ).toBeEnabled();
   });
 });
 
