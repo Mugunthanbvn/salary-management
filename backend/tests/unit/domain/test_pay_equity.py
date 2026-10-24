@@ -13,6 +13,7 @@ from salary_api.domain.pay_equity import (
     EmployeePay,
     NoCompaRatioReason,
     compa_ratio,
+    department_rollup,
     flag,
 )
 
@@ -99,3 +100,47 @@ def test_people_in_different_departments_share_a_cohort() -> None:
     support, engineering = make_pay(department_id=1), make_pay(department_id=2)
 
     assert support.cohort == engineering.cohort
+
+
+def paid_at(ratio: str, **overrides: Any) -> EmployeePay:
+    """An employee whose base is `ratio` x a EUR 1,000,000.00 band midpoint."""
+    base = Money.from_major(Decimal(ratio) * 1000000, "EUR")
+    return make_pay(base=base, band_mid=Money(100000000, "EUR"), **overrides)
+
+
+def test_rollup_is_the_median_compa_ratio_per_department_and_country() -> None:
+    engineering = [paid_at(r, department_id=1) for r in ("0.95", "1.05", "1.00")]
+    customer_success = [paid_at(r, department_id=3) for r in ("0.90", "0.94", "0.92")]
+
+    rollup = department_rollup(customer_success + engineering)
+
+    assert [(row.department_id, row.country_code, row.count) for row in rollup] == [
+        (1, "DE", 3),
+        (3, "DE", 3),
+    ]
+    assert [row.median_compa_ratio for row in rollup] == [Decimal("1.00"), Decimal("0.92")]
+
+
+def test_rollup_keeps_countries_of_one_department_apart() -> None:
+    france = paid_at("1.10", country_code="FR")
+    germany = paid_at("0.90", country_code="DE")
+
+    rollup = department_rollup([france, germany])
+
+    assert [(row.country_code, row.median_compa_ratio) for row in rollup] == [
+        ("DE", Decimal("0.90")),
+        ("FR", Decimal("1.10")),
+    ]
+
+
+def test_rollup_leaves_out_employees_without_a_compa_ratio() -> None:
+    evaluated = paid_at("1.00")
+    part_time = paid_at("0.50", employment_type=EmploymentType.PART_TIME)
+    no_band = make_pay(base=Money(2500000, "EUR"), band_mid=None)
+    contractor_only = paid_at("0.40", department_id=9, employment_type=EmploymentType.CONTRACTOR)
+
+    rollup = department_rollup([evaluated, part_time, no_band, contractor_only])
+
+    assert [(row.department_id, row.count, row.median_compa_ratio) for row in rollup] == [
+        (1, 1, Decimal("1.00"))
+    ]
