@@ -34,3 +34,8 @@ def test_production_refuses_a_placeholder_or_short_jwt_secret(jwt_secret: str) -
         make_settings(**SAFE_PRODUCTION | {"jwt_secret": jwt_secret})
 
     assert jwt_secret not in str(error.value)
+
+
+def test_production_refuses_insecure_cookies() -> None:
+    with pytest.raises(ValidationError, match="COOKIE_SECURE"):
+        make_settings(**SAFE_PRODUCTION | {"cookie_secure": False})
