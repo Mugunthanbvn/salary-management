@@ -69,6 +69,7 @@ MATRIX = [
     Endpoint("GET", "/api/v1/auth/me", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/reference", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/countries", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/employees", (401, 200, 200, 200)),
     Endpoint("POST", "/api/v1/employees", (401, 403, 201, 201), _new_employee),
     Endpoint("GET", EMPLOYEE, (401, 200, 200, 200), _an_employee),
 ]
