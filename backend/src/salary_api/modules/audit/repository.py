@@ -11,11 +11,12 @@ def add(session: Session, event: AuditEvent) -> None:
     session.add(event)
 
 
-def list_since(session: Session, *, action: str, since: datetime) -> Sequence[AuditEvent]:
-    """Events of one action strictly after `since`, oldest first."""
-    query = (
-        select(AuditEvent)
-        .where(AuditEvent.action == action, AuditEvent.at > since)
-        .order_by(AuditEvent.at, AuditEvent.id)
-    )
+def list_since(
+    session: Session, *, action: str, since: datetime, actor_id: int | None = None
+) -> Sequence[AuditEvent]:
+    """Events of one action strictly after `since`, oldest first; of one actor if given."""
+    query = select(AuditEvent).where(AuditEvent.action == action, AuditEvent.at > since)
+    if actor_id is not None:
+        query = query.where(AuditEvent.actor_id == actor_id)
+    query = query.order_by(AuditEvent.at, AuditEvent.id)
     return session.scalars(query).all()

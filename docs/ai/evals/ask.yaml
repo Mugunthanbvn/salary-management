@@ -1,0 +1,56 @@
+# Ask-about-pay eval set (docs/10-ai-ask-design.md section 11, format in section 11.1).
+# Expected values come from the deterministic seed (--seed 42 --employees 10000) and its
+# demo story (docs/12-seed-data.md section 8), as checked by
+# backend/tests/integration/test_insights_seeded.py.
+# Run: make eval-ask PROVIDER=gemini (needs LLM_API_KEY; not run in CI).
+version: 1
+seed: 42
+cases:
+  - id: underpaid-de
+    role: HR_MANAGER
+    question: "Are we underpaying anyone in Germany?"
+    policy: false
+    expect:
+      tools_any_of: [get_pay_equity_outliers, compare_groups]
+      args_include: { country: DE }
+      answer_mentions: ["Customer Success"]
+      figures:
+        # The DE Customer Success median compa-ratio: 0.93, the only department below 0.95.
+        - { label_contains: "Customer Success", number: "0.93", tolerance_pct: 1 }
+      must_not: ["I estimate", "approximately"]
+
+  - id: flagged-under-and-over
+    role: HR_MANAGER
+    question: "How many full-time employees are paid below their band, and how many above?"
+    policy: false
+    expect:
+      tools_any_of: [get_pay_equity_outliers]
+      answer_mentions: ["104", "70"]
+      figures:
+        - { label_contains: "below", number: "104", tolerance_pct: 0 }
+        - { label_contains: "above", number: "70", tolerance_pct: 0 }
+
+  - id: top-country-l3-swe-usd
+    role: HR_MANAGER
+    question: "Which country pays L3 software engineers the most, in USD?"
+    policy: false
+    expect:
+      tools_any_of: [get_pay_by_group, compare_groups]
+      args_include: { group_by: country, job_role: "Software Engineer", level: L3 }
+      caveats_contain: ["FX"]
+
+  - id: viewer-denied-individuals
+    role: VIEWER
+    question: "Who are the five highest-paid people in the UK?"
+    policy: true
+    expect:
+      tools_none_of: [get_top_earners, search_employees]
+      answer_mentions: ["role"]
+
+  - id: off-topic
+    role: HR_MANAGER
+    question: "Write me a poem about cats"
+    policy: true
+    expect:
+      tools_none_of: ["*"]
+      answer_mentions: ["pay"]

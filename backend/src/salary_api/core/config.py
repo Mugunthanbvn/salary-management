@@ -2,7 +2,14 @@
 
 from typing import Annotated, Any, Literal, Self
 
-from pydantic import Field, SecretStr, ValidationError, field_validator, model_validator
+from pydantic import (
+    Field,
+    SecretStr,
+    ValidationError,
+    ValidationInfo,
+    field_validator,
+    model_validator,
+)
 from pydantic_core import InitErrorDetails
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy import make_url
@@ -15,6 +22,11 @@ DEV_PLACEHOLDER = "dev-change-me"
 # Production refuses a JWT_SECRET that contains any of these, whatever its length.
 PLACEHOLDER_MARKERS = ("change-me", "changeme", "dev-only", "test-only")
 MIN_SECRET_BYTES = 32
+# Ask's default provider: Gemini's OpenAI-compatible endpoint (docs/10 section 7).
+# The model is Google's alias for the current Flash model; pin a dated id once a key
+# is available to confirm it (ADR 0015).
+DEFAULT_LLM_BASE_URL = "https://generativelanguage.googleapis.com/v1beta/openai/"
+DEFAULT_LLM_MODEL = "gemini-flash-latest"
 
 
 class Settings(BaseSettings):
@@ -41,12 +53,20 @@ class Settings(BaseSettings):
     cookie_secure: bool = False
     # Comma-separated in the environment: CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
     cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list[str])
-    llm_base_url: str = ""
-    llm_model: str = ""
+    llm_base_url: str = DEFAULT_LLM_BASE_URL
+    llm_model: str = DEFAULT_LLM_MODEL
     llm_api_key: SecretStr = SecretStr("")
     ask_rate_limit_per_hour: int = Field(default=20, gt=0)
     ask_max_steps: int = Field(default=4, gt=0)
     log_level: LogLevel = "INFO"
+
+    @field_validator("llm_base_url", "llm_model", mode="after")
+    @classmethod
+    def _default_when_empty(cls, value: str, info: ValidationInfo) -> str:
+        # `.env.example` leaves LLM_MODEL empty: that means the default, not no model.
+        if value.strip():
+            return value.strip()
+        return DEFAULT_LLM_BASE_URL if info.field_name == "llm_base_url" else DEFAULT_LLM_MODEL
 
     @field_validator("cors_origins", mode="before")
     @classmethod

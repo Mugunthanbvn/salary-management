@@ -61,6 +61,11 @@ def amounts_by_country(
     return session.execute(query).all()
 
 
+def employee_ids(session: Session, where: PopulationFilter) -> set[int]:
+    """The ids of the employees in a population."""
+    return set(session.scalars(_matching(select(Employee.id), where)).all())
+
+
 def amounts_by_department(
     session: Session, where: PopulationFilter, comp: Comp
 ) -> Sequence[Row[int, str, str, int]]:

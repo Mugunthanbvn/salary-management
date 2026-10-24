@@ -742,11 +742,14 @@ Whether Ask is enabled comes from `GET /auth/me` → `features.ask`; there is no
 // 200
 {
   "answer": "No department in India is significantly below its band...",
-  "figures": [ { "label": "Median, Customer Success, IN", "value": { "amount_minor": 180000000, "currency": "INR" } } ],
-  "tool_calls": [ { "name": "get_pay_equity_outliers", "args": { "country": "IN" }, "summary": "9 cohorts, 0 flagged below 0.8" } ],
+  "figures": [
+    { "label": "Median, Customer Success, IN", "value": { "amount_minor": 180000000, "currency": "INR" }, "number": null },
+    { "label": "Median compa-ratio, Customer Success, IN", "value": null, "number": "0.98" }
+  ],
+  "tool_calls": [ { "name": "get_pay_equity_outliers", "args": { "filters": { "country": "IN" } }, "ok": true, "summary": "38 below band, 21 above band", "duration_ms": 41 } ],
   "caveats": ["Amounts in INR. USD figures use FX rates as of 2026-10-01."],
   "dashboard_link": "/insights/pay-equity?country=IN"
 }
 ```
 
-Limits: message `content` ≤ 1,000 chars, ≤ 6 turns, ≤ 4 tool steps. Errors: 429 `rate-limited` (per-user limit, or provider 429 after one retry, with `Retry-After`), 502 `upstream-unavailable`, 503 `feature-disabled`. Full design: [10-ai-ask-design.md](10-ai-ask-design.md).
+A figure is an amount (`value`, Money) or a number (`number`, a decimal string: a count or a ratio), never both. Roles are `user` and `assistant` only, and the last message must be the user's (else 422). The answer is at most 1,000 chars, so it fits back into the history. Limits: message `content` ≤ 1,000 chars, ≤ 6 turns, ≤ 4 tool steps. Errors: 429 `rate-limited` (per-user limit, or provider 429 after one retry, with `Retry-After`), 502 `upstream-unavailable`, 503 `feature-disabled`. Full design: [10-ai-ask-design.md](10-ai-ask-design.md).

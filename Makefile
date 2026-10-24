@@ -19,7 +19,7 @@ PNPM := cd $(FRONTEND) && pnpm
 API_GENERATED := $(FRONTEND)/openapi.json $(FRONTEND)/src/lib/api/schema.d.ts
 
 .PHONY: help setup dev migrate seed seed-turso fmt fmt-backend fmt-frontend lint lint-backend lint-frontend \
-	typecheck typecheck-backend typecheck-frontend test test-backend test-frontend e2e \
+	typecheck typecheck-backend typecheck-frontend test test-backend test-frontend e2e eval-ask \
 	build-frontend api-sync api-drift verify verify-backend clean
 
 help: ## List the targets
@@ -102,6 +102,12 @@ test-frontend: ## vitest run
 
 e2e: ## Playwright smoke flow
 	$(PNPM) e2e
+
+PROVIDER ?= gemini
+
+eval-ask: ## Ask eval set on a fresh 10k seed with a real LLM (PROVIDER=gemini|groq; needs LLM_API_KEY)
+	cd $(BACKEND) && uv run python -m scripts.eval_ask --provider $(PROVIDER) \
+	  --cases ../docs/ai/evals/ask.yaml --out ../docs/ai/evals/results
 
 build-frontend: ## next build
 	$(PNPM) build

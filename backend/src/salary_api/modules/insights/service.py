@@ -246,6 +246,13 @@ def compare_groups(
     )
     value_a, a_hidden = _visible_metric(session, scope, a, metric)
     value_b, b_hidden = _visible_metric(session, scope, b, metric)
+    if (larger := _isolating_side(session, audience, a, b)) is not None:
+        # The groups differ by 1-4 people: a - b would be their pay. Hide the larger side,
+        # so the other side alone tells nothing more than any single group does.
+        if larger == "a":
+            value_a, a_hidden = None, True
+        else:
+            value_b, b_hidden = None, True
     difference = None if value_a is None or value_b is None else value_a - value_b
     return Comparison(
         metric=metric,
@@ -258,6 +265,24 @@ def compare_groups(
         a_suppressed=a_hidden,
         b_suppressed=b_hidden,
     )
+
+
+def _isolating_side(
+    session: Session, audience: "_Audience", a: InsightQuery, b: InsightQuery
+) -> str | None:
+    """For a caller without SALARY_READ: "a" or "b", the side with more people, when the two
+    populations differ by fewer than MIN_GROUP_SIZE people (but some); else None.
+
+    Overlapping filters (all employment types against full-time; L3 + L4 against L3) would
+    otherwise give away the pay of the few people only one side has (docs/09 2.8).
+    """
+    if audience.salary_visible:
+        return None
+    ids_a = repository.employee_ids(session, _where(a, a.country))
+    ids_b = repository.employee_ids(session, _where(b, b.country))
+    if not 0 < len(ids_a ^ ids_b) < MIN_GROUP_SIZE:
+        return None
+    return "a" if len(ids_a) >= len(ids_b) else "b"
 
 
 def _visible_metric(

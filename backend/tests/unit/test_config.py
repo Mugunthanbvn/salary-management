@@ -119,3 +119,11 @@ def test_settings_errors_never_show_secret_values(
 def test_production_refuses_cors_origins() -> None:
     with pytest.raises(ValidationError, match="CORS_ORIGINS"):
         make_settings(**SAFE_PRODUCTION | {"cors_origins": ["http://localhost:3000"]})
+
+
+@pytest.mark.parametrize("empty", ["", "  "])
+def test_an_empty_llm_base_url_or_model_falls_back_to_the_gemini_default(empty: str) -> None:
+    settings = make_settings(llm_base_url=empty, llm_model=empty)
+
+    assert settings.llm_base_url == "https://generativelanguage.googleapis.com/v1beta/openai/"
+    assert settings.llm_model == "gemini-flash-latest"

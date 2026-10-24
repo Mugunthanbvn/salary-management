@@ -66,6 +66,13 @@ The candidate asked for a **free** LLM provider (**Gemini** personal key or **Gr
 - Free-tier rate and token limits can throttle demos. Mitigated by compact prompts, the step cap, and graceful 429 handling.
 - LLM answers can still be phrased wrongly. Mitigated by the `compare_groups` tool (no model arithmetic), the visible tool trace, and the eval set.
 
+## Implementation notes (B9, 2026-10-24)
+
+- Default model: `gemini-flash-latest` on `https://generativelanguage.googleapis.com/v1beta/openai/` (empty `LLM_MODEL` / `LLM_BASE_URL` mean these). No key was available at build time, so the id is unconfirmed; pin a dated Flash id after the first `make eval-ask` run.
+- Seven tools were built (no distribution or raises tools, no `include_employees`); see [10 §4](../10-ai-ask-design.md#4-tools).
+- Invalid output after the repair retry is a 502 (glossary §5), not the raw text.
+- Figures are grounded: one whose number no tool returned is dropped with a caveat.
+
 ## Links
 
 - [10-ai-ask-design.md](../10-ai-ask-design.md), [08-security-rbac.md](../08-security-rbac.md), [14-testing-strategy.md](../14-testing-strategy.md), [ai/evals/README.md](../ai/evals/README.md)

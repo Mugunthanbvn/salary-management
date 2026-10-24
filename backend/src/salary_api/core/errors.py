@@ -147,6 +147,20 @@ class RateLimited(ProblemError):
         self.headers["Retry-After"] = str(retry_after_seconds)
 
 
+class UpstreamUnavailable(ProblemError):
+    """502: the LLM provider failed (5xx, timeout, 4xx) or gave unusable output."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(502, "upstream-unavailable", "Upstream unavailable", detail)
+
+
+class FeatureDisabled(ProblemError):
+    """503: an optional feature is switched off on this deployment (Ask without LLM_API_KEY)."""
+
+    def __init__(self, detail: str) -> None:
+        super().__init__(503, "feature-disabled", "Feature disabled", detail)
+
+
 class ServiceUnavailable(ProblemError):
     """503 with no glossary slug (`about:blank`): a dependency such as the database is down."""
 
@@ -216,6 +230,8 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
         "model": Problem,
         "description": "`import-failed`: the commit was rolled back and the job marked FAILED",
     },
+    502: {"model": Problem, "description": "`upstream-unavailable`: the LLM provider failed"},
+    503: {"model": Problem, "description": "`feature-disabled`: the feature is switched off"},
 }
 
 

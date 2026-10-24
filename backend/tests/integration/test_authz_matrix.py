@@ -131,6 +131,10 @@ def _a_cohort(session: Session) -> dict[str, Any]:
     return {"params": {"job_role_id": role.id, "level": "L3", "country": "DE"}}
 
 
+def _a_question(_session: Session) -> dict[str, Any]:
+    return {"json": {"messages": [{"role": "user", "content": "Median pay in Germany?"}]}}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -160,6 +164,9 @@ MATRIX = [
     Endpoint("GET", "/api/v1/insights/pay-equity/cohort", (401, 403, 200, 200), _a_cohort),
     Endpoint("GET", "/api/v1/pay-bands", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/fx-rates", (401, 200, 200, 200)),
+    # Every role has ASK; the test settings have no LLM_API_KEY, so Ask is switched off.
+    # With a key each role gets 200: tests/integration/test_ask_api.py.
+    Endpoint("POST", "/api/v1/ask", (401, 503, 503, 503), _a_question),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
