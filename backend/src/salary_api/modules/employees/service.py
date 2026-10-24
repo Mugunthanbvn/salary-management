@@ -39,6 +39,7 @@ from salary_api.modules.employees.schemas import (
     CurrentSalary,
     EmployeeCreate,
     EmployeeDetail,
+    EmployeeFilterQuery,
     EmployeeListItem,
     EmployeeListQuery,
     EmployeePage,
@@ -298,23 +299,7 @@ def list_employees(
 
     Salary filters and sorts need SALARY_READ (Forbidden otherwise).
     """
-    order = _sort_keys(query.sort)
-    _refuse_salary_query_without_salary_read(principal, query, order)
-    _check_salary_comparison(query, order)
-    usd_rates = _usd_rates_for(session, query, order)
-    if usd_rates:
-        order = _by_usd_value(order, usd_rates)
-    where = repository.EmployeeFilter(
-        search=fold(query.q) if query.q else None,
-        countries=query.country,
-        department_ids=query.department_id,
-        job_role_ids=query.job_role_id,
-        levels=query.level,
-        employment_types=query.employment_type,
-        statuses=query.status,
-        currencies=query.currency,
-        salary=_salary_range(query, usd_rates),
-    )
+    where, order = _filter_and_order(session, principal, query)
     employees = repository.page(
         session,
         where,
@@ -334,8 +319,32 @@ def list_employees(
     )
 
 
+def _filter_and_order(
+    session: Session, principal: Principal, query: EmployeeFilterQuery
+) -> tuple[repository.EmployeeFilter, list[repository.SortKey]]:
+    """The WHERE and ORDER BY of a query, once the caller may filter and sort that way."""
+    order = _sort_keys(query.sort)
+    _refuse_salary_query_without_salary_read(principal, query, order)
+    _check_salary_comparison(query, order)
+    usd_rates = _usd_rates_for(session, query, order)
+    if usd_rates:
+        order = _by_usd_value(order, usd_rates)
+    where = repository.EmployeeFilter(
+        search=fold(query.q) if query.q else None,
+        countries=query.country,
+        department_ids=query.department_id,
+        job_role_ids=query.job_role_id,
+        levels=query.level,
+        employment_types=query.employment_type,
+        statuses=query.status,
+        currencies=query.currency,
+        salary=_salary_range(query, usd_rates),
+    )
+    return where, order
+
+
 def _salary_range(
-    query: EmployeeListQuery, usd_rates: Mapping[str, FxRate]
+    query: EmployeeFilterQuery, usd_rates: Mapping[str, FxRate]
 ) -> repository.SalaryRange | None:
     """The salary range in local minor units: as given, or converted from USD per currency."""
     minimum, maximum = query.salary_min, query.salary_max
@@ -368,7 +377,7 @@ def _by_usd_value(
 
 
 def _usd_rates_for(
-    session: Session, query: EmployeeListQuery, order: list[repository.SortKey]
+    session: Session, query: EmployeeFilterQuery, order: list[repository.SortKey]
 ) -> dict[str, FxRate]:
     """When salaries are compared in USD: the rate of every currency the list can hold (the
     `currency` filter, else every supported currency). A missing rate is a configuration
@@ -387,7 +396,7 @@ def _usd_rates_for(
 
 
 def _refuse_salary_query_without_salary_read(
-    principal: Principal, query: EmployeeListQuery, order: list[repository.SortKey]
+    principal: Principal, query: EmployeeFilterQuery, order: list[repository.SortKey]
 ) -> None:
     """Without SALARY_READ, narrowing a salary range could reveal one person's pay (docs/08 4.1)."""
     salary_filter = any(
@@ -398,7 +407,7 @@ def _refuse_salary_query_without_salary_read(
         raise Forbidden("Filtering or sorting by salary requires SALARY_READ.")
 
 
-def _check_salary_comparison(query: EmployeeListQuery, order: list[repository.SortKey]) -> None:
+def _check_salary_comparison(query: EmployeeFilterQuery, order: list[repository.SortKey]) -> None:
     """Salaries are compared in one currency or in USD, never as raw minor units of two
     currencies (¥6,000,000 is not more than €60,000.00). Every salary is in its country's
     currency, so one country also means one currency."""

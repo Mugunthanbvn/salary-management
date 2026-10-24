@@ -176,18 +176,20 @@ def page(
 
     Sorted by `order`, then by id, so every page boundary is stable.
     """
+    return session.scalars(_sorted(where, order).offset(offset).limit(limit)).all()
+
+
+def _sorted(where: EmployeeFilter, order: Sequence[SortKey]) -> Select[Employee]:
+    """Matching employees with role and department, sorted by `order` and then by id."""
     order_by = [
         _sort_value(key).desc() if key.descending else _sort_value(key).asc() for key in order
     ]
-    query = (
+    return (
         _matching(select(Employee), where)
         .options(contains_eager(Employee.job_role).contains_eager(JobRole.department))
         .join(JobRole.department)
         .order_by(*order_by, Employee.id)
-        .offset(offset)
-        .limit(limit)
     )
-    return session.scalars(query).all()
 
 
 def _sort_value(key: SortKey) -> ColumnElement[object]:
