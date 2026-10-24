@@ -122,21 +122,20 @@ class CompaRatioSummary:
 
 @dataclass(frozen=True, slots=True)
 class DepartmentRollup:
-    """One department in one country: how many have a compa-ratio, and their median."""
+    """One department in one country (docs/07 §8.10 `view=departments`)."""
 
     department_id: int
     country_code: str
-    count: int
-    median_compa_ratio: Decimal
+    ratios: CompaRatioSummary
 
     @property
     def below_threshold(self) -> bool:
         """Systematically below band: the unrounded median is under 0.95 (0.95 itself is not)."""
-        return self.median_compa_ratio < ROLLUP_THRESHOLD
+        return self.ratios.median_compa_ratio < ROLLUP_THRESHOLD
 
 
 def department_rollup(employees: Iterable[EmployeePay]) -> list[DepartmentRollup]:
-    """The median compa-ratio per department x country, sorted by department then country.
+    """Compa-ratios summarised per department x country, sorted by department then country.
 
     Employees without a compa-ratio (no band, or not full-time) are left out entirely.
     """
@@ -146,6 +145,6 @@ def department_rollup(employees: Iterable[EmployeePay]) -> list[DepartmentRollup
         if ratio is not None:
             ratios[pay.department_id, pay.country_code].append(ratio)
     return [
-        DepartmentRollup(department_id, country_code, len(values), median(values))
+        DepartmentRollup(department_id, country_code, CompaRatioSummary.of(values))
         for (department_id, country_code), values in sorted(ratios.items())
     ]
