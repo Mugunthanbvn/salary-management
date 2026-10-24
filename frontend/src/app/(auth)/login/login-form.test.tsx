@@ -115,4 +115,30 @@ describe("LoginForm", () => {
     );
     expect(hardNavigate).not.toHaveBeenCalled();
   });
+
+  it.each([
+    {
+      retryAfter: "900",
+      message: "Too many attempts. Try again in 15 minutes.",
+    },
+    { retryAfter: "61", message: "Too many attempts. Try again in 2 minutes." },
+    { retryAfter: "45", message: "Too many attempts. Try again in 1 minute." },
+    { retryAfter: null, message: "Too many attempts. Try again later." },
+  ])(
+    "after too many failures (Retry-After: $retryAfter) says $message",
+    async ({ retryAfter, message }) => {
+      server.use(
+        http.post<never, LoginRequest, Problem>(LOGIN_URL, () =>
+          HttpResponse.json(problem(429, "rate-limited", "Too many requests"), {
+            status: 429,
+            headers: retryAfter ? { "Retry-After": retryAfter } : {},
+          }),
+        ),
+      );
+
+      await signIn();
+
+      expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    },
+  );
 });
