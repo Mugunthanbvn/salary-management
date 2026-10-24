@@ -3,7 +3,8 @@
 from typing import Any, cast
 
 import pytest
-from sqlalchemy import Table, delete, insert, select, update
+from fastapi.testclient import TestClient
+from sqlalchemy import String, Table, delete, insert, select, update
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
@@ -113,3 +114,16 @@ def test_bulk_inserts_of_events_are_allowed(db_session: Session) -> None:
     )
 
     assert db_session.scalars(select(AuditEvent.action)).all() == ["auth.logout"]
+
+
+def test_the_request_id_column_fits_the_longest_request_id_the_middleware_accepts(
+    client: TestClient,
+) -> None:
+    longest = "r" * 128
+    response = client.get("/api/v1/health", headers={"X-Request-ID": longest})
+    column_type = AUDIT_TABLE.c.request_id.type
+
+    assert response.headers["X-Request-ID"] == longest  # accepted as is
+    assert isinstance(column_type, String)
+    assert column_type.length is not None
+    assert column_type.length >= len(longest)
