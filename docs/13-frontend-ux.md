@@ -22,7 +22,7 @@ Design consequence: this is a **data-dense internal tool used daily**. Speed, le
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ ACME Pay   [Insights] [Employees] [Ask] [Admin ▾]   Hema ▾   │  ← top bar (Admin only for ADMIN; Ask hidden if feature off)
+│ ACME Pay   [Insights] [Employees] [Ask]          Hema Iyer ▾ │  ← top bar (Ask hidden if feature off or no ASK)
 ├──────────────────────────────────────────────────────────────┤
 │ page content                                                 │
 └──────────────────────────────────────────────────────────────┘
@@ -44,9 +44,9 @@ Design consequence: this is a **data-dense internal tool used daily**. Speed, le
 | `/admin/countries` | Countries (default currency) (**cut from v1**) | `REFERENCE_ADMIN` |
 | `/admin/audit` | Audit log (**cut from v1**) | `AUDIT_READ` |
 
-Navigation is a **top bar** (proposed). Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
+Navigation is a **top bar** from 640 px up and a **bottom bar** on phones (Insights, Employees, Ask; §8). The top bar always holds the **account menu**: the person's name, role and email, *Import employees* for `IMPORT` holders, and *Sign out*. The Admin menu is cut from v1. Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
 
-**Auth redirect:** `proxy.ts` (Next 16's middleware) redirects unauthenticated requests to `/login?next=…`. Routes the user's permissions don't allow show a 403 page with a link home. The **backend is the enforcement point**; the UI only hides things ([08-security-rbac.md](08-security-rbac.md)).
+**Auth redirect:** `proxy.ts` (Next 16's middleware) redirects requests without a `session` cookie to `/login?next=…`. When the cookie is there but the session has expired, the shell's `GET /auth/me` answers 401 and `getMe()` sends the person to `/login?next=…` too, using the page that `proxy.ts` passes on in the `x-pathname` request header. Routes the user's permissions don't allow show a 403 page with a link home. The **backend is the enforcement point**; the UI only hides things ([08-security-rbac.md](08-security-rbac.md)).
 
 ## 3. Global UI patterns
 
@@ -76,15 +76,15 @@ Paging defaults: **page size 25**, options 25 / 50 / 100 (max 100) ([07-api-spec
 | Rule | Detail |
 |---|---|
 | Source | The API returns `{ amount_minor, currency }`. The UI never receives floats |
-| Formatter | One utility, `formatMoney(amountMinor, currency, { period, compact })`, that uses `Intl.NumberFormat` with `style: "currency"` and the **currency's minor-unit exponent** (JPY 0, others 2) |
+| Formatter | One utility in `lib/money.ts`, `formatMoney(amountMinor, currency, { period, compact, minorUnits, locale })`, that uses `Intl.NumberFormat` with `style: "currency"` and the **currency's minor-unit exponent** (JPY 0, others 2, read from `Intl`). Minor units that are all zero are left out, as in the design (`€54,000`, but `€4,500.50`); `minorUnits: "always"` keeps them for columns that must line up. It refuses a `number` that is not a safe integer |
 | No float maths | Conversion to a display number uses `BigInt`/string arithmetic for the major/minor split. Monthly display is (annual ÷ 12), rounded half-even at the minor unit, **display only** |
 | Currency always visible | Every amount shows its currency (code or symbol + code where ambiguous, e.g. `$` for USD vs CAD vs AUD → `US$`, `CA$`, `A$`) |
 | USD conversions | Shown as a secondary value, e.g. `€52,000 · ≈ US$56,160`, with a tooltip: "FX as of 2026-10-01 (illustrative)" |
-| Locale | Number grouping follows the user's browser locale by default. **(Proposed)** India-specific lakh grouping (`₹22,20,000`) when the currency is INR, via the `en-IN` locale |
+| Locale | A **fixed** locale, so server-rendered and hydrated text are identical: `en-US` grouping by default, and Indian lakh grouping (`₹22,20,000`) for INR via `en-IN`. The `locale` option overrides it. Ratios, percentages and counts use `formatRatio`, `formatPercent` and `formatCount` in `lib/numbers.ts` (decimal strings in, half-even) |
 | Tabular figures | All numeric table cells use `font-variant-numeric: tabular-nums` and right alignment, so digits line up |
-| Compact mode | Charts and KPI tiles may use compact notation (`€1.2M`); tables always show full values |
+| Compact mode | Charts and summary sentences may use compact notation (`€1.2M`, `formatMoney(..., { compact: true })`); tables always show full values |
 
-Unit tests cover JPY (no decimals), INR grouping, negative-free inputs, BigInt-sized amounts, and monthly rounding ([14-testing-strategy.md](14-testing-strategy.md)).
+Unit tests cover JPY (no decimals), INR grouping, negative amounts (a salary decrease), refused inputs (fractions, unsafe numbers, strings that aren't plain digits), BigInt-sized amounts, and monthly rounding ([14-testing-strategy.md](14-testing-strategy.md)).
 
 ### 3.4 Global toggles: comp basis and period
 
@@ -127,7 +127,9 @@ Every screen defines:
 
 - Email and password fields, a "Sign in" button, and the error "Email or password is incorrect" (no hint about which one).
 - After login, redirect to `next` or `/insights`.
-- The demo environment shows a small banner with the three demo accounts (Hema, Arun, Farah), **demo deployment only** (env flag), so reviewers can try each role ([12-seed-data.md](12-seed-data.md) §11).
+- The demo environment shows a small banner with the three demo accounts (Arun, Admin; Hema, HR Manager; Farah, Viewer) with their emails, **demo deployment only** (`NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true`), so reviewers can try each role ([12-seed-data.md](12-seed-data.md) §11). It never shows passwords; they are in the README.
+- 429 (5 failures in 15 minutes) says "Too many attempts. Try again in N minutes." from `Retry-After`; any other failure says "Couldn't sign you in. Try again in a moment."
+- `next` must be a path on this site (`/…`, not `//…`), otherwise `/insights`. The form posts with a client `fetch`, then does a full page load to `next`.
 
 ### 4.2 Insights dashboard (`/insights`)
 
@@ -136,7 +138,7 @@ Every screen defines:
 | Area | Content |
 |---|---|
 | Header | Title, global toggles (Base/Total, Annual/Monthly), population chip, filters: country, department, job role, level |
-| KPI tiles | Headcount · Total annual payroll (USD) · Median pay (USD, org-wide) · Countries · FX as-of date |
+| Summary sentence | Headcount · Total annual payroll (USD) · Median pay (USD, org-wide) · Countries · FX as-of date, written as one sentence under the title, not KPI tiles ([design/DESIGN.md](design/DESIGN.md)) |
 | **Pay by country** table | Country, headcount, min, P25, **median**, mean, P75, max in **local currency**, plus a USD median column; sortable; a row click filters the dashboard to that country |
 | **Salary distribution** chart (**cut from v1**) | Histogram (local currency when one country is selected, otherwise USD, with a visible label); P25, median, and P75 reference lines |
 | **Pay by department** | Bar chart of median (and mean on hover). Currency label follows the single- or mixed-currency rule |
@@ -264,6 +266,8 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 
 ## 6. Visual direction (input to the design phase)
 
+> **Superseded for look and feel by [design/DESIGN.md](design/DESIGN.md)** ("Marked-up printout"), which wins where this table differs: its own palette (no amber or green), serif titles, and **one light theme** (it defines no dark palette).
+
 | Principle | Concretely |
 |---|---|
 | Calm, trustworthy, data-first | Neutral greys/slate base, **one accent colour**, semantic colours only for meaning (red = underpaid flag, amber = overpaid flag, green = success) |
@@ -272,7 +276,7 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 | Typography | One clean sans family with true tabular figures; size scale ~12/14/16/20/24/32 **(proposed)** |
 | Charts | Minimal gridlines, direct labels where possible, colour-blind-safe palette, every chart titled with its currency and population |
 | Avoid "AI slop" | No purple gradients, no glassmorphism, no emoji headings, no cards inside cards, no generic hero sections. Impeccable enforces this |
-| Themes | Light and dark, both meeting contrast requirements |
+| Themes | One light theme meeting contrast requirements (DESIGN.md defines no dark palette) |
 
 ## 7. Accessibility (target: WCAG 2.2 AA)
 
@@ -283,7 +287,7 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 - Forms: labelled inputs, error messages linked via `aria-describedby`, errors announced on submit.
 - Live regions announce toasts and "Thinking…" or answer-ready status on the Ask page.
 - `eslint-plugin-jsx-a11y` in CI; **(proposed)** axe checks in Playwright smoke tests ([14-testing-strategy.md](14-testing-strategy.md)).
-- Respects `prefers-reduced-motion` and `prefers-color-scheme`.
+- Respects `prefers-reduced-motion`. There is one light theme ([design/DESIGN.md](design/DESIGN.md)), so `prefers-color-scheme` is not used.
 
 ## 8. Responsive behaviour (fully mobile responsive)
 
@@ -291,7 +295,7 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 
 | Breakpoint (Tailwind) | Layout |
 |---|---|
-| < 640 px (`base`, phone) | Single column. Top bar collapses to the logo + a menu button that opens a navigation sheet. KPI tiles in a 2-column grid. Charts stack full width, using horizontal bars so labels stay readable |
+| < 640 px (`base`, phone) | Single column. The top bar keeps the name and the account menu; the main links (Insights, Employees, Ask) move to a **bottom navigation bar** fixed to the screen, clear of the safe-area inset ([design/DESIGN.md](design/DESIGN.md) "Mobile"). Summaries are sentences, not KPI tiles. Charts stack full width, using horizontal bars so labels stay readable |
 | 640–1023 px (`sm`/`md`, tablet) | Two-column dashboard grid. Tables hide low-priority columns (hire date, type) behind a column picker |
 | ≥ 1024 px (`lg`+, desktop) | Full dashboard grid; tables show all columns; side sheets open at the right |
 
@@ -311,7 +315,7 @@ Component rules on phones:
 Rules that apply everywhere:
 - Touch targets at least **44 × 44 px**; no hover-only information (tooltips also open on tap).
 - No horizontal page scroll at any width ≥ 360 px; long names truncate with the full value on tap.
-- Money stays on one line and never wraps between the symbol and the number; compact notation (`€1.2M`) is allowed in KPI tiles and charts on phones.
+- Money stays on one line and never wraps between the symbol and the number; compact notation (`€1.2M`) is allowed in summary sentences and charts on phones.
 - Text inputs use the right mobile keyboard (`inputmode="decimal"` for amounts, `type="email"` for email, `type="search"` for search).
 - Respects safe-area insets (`env(safe-area-inset-*)`) for the sticky header and footers.
 
@@ -331,8 +335,8 @@ Rules that apply everywhere:
 
 ## 11. Open questions
 
-- Top bar vs sidebar navigation: decided in the design phase (proposed: top bar).
-- INR lakh grouping via the `en-IN` locale: **(proposed)**.
+- Top bar vs sidebar navigation: **decided**: a top bar, and a bottom bar on phones (§2, §8).
+- INR lakh grouping via the `en-IN` locale: **decided**, built into `formatMoney` (§3.3).
 - "Link to newly imported employees" after an import: **(proposed)**.
 - Role and level required on Promotion: **(proposed)**.
 - Axe checks in Playwright: **(proposed)**.

@@ -1,0 +1,39 @@
+/**
+ * Display formatting for the non-money numbers the API sends. Ratios arrive as decimal
+ * strings (`"0.9234"`) and are formatted from that exact string, never through a float,
+ * rounding half-even like the API. The locale is fixed, so server and browser agree.
+ */
+import { numberFormat } from "./intl";
+
+const RATIO = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 2,
+  maximumFractionDigits: 2,
+  roundingMode: "halfEven",
+  signDisplay: "negative", // "-0.001" shows "0.00", not "-0.00"
+});
+
+/** A ratio such as the compa-ratio: `"0.9234"` → `"0.92"`. */
+export function formatRatio(ratio: string): string {
+  return RATIO.format(ratio as Intl.StringNumericLiteral);
+}
+
+/** A share or gap as a percentage: `"0.4412"` → `"44%"`; `fractionDigits` defaults to 0. */
+export function formatPercent(
+  ratio: string,
+  { fractionDigits = 0 }: { fractionDigits?: number } = {},
+): string {
+  return numberFormat("en-US", {
+    style: "percent",
+    minimumFractionDigits: fractionDigits,
+    maximumFractionDigits: fractionDigits,
+    roundingMode: "halfEven",
+    signDisplay: "negative", // "-0.001" shows "0%", not "-0%"
+  }).format(ratio as Intl.StringNumericLiteral);
+}
+
+const COUNT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+
+/** A headcount or row count: `9012` → `"9,012"`. */
+export function formatCount(count: number): string {
+  return COUNT.format(count);
+}

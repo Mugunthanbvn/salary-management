@@ -287,7 +287,7 @@ All of these use `FakeLLM`. No network in CI.
 
 ### 5.7 Frontend unit (Vitest + React Testing Library + MSW)
 
-- `formatMoney(minor, currency, locale)` formats JPY with no decimals and INR with grouping; the monthly toggle divides correctly. No float maths on totals: it formats from a minor-unit string or bigint **(proposed)**.
+- `formatMoney(minor, currency, options)` formats JPY with no decimals, INR with lakh grouping, `US$`/`CA$`/`A$`/`S$`, compact mode and huge amounts; monthly is annual ÷ 12 rounded half-even (ties tested). No float maths: it takes a `bigint`, a digit string or a safe-integer `number`, and refuses anything else.
 - Filter state ↔ URL (nuqs): changing a filter updates the query string, and loading a URL restores the filters.
 - Employee form validation messages (zod) match the backend rules (required fields, positive salary, decimals allowed for the currency).
 - Role-gated UI: a Viewer sees no "Edit", "Record change" or "Import" actions and sees masked salary cells. (The backend still enforces this; the UI only hides.)
