@@ -1,8 +1,8 @@
 from datetime import datetime
 from typing import Any, NoReturn
 
-from sqlalchemy import JSON, Connection, ForeignKey, Index, String, event
-from sqlalchemy.orm import Mapped, Mapper, mapped_column
+from sqlalchemy import JSON, Connection, Delete, ForeignKey, Index, String, Update, event
+from sqlalchemy.orm import Mapped, Mapper, ORMExecuteState, Session, mapped_column
 
 from salary_api.core.models import Base, UtcDateTime
 
@@ -47,3 +47,11 @@ def refuse_delete(
     _mapper: Mapper[AuditEvent], _connection: Connection, _target: AuditEvent
 ) -> NoReturn:
     raise AppendOnlyError("Audit events cannot be deleted.")
+
+
+@event.listens_for(Session, "do_orm_execute")
+def refuse_bulk_changes(execute_state: ORMExecuteState) -> None:
+    """Also refuse `session.execute(update(AuditEvent))` and `delete(...)`, ORM or table form."""
+    statement = execute_state.statement
+    if isinstance(statement, Update | Delete) and statement.table.compare(AuditEvent.__table__):
+        raise AppendOnlyError("Audit events cannot be changed or deleted.")

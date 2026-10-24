@@ -355,7 +355,7 @@ The benchmark for pay equity. Compa-ratio = employee base ÷ `mid_minor` ([09-in
 
 Indexes: `ix_audit_events_at` on `at` (admin log, newest first); `ix_audit_events_actor_action_at` on `(actor_id, action, at)` (per-user Ask rate limit, user activity); `ix_audit_events_entity` on `(entity, entity_id)` (history of one record).
 
-Written by services **in the same transaction** as the change it describes ([ADR 0011](adr/0011-audit-events.md)), through `modules/audit/service.record_event`, which adds the row and never commits. If the change rolls back, so does its audit row. `request_id` is taken from the logging context that the request id middleware binds. The ORM refuses to update or delete a loaded `AuditEvent` (`AppendOnlyError`).
+Written by services **in the same transaction** as the change it describes ([ADR 0011](adr/0011-audit-events.md)), through `modules/audit/service.record_event`, which adds the row and never commits. If the change rolls back, so does its audit row. `request_id` is taken from the logging context that the request id middleware binds. The ORM refuses to update or delete a loaded `AuditEvent`, and a Session refuses bulk `UPDATE`/`DELETE` statements on the table (`AppendOnlyError`). Bulk inserts are allowed.
 
 ### 4.10 `import_jobs`
 
