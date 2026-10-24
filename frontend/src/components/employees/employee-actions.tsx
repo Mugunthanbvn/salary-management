@@ -6,6 +6,8 @@ import { useMe } from "@/components/shell/me-context";
 import { Button } from "@/components/ui/button";
 import type { components } from "@/lib/api/schema";
 
+import { SalaryChangeDialog } from "./salary-change-form";
+
 type EmployeeDetail = components["schemas"]["EmployeeDetail"];
 type ReferenceData = components["schemas"]["ReferenceData"];
 
@@ -26,10 +28,9 @@ export function EmployeeActions({
 }) {
   const me = useMe();
   const [open, setOpen] = useState<Open>(null);
-  void reference;
-  void open;
   // The version is what every change sends back; callers without SALARY_READ don't get it.
-  if (employee.version === null) return null;
+  const version = employee.version;
+  if (version === null) return null;
   const active = employee.status === "ACTIVE";
   const canChangeSalary = me.can("SALARY_WRITE") && active;
   const canEdit = me.can("EMPLOYEE_WRITE");
@@ -72,6 +73,13 @@ export function EmployeeActions({
               Record salary change
             </Button>
           </div>
+          <SalaryChangeDialog
+            open={open === "salary"}
+            onOpenChange={(next) => setOpen(next ? "salary" : null)}
+            employee={employee}
+            reference={reference}
+            version={version}
+          />
         </>
       ) : null}
     </>
