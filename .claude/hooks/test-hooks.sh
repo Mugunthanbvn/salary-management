@@ -299,6 +299,12 @@ cfg "guard-bash.sh runs on Bash before the tool" \
 cfg "block-protected-files.sh runs on Read, Edit, MultiEdit and Write" \
   'any({"Read", "Edit", "MultiEdit", "Write"} <= set(m["matcher"].split("|")) and any("block-protected-files.sh" in h["command"] for h in m["hooks"]) for m in s["hooks"]["PreToolUse"])'
 
+# destructive git is denied (finding 7)
+for rule in 'Bash(git checkout -- :*)' 'Bash(git checkout .:*)' 'Bash(git branch -D:*)' \
+  'Bash(git reset --hard:*)' 'Bash(git clean:*)' 'Bash(git worktree remove --force:*)'; do
+  cfg "deny $rule" "'$rule' in s['permissions']['deny']"
+done
+
 echo
 printf '%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
 [ "$fail" -eq 0 ]
