@@ -4,8 +4,8 @@ Masking lives here, not in the router: the Ask tools and exports call these func
 directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 """
 
-from collections.abc import Mapping
-from dataclasses import replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -22,7 +22,7 @@ from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Comp, Money, SalaryBasis
 from salary_api.domain.currency import SUPPORTED_CURRENCIES
-from salary_api.domain.enums import EmployeeStatus
+from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.domain.money import (
     FxRate,
     FxRateMissingError,
@@ -121,6 +121,79 @@ def create_employee(
     )
     session.commit()
     return get_employee(session, principal, employee.id)
+
+
+@dataclass(frozen=True, slots=True)
+class NewHire:
+    """A new employee and their first salary, already validated (the bulk import's rows)."""
+
+    employee_code: str
+    first_name: str
+    last_name: str
+    email: str  # trimmed and lowercased
+    job_role_id: int
+    level: Level
+    employment_type: EmploymentType
+    country_code: str
+    hire_date: date
+    salary_effective_date: date  # of the HIRE record; on or after the hire date
+    pay: salaries.Pay  # in the country's currency
+
+
+def add_hires_in_bulk(session: Session, hires: Sequence[NewHire], *, changed_by: int) -> None:
+    """Insert new employees, each with a HIRE salary record, with bulk inserts. Joins the
+    caller's transaction (no commit, no audit event: the caller writes one for the batch).
+
+    The same rules as create_employee: search text, and the current salary copied from the
+    HIRE record. Ids are allocated here, so no RETURNING is needed; the caller's
+    transaction holds the write lock (BEGIN IMMEDIATE on SQLite).
+    """
+    now = utc_now()
+    first_id = repository.highest_id(session) + 1
+    ids = range(first_id, first_id + len(hires))
+    repository.insert_many(
+        session,
+        [
+            {
+                "id": employee_id,
+                "employee_code": hire.employee_code,
+                "first_name": hire.first_name,
+                "last_name": hire.last_name,
+                "email": hire.email,
+                "search_text": employee_search_text(
+                    hire.first_name, hire.last_name, hire.employee_code, hire.email
+                ),
+                "job_role_id": hire.job_role_id,
+                "level": hire.level,
+                "employment_type": hire.employment_type,
+                "country_code": hire.country_code,
+                "status": EmployeeStatus.ACTIVE,
+                "hire_date": hire.hire_date,
+                "termination_date": None,
+                "currency": hire.pay.base.currency,
+                "current_base_minor": hire.pay.base.amount_minor,
+                "current_total_minor": hire.pay.total.amount_minor,
+                "version": 1,
+                "created_at": now,
+                "updated_at": now,
+            }
+            for employee_id, hire in zip(ids, hires, strict=True)
+        ],
+    )
+    salaries.record_hires_in_bulk(
+        session,
+        [
+            salaries.BulkHire(
+                employee_id=employee_id,
+                job_role_id=hire.job_role_id,
+                level=hire.level,
+                effective_date=hire.salary_effective_date,
+                pay=hire.pay,
+            )
+            for employee_id, hire in zip(ids, hires, strict=True)
+        ],
+        changed_by=changed_by,
+    )
 
 
 def get_employee(session: Session, principal: Principal, employee_id: int) -> EmployeeDetail:

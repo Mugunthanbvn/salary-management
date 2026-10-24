@@ -188,9 +188,10 @@ Preconditions (otherwise `409 Conflict` problem+json):
 - **DB duplicates re-checked**, because someone else may have created one of these employees since the dry-run.
 
 Execution:
-- **One DB transaction**: insert employees → salary records → salary components → audit event → mark the job `COMMITTED`.
-- Bulk inserts (SQLAlchemy Core `insert()` with executemany, in chunks of 1,000), the same approach as the seed ([12-seed-data.md](12-seed-data.md)).
-- A duplicate found at commit returns `409` problem+json `duplicate` with the conflicting rows. Any other exception rolls back, marks the job `FAILED` with `failure_reason`, and returns `500` problem+json `import-failed`. **No partial data is ever written.**
+- **One DB transaction**: insert employees → salary records → salary components → point each employee at its `HIRE` record → audit event → mark the job `COMMITTED`.
+- Bulk inserts (SQLAlchemy `insert()` with lists of rows, in chunks of 1,000), the same approach as the seed ([12-seed-data.md](12-seed-data.md)). Employee and record ids are allocated in Python (one more than the highest in use; the transaction holds SQLite's write lock from `BEGIN IMMEDIATE`), so no `RETURNING` is needed. `employees` and `salary_records` reference each other, so employees go in with `current_salary_record_id` null and one bulk `UPDATE` sets it once the records exist (foreign keys are checked per statement; a deferred check would be SQLite-only).
+- The `HIRE` record has `effective_date = salary_effective_date` (the hire date by default), `changed_by` = the importing user, the role and level as a snapshot, and the allowances and the bonus target as components. The employee's current salary columns and `search_text` follow the same rules as `POST /employees`.
+- A duplicate found at commit returns `409` problem+json `duplicate` whose `conflicts` lists the rows (`{row, column, code: "duplicate_in_db", message, value}`); the job stays `DRY_RUN`. Any other exception rolls back, then, in a transaction of its own, marks the job `FAILED` with `failure_reason` (the error type, plus the database's message for a database error; never row values) and writes `import.fail`, and returns `500` problem+json `import-failed`. **No partial data is ever written.**
 - Response: `{ id, status: "COMMITTED", inserted }`.
 
 ### 5.7 `import_jobs` lifecycle
@@ -222,7 +223,7 @@ Retention: `payload` and `preview` hold salary data, so they are cleared **as so
 | Dry-run validity | **24 hours** | Bounds stale validation; duplicates are re-checked at commit anyway |
 | Open dry-runs per user | **3** | Bounds stored salary data. A new upload never fails for this: it marks the user's oldest open dry-runs `EXPIRED` (rows cleared), so at most 3 stay open. A 409 instead would lock out a user who uploaded 3 files with errors, since a dry-run can't be deleted |
 
-Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; commit < 30 s against Turso, checked against the spike's bulk-insert timing) are tracked in [19-performance.md](19-performance.md). Insert with IDs pre-allocated in Python, so no `RETURNING` is needed and `current_salary_record_id` is set on insert.
+Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; commit < 30 s against Turso, checked against the spike's bulk-insert timing) are tracked in [19-performance.md](19-performance.md). Ids are pre-allocated in Python, so no `RETURNING` is needed (§5.6).
 
 ---
 

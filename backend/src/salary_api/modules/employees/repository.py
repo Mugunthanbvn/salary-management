@@ -1,9 +1,24 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any, cast
 
-from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    Table,
+    and_,
+    bindparam,
+    case,
+    false,
+    func,
+    insert,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.orm import QueryableAttribute, Session, contains_eager, joinedload
 
+from salary_api.core.db import in_chunks
 from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.domain.money import UsdSortKey
@@ -15,6 +30,29 @@ from salary_api.modules.salaries.models import SalaryRecord
 def add(session: Session, employee: Employee) -> None:
     session.add(employee)
     session.flush()
+
+
+def highest_id(session: Session) -> int:
+    return session.scalar(select(func.max(Employee.id))) or 0
+
+
+def insert_many(session: Session, rows: Sequence[Mapping[str, Any]]) -> None:
+    """Bulk INSERT of employee rows (column values, ids included), in chunks."""
+    for chunk in in_chunks(rows):
+        session.execute(insert(Employee), chunk)
+
+
+def set_current_salary_records(session: Session, record_ids: Mapping[int, int]) -> None:
+    """Point each employee (key) at its current salary record (value), in chunks."""
+    table = cast(Table, Employee.__table__)
+    statement = (
+        update(table)
+        .where(table.c.id == bindparam("employee_id"))
+        .values(current_salary_record_id=bindparam("record_id"))
+    )
+    pairs = [{"employee_id": e, "record_id": r} for e, r in record_ids.items()]
+    for chunk in in_chunks(pairs):
+        session.execute(statement, chunk)
 
 
 def get_detail(session: Session, employee_id: int) -> Employee | None:

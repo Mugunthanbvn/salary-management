@@ -435,7 +435,7 @@ employees.job_role_id, level       = new_record.job_role_id, level   (if changed
 employees.version                  = version + 1
 ```
 
-The salary service (`modules/salaries/service.py`, `_make_current`) is the only writer of these columns. It sets the `current_salary_record` relationship, not only the id, so a session that already loaded the old record sees the new one.
+The salary service (`modules/salaries/service.py`: `_make_current`, and `record_hires_in_bulk` for imports, which points each new employee at its `HIRE` record with one bulk `UPDATE`) is the only writer of these columns after the insert. It sets the `current_salary_record` relationship, not only the id, so a session that already loaded the old record sees the new one.
 
 An integration test asserts the invariant for every employee after the seed and after random sequences of changes: the denormalized columns equal the latest salary record.
 

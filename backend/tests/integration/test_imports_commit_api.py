@@ -31,7 +31,7 @@ def _count(session: Session, model: type[Employee | SalaryRecord | SalaryCompone
 
 def _commit(http: TestClient, job: ImportJob) -> dict[str, object]:
     response = http.post(f"{IMPORTS}/{job.id}/commit")
-    return {"status": response.status_code, **response.json()}
+    return {"http_status": response.status_code, **response.json()}
 
 
 @pytest.fixture
@@ -40,7 +40,14 @@ def hr_user(db_session: Session) -> User:
 
 
 @pytest.fixture
-def hr(app: FastAPI, client: TestClient, hr_user: User, settings: Settings) -> TestClient:
+def hr(
+    app: FastAPI,
+    client: TestClient,
+    hr_user: User,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> TestClient:
+    """HR_MANAGER `hr_user`, signed in once time is frozen (a token from later is refused)."""
     return signed_in_client(app, hr_user, settings)
 
 
@@ -158,7 +165,7 @@ def test_an_administrator_may_commit_another_users_dry_run(
 
     result = _commit(as_role("ADMIN"), job)
 
-    assert (result["status"], result["inserted"]) == (200, 1)
+    assert (result["http_status"], result["inserted"]) == (200, 1)
 
 
 def test_another_hr_manager_gets_404_and_nothing_is_written(
@@ -168,7 +175,7 @@ def test_another_hr_manager_gets_404_and_nothing_is_written(
 
     result = _commit(as_role("HR_MANAGER"), job)
 
-    assert (result["status"], result["type"]) == (404, f"{PROBLEMS}not-found")
+    assert (result["http_status"], result["type"]) == (404, f"{PROBLEMS}not-found")
     assert _count(db_session, Employee) == 0
 
 
@@ -182,7 +189,7 @@ def test_a_dry_run_with_errors_cannot_be_committed(
 
     result = _commit(hr, job)
 
-    assert (result["status"], result["type"]) == (409, f"{PROBLEMS}invalid-state")
+    assert (result["http_status"], result["type"]) == (409, f"{PROBLEMS}invalid-state")
     assert "errors" in str(result["detail"])
     assert _count(db_session, Employee) == 0
 
@@ -198,22 +205,24 @@ def test_committing_twice_is_refused_the_second_time(
 
     result = _commit(hr, job)
 
-    assert (result["status"], result["type"]) == (409, f"{PROBLEMS}invalid-state")
+    assert (result["http_status"], result["type"]) == (409, f"{PROBLEMS}invalid-state")
     assert _count(db_session, Employee) == 1
 
 
 def test_a_dry_run_past_its_24_hours_is_refused_and_becomes_expired(
-    hr: TestClient,
-    hr_user: User,
+    app: FastAPI,
+    client: TestClient,
     db_session: Session,
+    settings: Settings,
     frozen_time: time_machine.Traveller,
 ) -> None:
-    job = make_dry_run(db_session, hire(1), user=hr_user)
+    user = make_user(db_session, role="HR_MANAGER")
+    job = make_dry_run(db_session, hire(1), user=user)
     frozen_time.shift(60 * 60 * 24)
 
-    result = _commit(hr, job)
+    result = _commit(signed_in_client(app, user, settings), job)  # a new session: 8 h TTL
 
-    assert (result["status"], result["type"]) == (409, f"{PROBLEMS}invalid-state")
+    assert (result["http_status"], result["type"]) == (409, f"{PROBLEMS}invalid-state")
     db_session.refresh(job)
     assert (job.status, job.payload) == ("EXPIRED", None)
     assert _count(db_session, Employee) == 0
@@ -230,7 +239,7 @@ def test_a_duplicate_created_after_the_dry_run_is_a_409_listing_the_rows(
 
     result = _commit(hr, job)
 
-    assert (result["status"], result["type"]) == (409, f"{PROBLEMS}duplicate")
+    assert (result["http_status"], result["type"]) == (409, f"{PROBLEMS}duplicate")
     assert result["conflicts"] == [
         {
             "row": 3,
@@ -267,7 +276,7 @@ def test_a_failure_mid_commit_writes_nothing_and_marks_the_job_failed(
 
     result = _commit(hr, job)
 
-    assert (result["status"], result["type"]) == (500, f"{PROBLEMS}import-failed")
+    assert (result["http_status"], result["type"]) == (500, f"{PROBLEMS}import-failed")
     assert (_count(db_session, Employee), _count(db_session, SalaryRecord)) == (0, 0)
     db_session.refresh(job)
     assert (job.status, job.failure_reason, job.payload) == ("FAILED", "OSError", None)

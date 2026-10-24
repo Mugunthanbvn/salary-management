@@ -5,14 +5,20 @@ the `import.dry_run` audit event.
 """
 
 import hashlib
-from datetime import datetime
+from collections.abc import Mapping
+from datetime import date, datetime
 from pathlib import PurePosixPath
 from typing import IO, Any, Final
 
+import structlog
+from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
 from salary_api.core.errors import (
     BadRequest,
+    Duplicate,
+    ImportFailed,
+    InvalidState,
     NotFound,
     PayloadTooLarge,
     UnsupportedMediaType,
@@ -28,8 +34,10 @@ from salary_api.domain.constants import (
     MAX_UPLOAD_BYTES,
     MAX_XLSX_UNCOMPRESSED_BYTES,
 )
-from salary_api.domain.enums import ImportFormat, ImportStatus
+from salary_api.domain.enums import EmploymentType, ImportFormat, ImportStatus, Level
+from salary_api.domain.money import Money as DomainMoney
 from salary_api.modules.audit.service import AuditAction, record_event
+from salary_api.modules.employees import service as employees
 from salary_api.modules.imports import repository
 from salary_api.modules.imports.columns import TEMPLATE_COLUMNS
 from salary_api.modules.imports.models import ImportJob
@@ -41,17 +49,28 @@ from salary_api.modules.imports.parsing import (
     parse_csv,
     parse_xlsx,
 )
-from salary_api.modules.imports.schemas import ImportJobReport, ImportPreviewRow, ImportRowError
+from salary_api.modules.imports.schemas import (
+    ImportCommitResult,
+    ImportJobReport,
+    ImportPreviewRow,
+    ImportRowError,
+)
 from salary_api.modules.imports.validation import (
     ImportReference,
     ImportRow,
     KnownCountry,
     KnownJobRole,
     RowError,
+    RowKey,
+    db_duplicates,
     mark_db_duplicates,
     validate_rows,
 )
 from salary_api.modules.reference import repository as reference
+from salary_api.modules.salaries import service as salaries
+from salary_api.modules.salaries.schemas import ComponentIn
+
+_logger = structlog.get_logger(__name__)
 
 ENTITY = "import_job"  # audit events name the entity they change
 PREVIEW_ROWS: Final = 50
@@ -120,6 +139,125 @@ def dry_run(
 def get_job(session: Session, principal: Principal, job_id: int) -> ImportJobReport:
     """The job's report, for its creator or an administrator (NotFound for anyone else)."""
     return _job_report(_visible_job(session, principal, job_id), utc_now())
+
+
+def commit(session: Session, principal: Principal, job_id: int) -> ImportCommitResult:
+    """Create every employee of an error-free dry-run in one transaction, or none.
+
+    Refused (InvalidState) unless the job is a DRY_RUN without errors and not expired; an
+    expired one is stored as EXPIRED. Codes and emails are checked against the employees
+    again (Duplicate lists the rows taken since the dry-run). Any other failure rolls back
+    everything, marks the job FAILED in a transaction of its own, and raises ImportFailed.
+    """
+    job = _visible_job(session, principal, job_id)
+    now = utc_now()
+    _require_committable(session, job, now)
+    payload = job.payload or []
+    conflicts = db_duplicates(
+        [RowKey(row["row"], row["employee_code"], row["email"]) for row in payload],
+        taken_codes=repository.codes_in_use(session, [row["employee_code"] for row in payload]),
+        taken_emails=repository.emails_in_use(session, [row["email"] for row in payload]),
+    )
+    if conflicts:
+        raise Duplicate(
+            "Employees added since the dry-run use some codes or emails of this file "
+            "(see conflicts). Nothing was imported: fix the file and upload it again.",
+            conflicts=[_error_json(error) for error in conflicts],
+        )
+    codes = sorted(row["employee_code"] for row in payload)
+    try:
+        employees.add_hires_in_bulk(
+            session, [_new_hire(row) for row in payload], changed_by=principal.user_id
+        )
+        record_event(
+            session,
+            actor_id=principal.user_id,
+            action=AuditAction.IMPORT_COMMIT,
+            entity=ENTITY,
+            entity_id=job.id,
+            diff={
+                "job_id": job.id,
+                "inserted": len(codes),
+                "employee_code_range": [codes[0], codes[-1]],
+            },
+        )
+        job.committed_at = now
+        _end(job, ImportStatus.COMMITTED)
+        session.commit()
+    except Exception as error:  # any failure: roll back, then record it
+        session.rollback()
+        _record_failure(session, principal, job_id, error)
+        raise ImportFailed(
+            f"Import {job_id} failed and nothing was written. Upload the file again to retry.",
+            job_id=job_id,
+        ) from None
+    return ImportCommitResult(id=job_id, status=ImportStatus.COMMITTED, inserted=len(codes))
+
+
+_NOT_COMMITTABLE: Final = {
+    ImportStatus.COMMITTED: "This import was already committed.",
+    ImportStatus.FAILED: "This import failed. Upload the file again to retry.",
+    ImportStatus.EXPIRED: "This dry-run has expired. Upload the file again.",
+}
+
+
+def _require_committable(session: Session, job: ImportJob, now: datetime) -> None:
+    if job.status != ImportStatus.DRY_RUN:
+        raise InvalidState(_NOT_COMMITTABLE[job.status])
+    if job.error_count:
+        raise InvalidState("This dry-run has errors: fix the file and upload it again.")
+    if now >= job.expires_at:
+        _end(job, ImportStatus.EXPIRED)
+        session.commit()
+        raise InvalidState("This dry-run expired 24 hours after the upload. Upload the file again.")
+
+
+def _record_failure(session: Session, principal: Principal, job_id: int, error: Exception) -> None:
+    """Mark the job FAILED and write import.fail, after the rollback (its own transaction)."""
+    reason = _failure_reason(error)
+    _logger.error("import_commit_failed", job_id=job_id, error_type=type(error).__name__)
+    job = repository.get(session, job_id)
+    if job is None:  # pragma: no cover  (the job was read in this request)
+        return
+    job.failure_reason = reason
+    _end(job, ImportStatus.FAILED)
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.IMPORT_FAIL,
+        entity=ENTITY,
+        entity_id=job_id,
+        diff={"job_id": job_id, "failure_reason": reason},
+    )
+    session.commit()
+
+
+def _failure_reason(error: Exception) -> str:
+    """The error type, and for a database error its message (bound values are hidden by the
+    engine), so the reason never holds row data such as salaries."""
+    if isinstance(error, DBAPIError):
+        return f"{type(error).__name__}: {str(error.orig).splitlines()[0]}"[:500]
+    return type(error).__name__
+
+
+def _new_hire(row: Mapping[str, Any]) -> employees.NewHire:
+    """A payload row (stored at the dry-run) as a new employee with their first salary."""
+    return employees.NewHire(
+        employee_code=row["employee_code"],
+        first_name=row["first_name"],
+        last_name=row["last_name"],
+        email=row["email"],
+        job_role_id=row["job_role_id"],
+        level=Level(row["level"]),
+        employment_type=EmploymentType(row["employment_type"]),
+        country_code=row["country_code"],
+        hire_date=date.fromisoformat(row["hire_date"]),
+        salary_effective_date=date.fromisoformat(row["salary_effective_date"]),
+        pay=salaries.Pay(
+            base=DomainMoney(row["base_minor"], row["currency"]),
+            components=[ComponentIn.model_validate(c) for c in row["components"]],
+        ),
+    )
 
 
 def _visible_job(session: Session, principal: Principal, job_id: int) -> ImportJob:

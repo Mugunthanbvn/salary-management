@@ -518,9 +518,9 @@ Returns the stored job (same shape as §7.2). Only its creator, or a caller with
 
 ### 7.4 `POST /imports/{id}/commit`: `IMPORT`
 
-- Only the job's creator or an `ADMIN` may commit (404 otherwise).
-- Requires `status=DRY_RUN`, `error_count=0` and not expired; otherwise 409 `invalid-state`. An expired job is marked `EXPIRED` at that point.
-- Re-runs duplicate checks against the DB (data may have changed since the preview); new conflicts → 409 `duplicate` with the conflicting rows, nothing written.
+- Only the job's creator or a caller with `USER_ADMIN` may commit (404 otherwise). No request body.
+- Requires `status=DRY_RUN`, `error_count=0` and not expired; otherwise 409 `invalid-state` (committing twice included). An expired job is marked `EXPIRED` at that point.
+- Re-runs duplicate checks against the DB (data may have changed since the preview); new conflicts → 409 `duplicate` with `conflicts: [{ row, column, code: "duplicate_in_db", message, value }]`, nothing written, the job stays `DRY_RUN`.
 - Inserts all employees + `HIRE` salary records in **one transaction**; any other failure rolls back everything, marks the job `FAILED` and returns 500 `import-failed`.
 - 200 `{ "id": 31, "status": "COMMITTED", "inserted": 409 }`. Writes `import.commit` (`import.fail` on rollback; `import.dry_run` at upload).
 
