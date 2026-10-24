@@ -1,6 +1,8 @@
 """Money: integer minor units plus an ISO 4217 code (ADR 0004, docs/06-data-model.md §5)."""
 
 import dataclasses
+import operator
+from collections.abc import Callable
 from decimal import Decimal
 
 import pytest
@@ -8,7 +10,12 @@ from hypothesis import given
 from hypothesis import strategies as st
 
 from salary_api.domain.currency import UnknownCurrencyError
-from salary_api.domain.money import InvalidAmountError, Money, TooManyDecimalsError
+from salary_api.domain.money import (
+    CurrencyMismatchError,
+    InvalidAmountError,
+    Money,
+    TooManyDecimalsError,
+)
 from tests.unit.domain.strategies import currencies, major_amounts
 
 
@@ -111,6 +118,14 @@ def test_money_in_the_same_currency_adds_and_subtracts_exactly() -> None:
     a, b = Money(100, "EUR"), Money(250, "EUR")
 
     assert (a + b, a - b) == (Money(350, "EUR"), Money(-150, "EUR"))
+
+
+@pytest.mark.parametrize("operation", [operator.add, operator.sub])
+def test_adding_or_subtracting_different_currencies_raises(
+    operation: Callable[[Money, Money], Money],
+) -> None:
+    with pytest.raises(CurrencyMismatchError, match=r"EUR.*INR"):
+        operation(Money(100, "EUR"), Money(100, "INR"))
 
 
 @given(amount_minor=st.integers(), currency=currencies)
