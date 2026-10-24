@@ -24,6 +24,7 @@ type ValidationProblem = components["schemas"]["ValidationProblem"];
 
 const UPLOAD_URL = "/api/v1/imports";
 const COMMIT_URL = "/api/v1/imports/:id/commit";
+const JOB_URL = "/api/v1/imports/:id";
 
 function renderFlow(searchParams = "") {
   const urls: URLSearchParams[] = [];
@@ -381,5 +382,93 @@ describe("ImportFlow: import", () => {
     expect(
       within(table).getByRole("rowgroup", { name: "Row 4" }),
     ).toHaveTextContent("ACME-010003");
+  });
+});
+
+describe("ImportFlow: a check in the URL", () => {
+  function serveJob(status: number, body: ImportJobReport | Problem) {
+    const asked: string[] = [];
+    server.use(
+      http.get<{ id: string }, never, ImportJobReport | Problem>(
+        JOB_URL,
+        ({ params }) => {
+          asked.push(params.id);
+          return HttpResponse.json(body, { status });
+        },
+      ),
+    );
+    return asked;
+  }
+
+  it("reopens the dry-run after a refresh", async () => {
+    const asked = serveJob(200, WITH_ERRORS);
+    renderFlow("?job=31");
+
+    expect(
+      await screen.findByRole("heading", {
+        level: 1,
+        name: "3 rows need fixing",
+      }),
+    ).toBeVisible();
+    expect(asked).toEqual(["31"]);
+    expect(
+      screen.getByRole("button", { name: "Import 245 employees" }),
+    ).toBeDisabled();
+  });
+
+  it.each([
+    {
+      status: "COMMITTED" as const,
+      title: "This file was imported",
+      says: "q4-new-hires.csv was imported on 24 Oct 2026, 11:02 UTC.",
+    },
+    {
+      status: "EXPIRED" as const,
+      title: "This check has expired",
+      says: "A check is kept for 24 hours. Upload the file again to check it again.",
+    },
+    {
+      status: "FAILED" as const,
+      title: "This import failed",
+      says: "Nothing was saved. Upload the file again to retry.",
+    },
+  ])(
+    "says when the check is $status and can't be imported",
+    async ({ status, title, says }) => {
+      serveJob(
+        200,
+        makeImportReport({
+          status,
+          preview: [],
+          committed_at: status === "COMMITTED" ? "2026-10-24T11:02:00Z" : null,
+        }),
+      );
+      renderFlow("?job=31");
+
+      expect(
+        await screen.findByRole("heading", { level: 1, name: title }),
+      ).toBeVisible();
+      expect(screen.getByText(says)).toBeVisible();
+      expect(screen.queryByRole("button", { name: /^Import \d/ })).toBeNull();
+    },
+  );
+
+  it("offers a new upload when the check is not found", async () => {
+    serveJob(
+      404,
+      makeProblem("not-found", 404, {
+        title: "Not found",
+        detail: "Import 31 was not found.",
+      }),
+    );
+    const urls = renderFlow("?job=31");
+
+    expect(await screen.findByRole("alert")).toHaveTextContent(
+      "This check was not found. Upload the file again.",
+    );
+    expect(
+      screen.getByRole("heading", { level: 1, name: "Import employees" }),
+    ).toBeVisible();
+    expect(urls.at(-1)?.has("job")).toBe(false);
   });
 });
