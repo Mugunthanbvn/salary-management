@@ -65,7 +65,7 @@ One row per employee. Header names are **case-insensitive and trimmed**. Column 
 
 Notes:
 - **Up to 3 allowances per row (proposed).** That covers the seeded patterns (e.g. India: HRA + special allowance) without a nested format.
-- Amounts are entered in **major units** because HR thinks in "52,000.00 EUR", not "5,200,000 cents". The parser converts to integer **minor units** using the currency exponent ([adr/0004-money-integer-minor-units.md](adr/0004-money-integer-minor-units.md)). An amount with more decimals than allowed (e.g. `1000.5` JPY) is an **error, never silently rounded**.
+- Amounts are entered in **major units** because HR thinks in "52,000.00 EUR", not "5,200,000 cents". The parser converts to integer **minor units** using the currency exponent ([adr/0004-money-integer-minor-units.md](adr/0004-money-integer-minor-units.md)). An amount with more decimals than allowed (e.g. `1000.5` JPY) is an **error, never silently rounded**. Trailing zeros are fine (`1000.0` JPY is ¥1,000): only a non-zero digit past the currency's exponent is rejected.
 - The imported salary record gets `reason = HIRE`, a `job_role_id` + `level` snapshot, and `changed_by` = the importing user ([06-data-model.md](06-data-model.md)).
 - **Template download:** `GET /api/v1/imports/template?format=csv|xlsx`. The XLSX template has a header row, one example row, and **(proposed)** dropdown data validation for `job_role`, `level`, `employment_type`, `country`, and `currency`, plus a second read-only sheet "Reference" listing valid values.
 

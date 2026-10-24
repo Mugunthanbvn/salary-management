@@ -10,6 +10,10 @@ from typing import Self
 from salary_api.domain.currency import minor_unit_exponent
 
 
+class TooManyDecimalsError(ValueError):
+    """The amount has a non-zero digit past the currency's minor unit (e.g. ¥1000.5)."""
+
+
 @dataclass(frozen=True, slots=True)
 class Money:
     """An exact amount: `amount_minor` counts the currency's minor unit (cents, paise, yen)."""
@@ -26,6 +30,15 @@ class Money:
 
     @classmethod
     def from_major(cls, amount: str | Decimal, currency: str) -> Self:
-        """Money from a major-unit amount: `from_major("1234.56", "USD")` is 123456 cents."""
+        """Money from a major-unit amount: `from_major("1234.56", "USD")` is 123456 cents.
+
+        Too many decimals are rejected, never rounded: `"1000.5"` JPY raises
+        TooManyDecimalsError. Trailing zeros lose nothing, so `"1000.0"` JPY is ¥1000.
+        """
         numerator, denominator = Decimal(amount).as_integer_ratio()
-        return cls(numerator * 10 ** minor_unit_exponent(currency) // denominator, currency)
+        amount_minor, remainder = divmod(
+            numerator * 10 ** minor_unit_exponent(currency), denominator
+        )
+        if remainder:
+            raise TooManyDecimalsError(f"{amount} has more decimals than {currency} allows")
+        return cls(amount_minor, currency)
