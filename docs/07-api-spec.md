@@ -114,6 +114,8 @@ This table mirrors the [glossary](glossary.md) §5, which wins if the two ever d
 
 A status with no glossary slug (for example `405 Method Not Allowed`, the `503` from `/health`, or an unexpected `500`) uses `"type": "about:blank"` with the HTTP status phrase as `title`. An unexpected `500` never includes the error message.
 
+In the OpenAPI document every operation lists `422` (`ValidationProblem`), `4XX` and `5XX` (`Problem`) as `application/problem+json`, so the generated client types match these bodies.
+
 ### 1.6 Permission notation
 
 Each endpoint lists the permission it requires (see [08-security-rbac.md](08-security-rbac.md) for the role → permission matrix). **Public** means no authentication. Field-level masking for users without `SALARY_READ` is described per endpoint.

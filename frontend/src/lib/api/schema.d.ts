@@ -25,6 +25,17 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** FieldError */
+        FieldError: {
+            /** Code */
+            code: string;
+            /** Loc */
+            loc: (string | number)[];
+            /** Message */
+            message: string;
+        } & {
+            [key: string]: unknown;
+        };
         /** HealthResponse */
         HealthResponse: {
             /**
@@ -39,6 +50,48 @@ export interface components {
             status: "ok";
             /** Version */
             version: string;
+        };
+        /**
+         * Problem
+         * @description An RFC 9457 problem. Some problems add members, e.g. `current_version`.
+         */
+        Problem: {
+            /** Detail */
+            detail?: string | null;
+            /** Instance */
+            instance: string;
+            /** Request Id */
+            request_id?: string | null;
+            /** Status */
+            status: number;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+        } & {
+            [key: string]: unknown;
+        };
+        /**
+         * ValidationProblem
+         * @description 422 `validation`: one entry in `errors` per invalid field.
+         */
+        ValidationProblem: {
+            /** Detail */
+            detail?: string | null;
+            /** Errors */
+            errors: components["schemas"]["FieldError"][];
+            /** Instance */
+            instance: string;
+            /** Request Id */
+            request_id?: string | null;
+            /** Status */
+            status: number;
+            /** Title */
+            title: string;
+            /** Type */
+            type: string;
+        } & {
+            [key: string]: unknown;
         };
     };
     responses: never;
@@ -65,6 +118,33 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
         };

@@ -9,7 +9,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from salary_api import __version__
 from salary_api.core.config import Settings, load_settings
 from salary_api.core.db import create_db_engine, create_session_factory
-from salary_api.core.errors import install_problem_handlers
+from salary_api.core.errors import (
+    PROBLEM_RESPONSES,
+    install_problem_handlers,
+    use_problem_json_in_openapi,
+)
 from salary_api.core.logging import configure_logging
 from salary_api.core.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
 from salary_api.modules.health.router import router as health_router
@@ -33,6 +37,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         openapi_url=f"{API_PREFIX}/openapi.json",
         docs_url=f"{API_PREFIX}/docs",
         redoc_url=None,
+        responses=PROBLEM_RESPONSES,
         lifespan=lifespan,
     )
     app.state.settings = settings
@@ -51,6 +56,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         )
     app.add_middleware(RequestIdMiddleware)  # added last, so it runs first
     install_problem_handlers(app)
+    use_problem_json_in_openapi(app)
     app.include_router(health_router, prefix=API_PREFIX)
     return app
 

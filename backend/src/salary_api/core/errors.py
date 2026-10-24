@@ -12,6 +12,7 @@ import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError, ResponseValidationError
 from fastapi.responses import JSONResponse
+from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salary_api.core.request_id import REQUEST_ID_HEADER
@@ -112,6 +113,54 @@ class ServiceUnavailable(ProblemError):
 
     def __init__(self, detail: str, **extra: Any) -> None:
         super().__init__(503, None, "Service Unavailable", detail, **extra)
+
+
+class Problem(BaseModel):
+    """An RFC 9457 problem. Some problems add members, e.g. `current_version`."""
+
+    model_config = ConfigDict(extra="allow")
+
+    type: str
+    title: str
+    status: int
+    detail: str | None = None
+    instance: str
+    request_id: str | None = None
+
+
+class ValidationProblem(Problem):
+    """422 `validation`: one entry in `errors` per invalid field."""
+
+    errors: list[FieldError]
+
+
+# App-wide error responses for the OpenAPI document. Declaring 422 also replaces FastAPI's
+# default HTTPValidationError schema, which is not what the API sends.
+PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
+    422: {"model": ValidationProblem, "description": "Validation failed"},
+    "4XX": {"model": Problem, "description": "Client error"},
+    "5XX": {"model": Problem, "description": "Server error"},
+}
+
+
+def use_problem_json_in_openapi(app: FastAPI) -> None:
+    """Document error responses as application/problem+json, the media type they are sent as.
+
+    FastAPI files every response model under the route's own media type (application/json).
+    """
+    build_openapi = app.openapi
+
+    def openapi() -> dict[str, Any]:
+        if app.openapi_schema is None:
+            for path_item in build_openapi()["paths"].values():
+                for operation in path_item.values():
+                    for status, response in operation["responses"].items():
+                        content = response.get("content", {})
+                        if status[0] in "45" and "application/json" in content:
+                            content[PROBLEM_JSON] = content.pop("application/json")
+        return app.openapi_schema or {}
+
+    app.openapi = openapi
 
 
 def problem_response(
