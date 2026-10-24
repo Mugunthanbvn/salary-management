@@ -393,7 +393,8 @@ Commit rules: status must be `DRY_RUN`; `error_count` must be 0; `expires_at` mu
 | Exponent | From the ISO 4217 table in `domain/currency.py`: USD/EUR/GBP/INR/CAD/AUD/SGD/BRL = 2, JPY = 0 |
 | Pairing | Every `*_minor` column has a `currency` in the same row (salary components inherit from their parent record) |
 | Period | All stored amounts are **annual**. Monthly is presentation only (÷ 12, rounded half-even for display) |
-| Validation | An input with more decimals than the currency allows is **rejected**, not rounded (e.g. `¥1,000.5`) |
+| Validation | An input with more decimals than the currency allows is **rejected**, not rounded (e.g. `¥1,000.5`). Trailing zeros lose nothing and are accepted (`1000.0` JPY is ¥1,000), so XLSX numbers that arrive as `4500000.0` still parse |
+| Size | An input amount must be **below 10^15 minor units** (at most 15 digits, `MAX_AMOUNT_MINOR` in `domain/constants.py`); larger input is rejected as invalid. The check reads the digits and exponent only, so a hostile value such as `1e999999999` is refused at once and never overflows `BIGINT` |
 | Arithmetic | Integer addition only (totals). Division and ratios happen in `domain/` with `Decimal` and explicit rounding |
 
 ### 5.2 Conversion to USD (read time only)
