@@ -8,6 +8,7 @@ const RATIO = new Intl.NumberFormat("en-US", {
   minimumFractionDigits: 2,
   maximumFractionDigits: 2,
   roundingMode: "halfEven",
+  signDisplay: "negative", // "-0.001" shows "0.00", not "-0.00"
 });
 
 /** A ratio such as the compa-ratio: `"0.9234"` → `"0.92"`. */
@@ -25,6 +26,7 @@ export function formatPercent(
     minimumFractionDigits: fractionDigits,
     maximumFractionDigits: fractionDigits,
     roundingMode: "halfEven",
+    signDisplay: "negative", // "-0.001" shows "0%", not "-0%"
   }).format(ratio as Intl.StringNumericLiteral);
 }
 

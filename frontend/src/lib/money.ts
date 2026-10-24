@@ -34,6 +34,8 @@ export function formatMoney(
   const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
+    // An amount that rounds to zero (compact mode) shows "€0", never "-€0".
+    signDisplay: "negative",
     ...(compact
       ? {
           notation: "compact",
