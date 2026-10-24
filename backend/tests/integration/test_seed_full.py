@@ -1,8 +1,8 @@
 """The full seed: `--seed 42 --employees 10000` in memory (docs/12 sections 8 and 12, docs/14 5.6).
 
 The 10k seed takes about 2.5 s, so it runs in the default suite. Its tests share one xdist group,
-so a run seeds it once. If the generator changes on purpose, update GOLDEN_10K in the same
-commit and say why in the commit message.
+so a run seeds it once. If the generator changes on purpose, update the GOLDEN_* values and
+the counts in the same commit and say why in the commit message.
 """
 
 from collections import defaultdict
@@ -14,7 +14,7 @@ from sqlalchemy import Engine, func, select
 from sqlalchemy.orm import Session
 
 from salary_api.core.db import create_db_engine, create_session_factory
-from salary_api.domain.enums import PayEquityFlag
+from salary_api.domain.enums import EmployeeStatus, PayEquityFlag
 from salary_api.domain.pay_equity import compa_ratio, department_rollup, flag, pay_equity_summary
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import Country, Department, FxRate, JobRole, PayBand
@@ -23,9 +23,11 @@ from salary_api.seed.generator import Dataset, generate
 from salary_api.seed.loader import load, migrate
 from salary_api.seed.users import demo_users
 from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings, make_settings
-from tests.seed_checks import active_employee_pay, employee_checksum
+from tests.seed_checks import active_employee_pay, employee_checksum, history_checksum
 
-GOLDEN_10K = "3a6c09f55dfd38a93bfe43bf96c81d3c5812d982dd9c5c463646e6bca971026b"
+GOLDEN_10K = "b40ac43181867ca39528d16b0899337cafbd9b1608c43b72f8a2330e47801bef"
+GOLDEN_HISTORY_10K = "c1637caa0425c1b40f421c1f46aada97c8f5dd9cc2870506304c2670b38d13ee"
+SALARY_RECORDS, COMPONENTS, TERMINATED = 24_052, 39_562, 300
 
 pytestmark = pytest.mark.xdist_group("seed_10k")
 
@@ -54,9 +56,22 @@ def session(full_seed: Engine) -> Iterator[Session]:
         yield session
 
 
-def test_seed_42_with_10000_employees_matches_the_golden_checksum(full_seed: Engine) -> None:
+def test_seed_42_with_10000_employees_matches_the_golden_checksums(full_seed: Engine) -> None:
     with full_seed.connect() as connection:
         assert employee_checksum(connection) == GOLDEN_10K
+        assert history_checksum(connection) == GOLDEN_HISTORY_10K
+
+
+def test_seed_42_gives_the_pinned_numbers_of_records_components_and_leavers(
+    session: Session,
+) -> None:
+    counts = [
+        session.scalar(select(func.count()).select_from(SalaryRecord)),
+        session.scalar(select(func.count()).select_from(SalaryComponent)),
+        session.scalar(select(func.count()).where(Employee.status == EmployeeStatus.TERMINATED)),
+    ]
+
+    assert counts == [SALARY_RECORDS, COMPONENTS, TERMINATED]
 
 
 def test_seed_42_gives_the_documented_count_per_country(session: Session) -> None:

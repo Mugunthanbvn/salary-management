@@ -32,12 +32,14 @@ from salary_api.seed.rows import UserRow
 from salary_api.seed.users import demo_users
 from tests.conftest import upgrade_to_head
 from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings, make_settings
-from tests.seed_checks import employee_checksum
+from tests.seed_checks import employee_checksum, history_checksum
 
 DATASET = generate(seed=42, employees=200)
-# sha256 of the employee key fields for --seed 42 --employees 200 (tests/seed_checks.py). If the
-# generator changes on purpose, update it in the same commit and say why in the message.
-GOLDEN_200 = "14163d9717da32da3976544877bd41105a9426c30d88138e1f8606030a28b43f"
+# sha256 checksums for --seed 42 --employees 200 (tests/seed_checks.py): the employees, and every
+# salary record with its components. If the generator changes on purpose, update them in the
+# same commit and say why in the message.
+GOLDEN_200 = "dd5dbeb669a713d790d80546ea0e95ba43264e2d9d5c204ec002a8a4e10e58ef"
+GOLDEN_HISTORY_200 = "4385c35b6247dc761ebc9bb45e97c536d898f6f38929d5837522495300bbf15d"
 
 
 def _users() -> list[UserRow]:
@@ -99,17 +101,19 @@ def test_every_table_holds_the_generated_rows(
     assert _count(session, model) == rows(DATASET)
 
 
-def test_seed_42_with_200_employees_matches_its_golden_checksum(seeded: Engine) -> None:
+def test_seed_42_with_200_employees_matches_its_golden_checksums(seeded: Engine) -> None:
     with seeded.connect() as connection:
         assert employee_checksum(connection) == GOLDEN_200
+        assert history_checksum(connection) == GOLDEN_HISTORY_200
 
 
-def test_another_seed_gives_another_checksum(fresh: Engine) -> None:
+def test_another_seed_gives_other_checksums(fresh: Engine) -> None:
     with fresh.begin() as connection:
         load(connection, generate(seed=43, employees=200), _users())
 
     with fresh.connect() as connection:
         assert employee_checksum(connection) != GOLDEN_200
+        assert history_checksum(connection) != GOLDEN_HISTORY_200
 
 
 def test_the_latest_salary_record_is_every_employees_current_salary(session: Session) -> None:
