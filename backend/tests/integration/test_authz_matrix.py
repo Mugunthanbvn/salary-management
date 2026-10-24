@@ -124,3 +124,11 @@ def test_the_guard_finds_a_route_missing_from_the_matrix(app: FastAPI) -> None:
         return None
 
     assert _routes_missing_from_the_matrix(app) == {("GET", "/api/v1/_test/unlisted")}
+
+
+def test_the_guard_finds_a_route_outside_the_api_prefix(app: FastAPI) -> None:
+    @app.get("/outside-the-api")
+    def outside() -> None:
+        return None
+
+    assert _routes_missing_from_the_matrix(app) == {("GET", "/outside-the-api")}
