@@ -6,6 +6,7 @@ import type { Me } from "@/lib/permissions";
 import { makeMe, VIEWER_PERMISSIONS } from "@/test/fixtures";
 
 import { AppShell } from "./app-shell";
+import { BrandBar } from "./brand-bar";
 
 const { getMe } = vi.hoisted(() => ({ getMe: vi.fn<() => Promise<Me>>() }));
 vi.mock("@/lib/api/me", () => ({ getMe }));
@@ -21,6 +22,27 @@ async function renderShell(me: Me) {
 }
 
 describe("AppShell", () => {
+  // viewport-fit=cover lets the page run under a notch; in landscape the notch is at the
+  // side. jsdom has no layout, so check the parts use the safe-area utilities (globals.css).
+  it("keeps the top bar, the page and the bottom bar clear of a side notch", async () => {
+    await renderShell(makeMe());
+
+    expect(screen.getByRole("banner").firstElementChild).toHaveClass(
+      "page-gutter",
+    );
+    expect(screen.getByRole("main")).toHaveClass("page-gutter");
+    const [, bottomBar] = screen.getAllByRole("navigation", { name: "Main" });
+    expect(bottomBar).toHaveClass("safe-x");
+  });
+
+  it("keeps the name-only top bar clear of a side notch", () => {
+    render(<BrandBar />);
+
+    expect(screen.getByRole("banner").firstElementChild).toHaveClass(
+      "page-gutter",
+    );
+  });
+
   it("shows the page in the main region under the signed-in person's navigation", async () => {
     await renderShell(makeMe());
 
