@@ -160,6 +160,19 @@ def test_every_employee_has_a_hire_record_and_the_latest_record_is_the_current_s
         assert (employee.job_role_id, employee.level) == (latest.job_role_id, latest.level)
 
 
+def test_no_salary_record_repeats_the_base_of_the_record_before_it() -> None:
+    dataset = _dataset(employees=1000)
+    previous: dict[int, int] = {}
+
+    repeats = 0
+    for record in dataset.salary_records:
+        if previous.get(record.employee_id) == record.base_minor:
+            repeats += 1
+        previous[record.employee_id] = record.base_minor
+
+    assert repeats == 0
+
+
 def test_a_record_total_is_its_base_plus_its_components() -> None:
     dataset = _dataset()
     components = defaultdict(int)

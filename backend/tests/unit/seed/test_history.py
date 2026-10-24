@@ -59,6 +59,21 @@ def test_history_starts_with_the_hire_and_ends_at_the_current_salary(
     assert [e.reason for e in entries].count(SalaryReason.HIRE) == 1
 
 
+@given(
+    seed=st.integers(min_value=0, max_value=10_000),
+    base_units=st.integers(min_value=20, max_value=80),
+)
+def test_every_salary_event_changes_the_base_by_at_least_one_unit(
+    seed: int, base_units: int
+) -> None:
+    entries = _history(seed, base=base_units * UNIT)
+
+    for before, after in pairwise(entries):
+        assert after.base_minor != before.base_minor
+        if after.reason != SalaryReason.CORRECTION:
+            assert after.base_minor > before.base_minor
+
+
 def test_raises_and_promotions_never_lower_pay() -> None:
     for seed in range(300):
         entries = _history(seed)
