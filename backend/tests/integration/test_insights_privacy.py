@@ -8,7 +8,7 @@ The rules live in the insights service, so the dashboard, exports and Ask all ge
 """
 
 from collections.abc import Callable
-from typing import Any
+from typing import Any, cast
 
 import pytest
 from fastapi.testclient import TestClient
@@ -18,6 +18,7 @@ from salary_api.core.permissions import Principal, Role
 from salary_api.modules.insights import service
 from salary_api.modules.insights.schemas import InsightQuery
 from tests.factories import make_employee, make_fx_rates
+from tests.integration.test_authz_matrix import MATRIX, Endpoint
 
 OVERVIEW = "/api/v1/insights/overview"
 
@@ -91,3 +92,57 @@ def test_the_service_applies_the_small_group_rule_itself(db_session: Session) ->
         None,
         True,
     )
+
+
+def test_viewer_never_sees_min_or_max_even_for_a_large_group(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    _employees(db_session, "DE", 30)
+
+    body = as_role("VIEWER").get(OVERVIEW).json()
+
+    for stats in (body["stats"], body["by_country"][0]["local"], body["by_country"][0]["usd"]):
+        assert (stats["count"], stats["min"], stats["max"]) == (30, None, None)
+        assert stats["median"] is not None
+
+
+def _extremes_in(body: object, path: str = "$") -> list[str]:
+    """Where a JSON body holds a non-null `min` or `max` of people's pay, at any depth.
+
+    A pay band's min and max are policy, not anyone's pay, so `band` objects are skipped.
+    """
+    found: list[str] = []
+    if isinstance(body, dict):
+        for key, value in cast(dict[str, object], body).items():
+            if key in ("min", "max") and value is not None:
+                found.append(f"{path}.{key}")
+            if key != "band":
+                found += _extremes_in(value, f"{path}.{key}")
+    elif isinstance(body, list):
+        for index, value in enumerate(cast(list[object], body)):
+            found += _extremes_in(value, f"{path}[{index}]")
+    return found
+
+
+INSIGHT_ROUTES = [row for row in MATRIX if row.path.startswith("/api/v1/insights")]
+
+
+@pytest.mark.parametrize(
+    "endpoint", [pytest.param(row, id=f"{row.method} {row.path}") for row in INSIGHT_ROUTES]
+)
+def test_viewer_never_receives_a_min_or_max_from_any_insight_endpoint(
+    as_role: Callable[[str], TestClient], db_session: Session, endpoint: Endpoint
+) -> None:
+    _employees(db_session, "DE", 6)
+    request = endpoint.prepare(db_session)
+    url = request.pop("url", endpoint.path)
+
+    response = as_role("VIEWER").request(endpoint.method, url, **request)
+
+    assert _extremes_in(response.json()) == []
+
+
+def test_the_extremes_scan_finds_a_min_or_max_but_not_a_band() -> None:
+    body = {"groups": [{"stats": {"min": 1, "max": None}, "band": {"min": 2, "max": 3}}]}
+
+    assert _extremes_in(body) == ["$.groups[0].stats.min"]
