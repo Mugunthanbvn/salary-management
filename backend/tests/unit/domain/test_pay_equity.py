@@ -144,3 +144,21 @@ def test_rollup_leaves_out_employees_without_a_compa_ratio() -> None:
     assert [(row.department_id, row.count, row.median_compa_ratio) for row in rollup] == [
         (1, 1, Decimal("1.00"))
     ]
+
+
+@pytest.mark.parametrize(
+    ("ratios", "below_threshold"),
+    [
+        (("0.90", "0.92", "0.94"), True),  # the seeded DE Customer Success gap
+        (("0.9499",), True),
+        (("0.95",), False),  # exactly 0.95 is not below
+        (("0.90", "1.00"), False),  # median 0.95
+        (("0.95", "1.00", "1.05"), False),
+    ],
+)
+def test_a_department_is_below_threshold_when_its_median_is_under_0_95(
+    ratios: tuple[str, ...], below_threshold: bool
+) -> None:
+    (row,) = department_rollup([paid_at(ratio) for ratio in ratios])
+
+    assert row.below_threshold is below_threshold
