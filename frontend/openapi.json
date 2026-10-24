@@ -27,10 +27,14 @@
         "description": "An annual allowance or bonus target, in the salary's currency.",
         "properties": {
           "amount_minor": {
+            "maximum": 999999999999999.0,
+            "minimum": 0.0,
             "title": "Amount Minor",
             "type": "integer"
           },
           "name": {
+            "maxLength": 60,
+            "minLength": 1,
             "title": "Name",
             "type": "string"
           },
@@ -155,16 +159,20 @@
         "additionalProperties": false,
         "properties": {
           "country_code": {
+            "pattern": "^[A-Z]{2}$",
             "title": "Country Code",
             "type": "string"
           },
           "email": {
+            "maxLength": 254,
+            "pattern": "^[^@\\s]+@[^@\\s]+$",
             "title": "Email",
             "type": "string"
           },
           "employee_code": {
             "anyOf": [
               {
+                "pattern": "^ACME-[0-9]{6}$",
                 "type": "string"
               },
               {
@@ -177,6 +185,8 @@
             "$ref": "#/components/schemas/EmploymentType"
           },
           "first_name": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "First Name",
             "type": "string"
           },
@@ -190,6 +200,8 @@
             "type": "integer"
           },
           "last_name": {
+            "maxLength": 100,
+            "minLength": 1,
             "title": "Last Name",
             "type": "string"
           },
@@ -429,6 +441,8 @@
         "description": "The first salary. `currency` may be left out: it is always the country's currency.",
         "properties": {
           "base_minor": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 999999999999999.0,
             "title": "Base Minor",
             "type": "integer"
           },
@@ -437,12 +451,14 @@
             "items": {
               "$ref": "#/components/schemas/ComponentIn"
             },
+            "maxItems": 20,
             "title": "Components",
             "type": "array"
           },
           "currency": {
             "anyOf": [
               {
+                "pattern": "^[A-Z]{3}$",
                 "type": "string"
               },
               {
@@ -454,6 +470,7 @@
           "note": {
             "anyOf": [
               {
+                "maxLength": 500,
                 "type": "string"
               },
               {

@@ -1,7 +1,12 @@
-from pydantic import BaseModel
+from typing import Annotated
+
+from pydantic import BaseModel, StringConstraints
 
 from salary_api.domain.enums import EmploymentType, Level, SalaryReason
 from salary_api.modules.reference.models import JobFamily
+
+CountryCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{2}$")]  # ISO 3166-1 alpha-2
+CurrencyCode = Annotated[str, StringConstraints(pattern=r"^[A-Z]{3}$")]  # ISO 4217
 
 
 class Country(BaseModel):

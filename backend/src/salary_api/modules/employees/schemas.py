@@ -5,11 +5,18 @@ from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from salary_api.core.schemas import Money
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level, SalaryReason
-from salary_api.modules.reference.schemas import Department, JobRoleRef
-from salary_api.modules.salaries.schemas import Component, ComponentIn
+from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, Department, JobRoleRef
+from salary_api.modules.salaries.schemas import BaseMinor, Component, Components, Note
 
+EmployeeCode = Annotated[str, StringConstraints(pattern=r"^ACME-[0-9]{6}$")]
+PersonName = Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=100)]
 # Stored trimmed and lowercased, so uniqueness ignores case (docs/06-data-model.md 4.5).
-WorkEmail = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True)]
+WorkEmail = Annotated[
+    str,
+    StringConstraints(
+        strip_whitespace=True, to_lower=True, max_length=254, pattern=r"^[^@\s]+@[^@\s]+$"
+    ),
+]
 
 
 class HireSalary(BaseModel):
@@ -17,23 +24,23 @@ class HireSalary(BaseModel):
 
     model_config = ConfigDict(extra="forbid")
 
-    currency: str | None = None
-    base_minor: int
-    components: list[ComponentIn] = []
-    note: str | None = None
+    currency: CurrencyCode | None = None
+    base_minor: BaseMinor
+    components: Components = []
+    note: Note | None = None
 
 
 class EmployeeCreate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    employee_code: str | None = None
-    first_name: str
-    last_name: str
+    employee_code: EmployeeCode | None = None  # generated when left out
+    first_name: PersonName
+    last_name: PersonName
     email: WorkEmail
     job_role_id: int
     level: Level
     employment_type: EmploymentType
-    country_code: str
+    country_code: CountryCode
     hire_date: date
     salary: HireSalary
 
