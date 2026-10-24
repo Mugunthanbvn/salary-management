@@ -250,3 +250,15 @@ def test_each_export_writes_an_export_download_event(
         "row_count": 1,
         "salary_included": False,
     }
+
+
+def test_a_name_with_a_control_character_still_exports_as_xlsx(
+    as_role: Callable[[str], TestClient], db_session: Session, frozen_time: time_machine.Traveller
+) -> None:
+    make_employee(db_session, first_name="Lena\x0bMarie")  # XML 1.0 cannot hold \x0b
+
+    response = as_role("VIEWER").get(EXPORT, params={"format": "xlsx"})
+
+    assert response.status_code == 200
+    sheet = load_workbook(io.BytesIO(response.content))["Employees"]
+    assert next(sheet.iter_rows(min_row=2, values_only=True))[1] == "LenaMarie"
