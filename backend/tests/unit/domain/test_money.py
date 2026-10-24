@@ -97,6 +97,30 @@ def test_from_major_rejects_text_that_is_not_a_finite_number(major: str | Decima
 
 
 @pytest.mark.parametrize(
+    "major",
+    [
+        "1_000",  # Python digit grouping, a thousands separator in disguise
+        "١٢٣.٤٥",  # Arabic-Indic digits for 123.45
+        "１２３",  # noqa: RUF001 (full-width digits for 123, ambiguous on purpose)
+        "1e3",
+        "1E+30",
+        " 12.50",
+        "12.50\n",
+        "12.",
+        ".5",
+    ],
+)
+def test_from_major_accepts_only_plain_ascii_decimal_text(major: str) -> None:
+    with pytest.raises(InvalidAmountError, match="not a number"):
+        Money.from_major(major, "USD")
+
+
+@pytest.mark.parametrize(("major", "amount_minor"), [("+12.50", 1250), ("-12.5", -1250)])
+def test_from_major_accepts_a_leading_sign(major: str, amount_minor: int) -> None:
+    assert Money.from_major(major, "USD") == Money(amount_minor, "USD")
+
+
+@pytest.mark.parametrize(
     ("major", "currency"),
     [
         ("10000000000000.00", "USD"),  # 10**15 cents: one past the cap
