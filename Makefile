@@ -38,10 +38,12 @@ setup: ## Install everything once after clone: uv sync, pnpm install, git hooks,
 
 dev: migrate ## Run the API (:8000) and the web app (:3000) on backend/dev.db; Ctrl-C stops both
 	@echo "API http://localhost:8000/api/v1/docs   web http://localhost:3000   (Ctrl-C stops both)"
-	@trap 'kill $$(jobs -p) 2>/dev/null || true' EXIT; \
+	@# Portable (bash 3.2, make 3.81): on Ctrl-C or exit, stop the whole process group.
+	@# The trap resets itself first, so its own SIGTERM does not run it again.
+	@trap 'trap - INT TERM EXIT; kill 0' INT TERM EXIT; \
 	  (cd $(BACKEND) && exec uv run uvicorn salary_api.main:app --reload --port 8000) & \
 	  ($(PNPM) dev) & \
-	  wait -n
+	  wait
 
 migrate: ## Apply database migrations (alembic upgrade head) to DATABASE_URL
 	cd $(BACKEND) && uv run alembic upgrade head
