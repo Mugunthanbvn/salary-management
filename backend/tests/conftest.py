@@ -7,9 +7,12 @@ import os
 from collections.abc import Iterator
 from contextlib import contextmanager
 from datetime import UTC, datetime
+from pathlib import Path
 
 import pytest
 import time_machine
+from alembic import command
+from alembic.config import Config
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from hypothesis import settings as hypothesis_settings
@@ -28,6 +31,15 @@ hypothesis_settings.register_profile("dev", max_examples=200, deadline=None)
 hypothesis_settings.load_profile(os.getenv("HYPOTHESIS_PROFILE", "dev"))
 
 FROZEN_NOW = datetime(2026, 10, 1, 9, 0, tzinfo=UTC)
+ALEMBIC_INI = Path(__file__).resolve().parents[1] / "alembic.ini"
+
+
+def upgrade_to_head(engine: Engine) -> None:
+    """Build the schema from the Alembic migrations, so every test run checks them."""
+    config = Config(ALEMBIC_INI)
+    with engine.begin() as connection:
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
 
 
 @contextmanager
@@ -54,8 +66,9 @@ def settings() -> Settings:
 
 @pytest.fixture(scope="session")
 def engine(settings: Settings) -> Iterator[Engine]:
-    """One in-memory database per test worker (StaticPool shares its single connection)."""
+    """One migrated in-memory database per test worker (StaticPool shares its connection)."""
     engine = create_db_engine(settings)
+    upgrade_to_head(engine)
     yield engine
     engine.dispose()
 

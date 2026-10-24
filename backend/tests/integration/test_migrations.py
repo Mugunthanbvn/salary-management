@@ -10,9 +10,8 @@ from alembic.migration import MigrationContext
 
 from salary_api.core.db import create_db_engine
 from salary_api.core.models import Base
+from tests.conftest import ALEMBIC_INI
 from tests.factories import make_settings
-
-ALEMBIC_INI = Path(__file__).resolve().parents[2] / "alembic.ini"
 
 
 def test_upgrade_head_on_an_empty_database_matches_the_models(
