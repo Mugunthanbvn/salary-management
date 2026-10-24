@@ -1,0 +1,109 @@
+# CI (docs/15-tooling-devex.md section 8, v1 jobs). Jobs call the same make targets as local work.
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+permissions:
+  contents: read
+
+concurrency:
+  group: ci-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TZ: UTC
+  LC_ALL: C.UTF-8
+  PYTHONHASHSEED: "0"
+  HYPOTHESIS_PROFILE: ci
+  APP_ENV: test
+  UV_LOCKED: "1" # every uv command must match backend/uv.lock
+
+jobs:
+  backend:
+    name: backend (ruff, pyright, pytest + coverage gate)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - name: Install dependencies
+        working-directory: backend
+        run: uv sync --locked
+      - name: Lint (ruff check, ruff format --check)
+        run: make lint-backend
+      - name: Type-check (pyright)
+        run: make typecheck-backend
+      - name: Test (pytest + 90 % gate on domain and services)
+        run: make test-backend
+
+  frontend:
+    name: frontend (eslint, prettier, tsc, vitest, next build)
+    runs-on: ubuntu-latest
+    env:
+      API_ORIGIN: http://localhost:8000
+    steps:
+      - uses: actions/checkout@v5
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json # pnpm version from packageManager
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        working-directory: frontend
+        run: pnpm install --frozen-lockfile
+      - name: Lint (eslint, prettier --check)
+        run: make lint-frontend
+      - name: Type-check (tsc)
+        run: make typecheck-frontend
+      - name: Test (vitest)
+        run: make test-frontend
+      - name: Build (next build)
+        run: make build-frontend
+
+  contract:
+    name: contract (OpenAPI client drift)
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v5
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: backend/uv.lock
+      - uses: pnpm/action-setup@v4
+        with:
+          package_json_file: frontend/package.json
+      - uses: actions/setup-node@v5
+        with:
+          node-version-file: .nvmrc
+          cache: pnpm
+          cache-dependency-path: frontend/pnpm-lock.yaml
+      - name: Install dependencies
+        run: |
+          (cd backend && uv sync --locked)
+          (cd frontend && pnpm install --frozen-lockfile)
+      - name: Regenerate the client and fail on any diff
+        run: make api-drift
+
+  security:
+    name: security (gitleaks, full history)
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      pull-requests: write # gitleaks comments on a PR when it finds a leak
+    steps:
+      - uses: actions/checkout@v5
+        with:
+          fetch-depth: 0
+      - uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+          # Needed only if the repository belongs to a GitHub organization.
+          GITLEAKS_LICENSE: ${{ secrets.GITLEAKS_LICENSE }}
