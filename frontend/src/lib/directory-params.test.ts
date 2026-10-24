@@ -6,6 +6,7 @@ import {
   loadDirectoryParams,
   salaryCurrency,
   serializeDirectory,
+  toExportQuery,
   toListQuery,
 } from "./directory-params";
 
@@ -173,5 +174,39 @@ describe("toListQuery", () => {
     const state = loadDirectoryParams("?sort=salary,-employee_code");
 
     expect(toListQuery(state, hr).sort).toBe("-employee_code");
+  });
+});
+
+describe("toExportQuery", () => {
+  it("exports exactly the list's filters and sort, without paging", () => {
+    const state = loadDirectoryParams(
+      "?q=müller&country=DE&salary_min=4000000&sort=-current_base&page=3&page_size=50",
+    );
+
+    expect(
+      toExportQuery(state, "xlsx", { canReadSalaries: true, reference }),
+    ).toEqual({
+      q: "müller",
+      country: ["DE"],
+      status: ["ACTIVE"],
+      salary_min: 4_000_000,
+      sort: "-current_base",
+      format: "xlsx",
+    });
+  });
+
+  it("leaves out what a viewer may not filter or sort by", () => {
+    const state = loadDirectoryParams(
+      "?country=DE&salary_min=4000000&comp=total&sort=-current_base,last_name",
+    );
+
+    expect(
+      toExportQuery(state, "csv", { canReadSalaries: false, reference }),
+    ).toEqual({
+      country: ["DE"],
+      status: ["ACTIVE"],
+      sort: "last_name",
+      format: "csv",
+    });
   });
 });
