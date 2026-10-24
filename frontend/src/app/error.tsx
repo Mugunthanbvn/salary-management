@@ -4,8 +4,9 @@ import { ErrorState } from "@/components/print";
 import { BrandBar } from "@/components/shell/brand-bar";
 
 /**
- * For errors outside a page, e.g. GET /auth/me failing (not a 401) while the shell loads,
- * so there is no navigation to show. Errors inside pages use (app)/error.tsx.
+ * For errors outside a page that nothing else shows, e.g. the API not answering at all while
+ * the shell loads (an API problem is shown by AppShell itself, with its request id).
+ * Errors inside pages use (app)/error.tsx.
  */
 export default function RootError({
   retry,

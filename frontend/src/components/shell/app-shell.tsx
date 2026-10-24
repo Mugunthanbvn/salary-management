@@ -1,9 +1,13 @@
 import type { ReactNode } from "react";
 
+import { ErrorState } from "@/components/print";
 import { getMe } from "@/lib/api/me";
+import { ProblemError } from "@/lib/api/problem";
+import type { Me } from "@/lib/permissions";
 
 import { AppHeader } from "./app-header";
 import { BottomNav } from "./bottom-nav";
+import { BrandBar } from "./brand-bar";
 import { MeProvider } from "./me-context";
 
 /**
@@ -12,7 +16,16 @@ import { MeProvider } from "./me-context";
  * bar, the page and the phone bottom bar. It reads cookies(), so render it in <Suspense>.
  */
 export async function AppShell({ children }: { children: ReactNode }) {
-  const me = await getMe();
+  let me: Me;
+  try {
+    me = await getMe();
+  } catch (error) {
+    // Rendered here, on the server: thrown, the problem would reach the browser as a
+    // generic message (production hides server error messages). Anything else, including
+    // the redirect to /login, carries on to Next and the root error page.
+    if (error instanceof ProblemError) return <ShellProblem problem={error} />;
+    throw error;
+  }
   return (
     <MeProvider me={me}>
       <a
@@ -31,5 +44,20 @@ export async function AppShell({ children }: { children: ReactNode }) {
       </main>
       <BottomNav />
     </MeProvider>
+  );
+}
+
+function ShellProblem({ problem }: { problem: ProblemError }) {
+  return (
+    <>
+      <BrandBar />
+      <main className="mx-auto max-w-[1280px] px-4 pt-8 pb-16 sm:px-8 sm:pt-12">
+        <ErrorState
+          title={problem.title}
+          detail={problem.detail}
+          requestId={problem.requestId}
+        />
+      </main>
+    </>
   );
 }
