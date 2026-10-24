@@ -1,7 +1,5 @@
 import type { NextConfig } from "next";
 
-import { API_ORIGIN } from "./src/lib/api/origin";
-
 const nextConfig: NextConfig = {
   cacheComponents: true,
   partialPrefetching: true,
@@ -17,10 +15,14 @@ const nextConfig: NextConfig = {
   async redirects() {
     return [{ source: "/", destination: "/insights", permanent: false }];
   },
-  // The only proxying in Next.js: the browser calls /api/... on this origin and Next.js
-  // forwards it unchanged to FastAPI (docs/17-deployment.md §3.4).
+  // Local development only: the browser calls /api/... on this origin and Next.js forwards it
+  // to uvicorn at API_ORIGIN. On Vercel, vercel.json routes /api to the backend service before
+  // Next.js sees the request, so no proxy is added (docs/17-deployment.md §3.4).
   async rewrites() {
-    return [{ source: "/api/:path*", destination: `${API_ORIGIN}/api/:path*` }];
+    const origin = process.env.API_ORIGIN;
+    return origin
+      ? [{ source: "/api/:path*", destination: `${origin}/api/:path*` }]
+      : [];
   },
 };
 

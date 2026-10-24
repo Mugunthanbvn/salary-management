@@ -22,17 +22,12 @@ describe("next.config rewrites", () => {
     ]);
   });
 
-  it("proxies /api to the local API on port 8000 when API_ORIGIN is not set", async () => {
+  it("adds no /api proxy when API_ORIGIN is not set (Vercel routes /api to the backend service)", async () => {
     vi.stubEnv("API_ORIGIN", undefined);
 
     const rewrites = await loadRewrites();
 
-    expect(rewrites).toEqual([
-      {
-        source: "/api/:path*",
-        destination: "http://localhost:8000/api/:path*",
-      },
-    ]);
+    expect(rewrites).toEqual([]);
   });
 });
 
