@@ -119,3 +119,27 @@ class ByJobTitle(BaseModel):
     currency: str
     split_by_level: bool
     groups: list[JobTitleStats]  # by title, then level
+
+
+class DepartmentCost(BaseModel):
+    """One department's pay bill: the sum of its people's amounts (docs/09 section 3.5)."""
+
+    department: Department
+    headcount: int | None
+    cost: Money | None  # in the response currency
+    cost_usd: Money | None  # each amount converted to USD, then summed
+    share_of_total: str | None  # cost / total, 4 decimals; null when either is hidden
+    suppressed: bool
+
+
+class DepartmentCosts(BaseModel):
+    """In local currency (with USD next to it) for one currency's countries, else in USD."""
+
+    population: Population
+    currency: str
+    fx_as_of: date | None
+    headcount: int | None
+    total: Money | None
+    total_usd: Money | None
+    suppressed: bool  # the whole population is under MIN_GROUP_SIZE for this caller
+    groups: list[DepartmentCost]  # by department name

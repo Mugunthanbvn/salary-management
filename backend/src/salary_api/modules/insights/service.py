@@ -24,6 +24,7 @@ from salary_api.domain.constants import MIN_GROUP_SIZE
 from salary_api.domain.currency import USD
 from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
 from salary_api.domain.money import Money as DomainMoney
+from salary_api.domain.rounding import round_share
 from salary_api.domain.stats import InsufficientData, Summary, summarize
 from salary_api.modules.employees.service import can_see_salaries
 from salary_api.modules.insights import repository
@@ -31,6 +32,8 @@ from salary_api.modules.insights.schemas import (
     ByDepartment,
     ByJobTitle,
     CountryStats,
+    DepartmentCost,
+    DepartmentCosts,
     DepartmentStats,
     InsightFilters,
     InsightQuery,
@@ -92,6 +95,54 @@ def by_department(session: Session, principal: Principal, query: InsightQuery) -
         fx_as_of=scope.convert.fx_as_of,
         groups=groups,
     )
+
+
+def department_cost(session: Session, principal: Principal, query: InsightQuery) -> DepartmentCosts:
+    """What each department's people are paid in total, and its share (docs/09 3.5)."""
+    scope = _scope(session, principal, query.country)
+    rows = repository.amounts_by_department(session, _where(query, query.country), query.comp)
+    departments = _groups(((id_, name), currency, amount) for id_, name, currency, amount in rows)
+    hidden = scope.audience.hidden_groups([department.count for department in departments])
+    headcount = sum(department.count for department in departments)
+    total_hidden = scope.audience.hides(headcount)
+    costs = [sum(scope.convert.all(scope.currency, d.members)) for d in departments]
+    costs_usd = [sum(scope.convert.all(USD, d.members)) for d in departments]
+    total = None if total_hidden or not departments else sum(costs)
+    total_usd = None if total_hidden or not departments else sum(costs_usd)
+    groups: list[DepartmentCost] = []
+    for index, department in enumerate(departments):
+        shown = index not in hidden
+        cost = costs[index] if shown else None
+        groups.append(
+            DepartmentCost(
+                department=Department(id=department.key[0], name=department.key[1]),
+                headcount=department.count if shown else None,
+                cost=_money_or_none(cost, scope.currency),
+                cost_usd=_money_or_none(costs_usd[index] if shown else None, USD),
+                share_of_total=_share(cost, total),
+                suppressed=not shown,
+            )
+        )
+    return DepartmentCosts(
+        population=_population(query, query.country, query.comp),
+        currency=scope.currency,
+        fx_as_of=scope.convert.fx_as_of,
+        headcount=None if total_hidden else headcount,
+        total=_money_or_none(total, scope.currency),
+        total_usd=_money_or_none(total_usd, USD),
+        suppressed=total_hidden,
+        groups=groups,
+    )
+
+
+def _share(part: int | None, whole: int | None) -> str | None:
+    """`part / whole` to four decimals, from values already suppressed for the caller.
+
+    If either side is hidden (None), so is the share: it would give the hidden value away.
+    """
+    if part is None or not whole:  # hidden, or nothing to share
+        return None
+    return str(round_share(Decimal(part) / Decimal(whole)))
 
 
 def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -> ByJobTitle:
@@ -334,6 +385,10 @@ def _stats(
 
 def _money(amount_minor: int, currency: str) -> Money:
     return Money(amount_minor=amount_minor, currency=currency)
+
+
+def _money_or_none(amount_minor: int | None, currency: str) -> Money | None:
+    return None if amount_minor is None else _money(amount_minor, currency)
 
 
 def _where(query: InsightFilters, countries: Sequence[str]) -> repository.PopulationFilter:

@@ -9,6 +9,7 @@ from salary_api.modules.insights import service
 from salary_api.modules.insights.schemas import (
     ByDepartment,
     ByJobTitle,
+    DepartmentCosts,
     InsightQuery,
     JobTitleQuery,
     Overview,
@@ -53,3 +54,15 @@ def by_job_title(
     query: Annotated[JobTitleQuery, Query()], principal: CanReadInsights, session: SessionDep
 ) -> ByJobTitle:
     return service.by_job_title(session, principal, query)
+
+
+@router.get(
+    "/department-cost",
+    response_model=DepartmentCosts,
+    responses=problem_responses(401, 403),
+    summary="Total pay per department and its share of the total",
+)
+def department_cost(
+    query: Annotated[InsightQuery, Query()], principal: CanReadInsights, session: SessionDep
+) -> DepartmentCosts:
+    return service.department_cost(session, principal, query)

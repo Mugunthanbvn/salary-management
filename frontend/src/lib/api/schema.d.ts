@@ -227,6 +227,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/department-cost": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Total pay per department and its share of the total */
+        get: operations["department_cost_api_v1_insights_department_cost_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insights/overview": {
         parameters: {
             query?: never;
@@ -378,6 +395,40 @@ export interface components {
             id: number;
             /** Name */
             name: string;
+        };
+        /**
+         * DepartmentCost
+         * @description One department's pay bill: the sum of its people's amounts (docs/09 section 3.5).
+         */
+        DepartmentCost: {
+            cost: components["schemas"]["Money"] | null;
+            cost_usd: components["schemas"]["Money"] | null;
+            department: components["schemas"]["Department"];
+            /** Headcount */
+            headcount: number | null;
+            /** Share Of Total */
+            share_of_total: string | null;
+            /** Suppressed */
+            suppressed: boolean;
+        };
+        /**
+         * DepartmentCosts
+         * @description In local currency (with USD next to it) for one currency's countries, else in USD.
+         */
+        DepartmentCosts: {
+            /** Currency */
+            currency: string;
+            /** Fx As Of */
+            fx_as_of: string | null;
+            /** Groups */
+            groups: components["schemas"]["DepartmentCost"][];
+            /** Headcount */
+            headcount: number | null;
+            population: components["schemas"]["Population"];
+            /** Suppressed */
+            suppressed: boolean;
+            total: components["schemas"]["Money"] | null;
+            total_usd: components["schemas"]["Money"] | null;
         };
         /** DepartmentStats */
         DepartmentStats: {
@@ -1949,6 +2000,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["ByJobTitle"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    department_cost_api_v1_insights_department_cost_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country?: string[];
+                comp?: components["schemas"]["Comp"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["DepartmentCosts"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */
