@@ -20,4 +20,10 @@ describe("formatMoney", () => {
 
     expect(text).toBe("€54,000");
   });
+
+  it("keeps every minor digit when asked to, for columns that must line up", () => {
+    const text = formatMoney(5_400_000, "EUR", { minorUnits: "always" });
+
+    expect(text).toBe("€54,000.00");
+  });
 });

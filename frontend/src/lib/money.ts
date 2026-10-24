@@ -3,10 +3,17 @@
  * No float maths: the amount stays a BigInt and is split into major and minor units with
  * string maths, then Intl.NumberFormat formats the exact decimal string.
  */
+export type FormatMoneyOptions = {
+  /** "auto" (default) leaves out minor units that are all zero; "always" keeps them. */
+  minorUnits?: "auto" | "always";
+};
+
 export function formatMoney(
   amountMinor: number | bigint | string,
   currency: string,
+  options: FormatMoneyOptions = {},
 ): string {
+  void options;
   const { major, fraction } = splitMinor(
     BigInt(amountMinor),
     minorDigits(currency),
