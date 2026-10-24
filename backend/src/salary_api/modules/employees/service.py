@@ -16,6 +16,7 @@ from salary_api.core.errors import (
     Duplicate,
     FieldError,
     Forbidden,
+    InvalidState,
     NotFound,
     ValidationFailed,
     VersionConflict,
@@ -168,7 +169,11 @@ def terminate_employee(
 ) -> EmployeeDetail:
     """Soft delete: the employee and their salary history stay (ADR 0013)."""
     employee = _get_version(session, employee_id, request.version)
+    _require_status(employee, EmployeeStatus.ACTIVE)
     termination_date = request.termination_date or _today()
+    if termination_date < employee.hire_date:
+        message = f"The termination date cannot be before the hire date ({employee.hire_date})."
+        raise ValidationFailed([_field_error(("termination_date",), "before_hire_date", message)])
     diff: dict[str, Any] = {
         "status": [employee.status, EmployeeStatus.TERMINATED],
         "termination_date": [None, termination_date.isoformat()],
@@ -194,6 +199,7 @@ def reactivate_employee(
     session: Session, principal: Principal, employee_id: int, request: ReactivateRequest
 ) -> EmployeeDetail:
     employee = _get_version(session, employee_id, request.version)
+    _require_status(employee, EmployeeStatus.TERMINATED)
     termination_date = employee.termination_date
     diff = {
         "status": [employee.status, EmployeeStatus.ACTIVE],
@@ -212,6 +218,11 @@ def reactivate_employee(
     )
     _commit_versioned(session, employee_id)
     return get_employee(session, principal, employee_id)
+
+
+def _require_status(employee: Employee, status: EmployeeStatus) -> None:
+    if employee.status != status:
+        raise InvalidState(f"Employee {employee.id} is {employee.status.lower()}.")
 
 
 def _get_version(session: Session, employee_id: int, version: int) -> Employee:
