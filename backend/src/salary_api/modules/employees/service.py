@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from salary_api.core.errors import Duplicate, FieldError, Forbidden, NotFound, ValidationFailed
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
-from salary_api.core.schemas import Money
+from salary_api.core.schemas import Comp, Money
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.search import employee_search_text, fold
 from salary_api.modules.audit.service import AuditAction, record_event
@@ -126,6 +126,7 @@ def list_employees(
         employment_types=query.employment_type,
         statuses=query.status,
         currencies=query.currency,
+        salary=_salary_range(query),
     )
     employees = repository.page(
         session,
@@ -143,6 +144,14 @@ def list_employees(
         page=query.page,
         page_size=query.page_size,
         total=repository.count(session, where),
+    )
+
+
+def _salary_range(query: EmployeeListQuery) -> repository.SalaryRange | None:
+    if query.salary_min is None and query.salary_max is None:
+        return None
+    return repository.SalaryRange(
+        comp=query.comp or Comp.BASE, minimum=query.salary_min, maximum=query.salary_max
     )
 
 

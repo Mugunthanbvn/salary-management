@@ -4,6 +4,7 @@ from dataclasses import dataclass
 from sqlalchemy import ColumnElement, Select, func, select
 from sqlalchemy.orm import QueryableAttribute, Session, contains_eager, joinedload
 
+from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import JobRole
@@ -67,6 +68,21 @@ class SortKey:
     descending: bool = False
 
 
+AMOUNT_COLUMNS: Mapping[Comp, QueryableAttribute[int]] = {
+    Comp.BASE: Employee.current_base_minor,
+    Comp.TOTAL: Employee.current_total_minor,
+}
+
+
+@dataclass(frozen=True, slots=True)
+class SalaryRange:
+    """Inclusive bounds in minor units, for rows the other filters keep to one currency."""
+
+    comp: Comp
+    minimum: int | None = None
+    maximum: int | None = None
+
+
 @dataclass(frozen=True, slots=True)
 class EmployeeFilter:
     """Which employees a list shows. An empty sequence means no condition on that field."""
@@ -79,6 +95,7 @@ class EmployeeFilter:
     employment_types: Sequence[EmploymentType] = ()
     statuses: Sequence[EmployeeStatus] = ()
     currencies: Sequence[str] = ()
+    salary: SalaryRange | None = None
 
 
 def page(
@@ -129,7 +146,17 @@ def _conditions(where: EmployeeFilter) -> list[ColumnElement[bool]]:
     if where.search:
         # LIKE '%term%' with % and _ in the term escaped, so they match themselves.
         candidates.append(Employee.search_text.contains(where.search, autoescape=True))
+    if where.salary is not None:
+        candidates += _within(where.salary)
     return [condition for condition in candidates if condition is not None]
+
+
+def _within(salary: SalaryRange) -> list[ColumnElement[bool] | None]:
+    column = AMOUNT_COLUMNS[salary.comp]
+    return [
+        None if salary.minimum is None else column >= salary.minimum,
+        None if salary.maximum is None else column <= salary.maximum,
+    ]
 
 
 def _any_of[T](column: QueryableAttribute[T], values: Sequence[T]) -> ColumnElement[bool] | None:
