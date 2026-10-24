@@ -164,7 +164,7 @@ describe("LoginForm", () => {
   ])(
     "says sign-in didn't work when $failure, and lets you retry",
     async ({ reply }) => {
-      server.use(http.post(LOGIN_URL, reply));
+      server.use(http.post<never, LoginRequest, Problem>(LOGIN_URL, reply));
 
       await signIn();
 
