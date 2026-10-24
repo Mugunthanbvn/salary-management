@@ -1,17 +1,20 @@
 "use client";
 
 import { parseAsInteger, useQueryState } from "nuqs";
-import { useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
 
+import { PageTitle } from "@/components/print";
 import { api } from "@/lib/api/client";
 import { toProblem } from "@/lib/api/problem";
 import type { components } from "@/lib/api/schema";
 import { formatCount } from "@/lib/numbers";
 
 import { DoneStep } from "./done-step";
+import { EndedStep } from "./ended-step";
 import {
   explainCommitProblem,
+  explainLoadProblem,
   explainUploadProblem,
   type CommitProblem,
   type Explained,
@@ -26,6 +29,11 @@ type UploadBody =
 const COULD_NOT_UPLOAD: Explained = {
   message: "Couldn't reach the server, so the file wasn't checked.",
   more: "Check your connection and try again.",
+};
+
+const COULD_NOT_LOAD: Explained = {
+  message: "Couldn't reach the server to open this check.",
+  more: "Check your connection, then reload the page.",
 };
 
 const COULD_NOT_COMMIT: Explained = {
@@ -51,6 +59,36 @@ export function ImportFlow() {
     null,
   );
   const [inserted, setInserted] = useState<number | null>(null);
+
+  // A `?job=` the page doesn't hold yet (a refresh, a shared link): ask the API for it.
+  const missing = job !== null && report?.id !== job ? job : null;
+  useEffect(() => {
+    if (missing === null) return;
+    let current = true;
+    void (async () => {
+      let problem: Explained;
+      try {
+        const { data, error, response } = await api.GET(
+          "/api/v1/imports/{import_id}",
+          { params: { path: { import_id: missing } } },
+        );
+        if (!current) return;
+        if (data) {
+          setReport(data);
+          return;
+        }
+        problem = explainLoadProblem(await toProblem(response, error));
+      } catch {
+        problem = COULD_NOT_LOAD;
+      }
+      if (!current) return;
+      setUploadError(problem);
+      void setJob(null);
+    })();
+    return () => {
+      current = false;
+    };
+  }, [missing, setJob]);
 
   async function upload(file: File) {
     setUploading(file.name);
@@ -107,6 +145,7 @@ export function ImportFlow() {
   }
 
   const shown = report && report.id === job ? report : null;
+  if (missing !== null) return <OpeningCheck />;
   if (shown && inserted !== null) {
     return (
       <DoneStep
@@ -115,6 +154,9 @@ export function ImportFlow() {
         onImportAnother={uploadAgain}
       />
     );
+  }
+  if (shown && shown.status !== "DRY_RUN") {
+    return <EndedStep report={shown} onUploadAgain={uploadAgain} />;
   }
   if (shown) {
     return (
@@ -133,5 +175,13 @@ export function ImportFlow() {
       error={uploadError}
       onFile={(file) => void upload(file)}
     />
+  );
+}
+
+function OpeningCheck() {
+  return (
+    <div aria-busy="true">
+      <PageTitle title="Opening the check…" />
+    </div>
   );
 }

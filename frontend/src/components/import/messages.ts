@@ -76,7 +76,7 @@ export function explainCommitProblem(problem: ProblemError): CommitProblem {
   if (problem.status === 404) {
     return {
       ...final,
-      message: "This check was not found. Upload the file again.",
+      message: NOT_FOUND,
     };
   }
   return {
@@ -84,6 +84,15 @@ export function explainCommitProblem(problem: ProblemError): CommitProblem {
     ...final,
     retry: true,
   };
+}
+
+const NOT_FOUND = "This check was not found. Upload the file again.";
+
+/** Why GET /imports/{id} (a `?job=` link) can't show the check. */
+export function explainLoadProblem(problem: ProblemError): Explained {
+  // 404 also covers someone else's check: only its creator (or USER_ADMIN) may see it.
+  if (problem.status === 404) return { message: NOT_FOUND };
+  return fallback("Couldn't open this check.", problem);
 }
 
 /** "The columns don't match the template. Unknown column 'emial'." */
