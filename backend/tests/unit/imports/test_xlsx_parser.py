@@ -164,3 +164,20 @@ def test_a_workbook_with_a_damaged_sheet_entry_is_refused() -> None:
 
     with pytest.raises(UnreadableFile, match="not an Excel workbook"):
         _parse(bytes(content))
+
+
+def test_a_row_far_below_the_last_one_is_refused_as_too_many_rows_at_once() -> None:
+    content = xlsx_bytes([FULL_HEADER, _employee()])
+    far = '<row r="1048576"><c r="A1048576" t="inlineStr"><is><t>x</t></is></c></row>'
+    content = replace_in_sheets(content, "</sheetData>", far + "</sheetData>")
+
+    with pytest.raises(TooManyRows):
+        _parse(content, max_rows=10)
+
+
+def test_an_array_formula_without_a_saved_value_is_refused_with_its_cell() -> None:
+    content = xlsx_bytes([FULL_HEADER, _employee(bonus_target="=1000+160")])
+    content = replace_in_sheets(content, "<f>1000+160</f>", '<f t="array" ref="L2">1000+160</f>')
+
+    with pytest.raises(UnreadableFile, match="Cell L2 has a formula without a saved value"):
+        _parse(content)

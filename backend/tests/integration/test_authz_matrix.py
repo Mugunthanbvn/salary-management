@@ -120,6 +120,17 @@ def _salary_history(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{make_employee(session).id}/salary-history"}
 
 
+def _in_germany(session: Session) -> dict[str, Any]:
+    make_country(session, "DE")
+    return {"params": {"country": "DE"}}
+
+
+def _a_cohort(session: Session) -> dict[str, Any]:
+    role = make_job_role(session)
+    make_country(session, "DE")
+    return {"params": {"job_role_id": role.id, "level": "L3", "country": "DE"}}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -140,6 +151,15 @@ MATRIX = [
     Endpoint("POST", "/api/v1/imports", (401, 403, 201, 201), _import_file),
     Endpoint("GET", IMPORT, (401, 403, 404, 200), _someone_elses_import),
     Endpoint("POST", f"{IMPORT}/commit", (401, 403, 404, 200), _someone_elses_import_commit),
+    Endpoint("GET", "/api/v1/insights/overview", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/by-department", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/by-job-title", (401, 200, 200, 200), _in_germany),
+    Endpoint("GET", "/api/v1/insights/department-cost", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/top-earners", (401, 403, 200, 200), _in_germany),
+    Endpoint("GET", "/api/v1/insights/pay-equity", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/pay-equity/cohort", (401, 403, 200, 200), _a_cohort),
+    Endpoint("GET", "/api/v1/pay-bands", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/fx-rates", (401, 200, 200, 200)),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

@@ -23,16 +23,32 @@ def in_chunks[T](values: Sequence[T], size: int = BULK_CHUNK_SIZE) -> Iterator[S
 
 
 def create_db_engine(settings: Settings) -> Engine:
-    url = make_url(settings.database_url)
+    token = settings.database_auth_token
+    return create_engine_for_url(
+        settings.database_url,
+        auth_token=token.get_secret_value() if token else None,
+        serverless=settings.app_env == "production",
+    )
+
+
+def create_engine_for_url(
+    database_url: str, *, auth_token: str | None = None, serverless: bool = False
+) -> Engine:
+    """The engine `create_db_engine` makes, from a URL rather than the API's Settings.
+
+    For tools such as the seed, which may target a database the API itself would refuse
+    (a local SQLite file built for production). `serverless` turns pooling off.
+    """
+    url = make_url(database_url)
     connect_args: dict[str, Any] = {}
     if _is_in_memory_sqlite(url):
         connect_args["check_same_thread"] = False
-    if settings.database_auth_token and settings.database_auth_token.get_secret_value():
+    if auth_token:
         # Turso: the token goes to the driver, never into the URL or the logs.
-        connect_args["auth_token"] = settings.database_auth_token.get_secret_value()
+        connect_args["auth_token"] = auth_token
     engine = create_engine(
         url,
-        poolclass=_pool_class(settings, url),
+        poolclass=_pool_class(url, serverless=serverless),
         connect_args=connect_args,
         hide_parameters=True,  # bound values (salaries, emails) never reach errors or logs
     )
@@ -83,8 +99,8 @@ def _set_sqlite_foreign_keys(connection: Connection, *, enabled: bool) -> None:
         connection.commit()
 
 
-def _pool_class(settings: Settings, url: URL) -> type[Pool] | None:
-    if settings.app_env == "production":
+def _pool_class(url: URL, *, serverless: bool) -> type[Pool] | None:
+    if serverless:
         return NullPool  # serverless: a pool does not survive between invocations
     if _is_in_memory_sqlite(url):
         return StaticPool  # one shared connection, so every session sees the same database

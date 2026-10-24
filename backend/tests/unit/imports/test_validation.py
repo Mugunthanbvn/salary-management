@@ -18,6 +18,7 @@ from salary_api.modules.imports.validation import (
     KnownJobRole,
     RowError,
     RowErrorCode,
+    allowed_values,
     mark_db_duplicates,
     validate_rows,
 )
@@ -119,9 +120,6 @@ def test_the_currency_and_salary_date_default_to_the_country_and_hire_date() -> 
     )
 
 
-ROLES = "Customer Success Manager, Software Engineer"
-
-
 @pytest.mark.parametrize(
     ("cells", "column", "code", "message"),
     [
@@ -138,13 +136,13 @@ ROLES = "Customer Success Manager, Software Engineer"
             {"job_role": "Sr Engineer"},
             "job_role",
             "unknown_value",
-            f"Did you mean 'Software Engineer'? Job roles: {ROLES}.",
+            "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'?",
         ),
-        ({"job_role": "Chef"}, "job_role", "unknown_value", f"Job roles: {ROLES}."),
-        ({"level": "L7"}, "level", "unknown_value", "L1, L2, L3, L4, L5, L6"),
-        ({"employment_type": "INTERN"}, "employment_type", "unknown_value", "FULL_TIME, PART"),
-        ({"country": "XX"}, "country", "unknown_value", "Countries: DE, IN, JP."),
-        ({"country": "GB"}, "country", "unknown_value", "Countries: DE, IN, JP."),
+        ({"job_role": "Chef"}, "job_role", "unknown_value", "'Chef' is not a known job role."),
+        ({"level": "L7"}, "level", "unknown_value", "'L7' is not a known level."),
+        ({"employment_type": "INTERN"}, "employment_type", "unknown_value", "employment type"),
+        ({"country": "XX"}, "country", "unknown_value", "not a country ACME employs"),
+        ({"country": "GB"}, "country", "unknown_value", "not a country ACME employs"),
         ({"hire_date": "03/04/2022"}, "hire_date", "invalid_format", "YYYY-MM-DD"),
         ({"hire_date": "2022-02-30"}, "hire_date", "invalid_format", "YYYY-MM-DD"),
         ({"hire_date": "2026-10-02"}, "hire_date", "future_date", "cannot be in the future"),
@@ -155,6 +153,12 @@ ROLES = "Customer Success Manager, Software Engineer"
         ({"base_salary": "€52000"}, "base_salary", "invalid_format", "like 52000.00"),
         ({"base_salary": "1e5"}, "base_salary", "invalid_format", "like 52000.00"),
         ({"base_salary": "0"}, "base_salary", "invalid_format", "more than 0"),
+        (
+            {"base_salary": "10000000000000"},
+            "base_salary",
+            "invalid_format",
+            "at most 999,999,999,999,999 minor units",
+        ),
         ({"base_salary": "-5"}, "base_salary", "invalid_format", "more than 0"),
         ({"base_salary": "52000.555"}, "base_salary", "too_many_decimals", "at most 2 decimals"),
         (
@@ -318,3 +322,23 @@ def test_a_row_without_a_country_reports_the_country_and_an_unknown_currency() -
         ("country", RowErrorCode.REQUIRED),
         ("currency", RowErrorCode.UNKNOWN_VALUE),
     ]
+
+
+def test_unknown_value_messages_leave_the_allowed_values_to_the_report() -> None:
+    _, errors = _validate(_raw(level="L7", country="XX", job_role="Chef"))
+
+    assert all("Use one of" not in e.message and "," not in e.message for e in errors)
+    assert allowed_values(errors, REFERENCE) == {
+        "job_role": ["Customer Success Manager", "Software Engineer"],
+        "level": ["L1", "L2", "L3", "L4", "L5", "L6"],
+        "country": ["DE", "IN", "JP"],
+    }
+
+
+def test_the_allowed_values_of_types_and_currencies_are_listed_too() -> None:
+    _, errors = _validate(_raw(employment_type="INTERN", country=None, currency="XYZ"))
+
+    listed = allowed_values(errors, REFERENCE)
+
+    assert listed["employment_type"] == ["FULL_TIME", "PART_TIME", "CONTRACTOR"]
+    assert listed["currency"][:2] == ["AUD", "BRL"]

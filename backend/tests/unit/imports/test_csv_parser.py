@@ -174,3 +174,17 @@ def test_more_rows_than_the_cap_are_refused_but_blank_rows_do_not_count() -> Non
         parse_csv(_csv(HEADER, ROW, ROW, ROW), max_rows=2)
 
     assert raised.value.limit == 2
+
+
+def test_a_header_with_more_than_50_columns_is_refused_at_once() -> None:
+    header = ",".join(f"extra_{n}" for n in range(100_000))  # was quadratic: ~110 s
+
+    with pytest.raises(HeaderMismatch, match="at most 50 columns"):
+        parse_csv(_csv(header, ROW), max_rows=10)
+
+
+def test_many_blank_lines_are_refused_as_too_many_rows_without_reading_them_all() -> None:
+    content = _csv(HEADER, ROW) + b"\r\n" * 2_000_000
+
+    with pytest.raises(TooManyRows):
+        parse_csv(content, max_rows=10)

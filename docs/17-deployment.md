@@ -116,17 +116,20 @@ Migrations and seeding **never run inside a serverless function**: they are one-
 
 ### 6.1 Initial load (fast path)
 
-Inserting ~10k employees + ~30k salary records + ~40k components row-by-row over the network is slow. Instead:
+Inserting ~10k employees + ~24k salary records + ~40k components row-by-row over the network is slow. Instead:
 
 ```bash
-make seed-turso
-#   1. DATABASE_URL=sqlite:///./build/seed.db  alembic upgrade head
-#   2. python -m salary_api.seed --seed 42 --employees 10000 --reset   (into build/seed.db)
-#   3. prints the next command:
-turso db create salary-prod --from-file ./build/seed.db --location <region>
+SEED_ADMIN_PASSWORD=... SEED_HR_PASSWORD=... SEED_VIEWER_PASSWORD=... make seed-turso
+#   1. deletes any old build/seed.db
+#   2. APP_ENV=production python -m salary_api.seed --seed 42 --employees 10000 \
+#        --db-url sqlite:///../build/seed.db
+#      (runs alembic upgrade head on the new file, seeds it, folds the WAL into the file;
+#       refuses default or missing demo passwords)
+#   3. prints the next command, and never runs it:
+turso db create salary-prod --from-file build/seed.db
 ```
 
-The production database is then **byte-for-byte the deterministic seed**, already at the latest Alembic revision.
+Add `--location <region>` if the deploy spike showed it is needed. The production database is then **the deterministic seed** (only the demo users' password hashes differ between builds), already at the latest Alembic revision.
 
 ### 6.2 Subsequent schema changes
 

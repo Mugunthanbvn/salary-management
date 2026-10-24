@@ -1,6 +1,35 @@
 {
   "components": {
     "schemas": {
+      "Band": {
+        "description": "A pay band in minor units of `currency`. Policy, not anyone's pay: never hidden.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "mid": {
+            "title": "Mid",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "min",
+          "mid",
+          "max",
+          "currency"
+        ],
+        "title": "Band",
+        "type": "object"
+      },
       "Body_upload_import_api_v1_imports_post": {
         "properties": {
           "file": {
@@ -14,6 +43,76 @@
           "file"
         ],
         "title": "Body_upload_import_api_v1_imports_post",
+        "type": "object"
+      },
+      "ByDepartment": {
+        "description": "docs/09 section 3.2: in local currency for one currency's countries, else in USD.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fx_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx As Of"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentStats"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          }
+        },
+        "required": [
+          "population",
+          "currency",
+          "fx_as_of",
+          "groups"
+        ],
+        "title": "ByDepartment",
+        "type": "object"
+      },
+      "ByJobTitle": {
+        "description": "docs/09 section 3.3: always in the country's currency.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/JobTitleStats"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "split_by_level": {
+            "title": "Split By Level",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "population",
+          "currency",
+          "split_by_level",
+          "groups"
+        ],
+        "title": "ByJobTitle",
         "type": "object"
       },
       "ChangedBy": {
@@ -32,6 +131,209 @@
           "full_name"
         ],
         "title": "ChangedBy",
+        "type": "object"
+      },
+      "CohortEquity": {
+        "description": "One job role + level + country against its band. Ratios are 2-decimal strings.",
+        "properties": {
+          "band": {
+            "$ref": "#/components/schemas/Band"
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "median_compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Compa Ratio"
+          },
+          "overpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overpaid Count"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "underpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underpaid Count"
+          }
+        },
+        "required": [
+          "job_role",
+          "level",
+          "country_code",
+          "department",
+          "stats",
+          "band",
+          "median_compa_ratio",
+          "underpaid_count",
+          "overpaid_count",
+          "suppressed"
+        ],
+        "title": "CohortEquity",
+        "type": "object"
+      },
+      "CohortMember": {
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compa Ratio"
+          },
+          "employee_code": {
+            "title": "Employee Code",
+            "type": "string"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "integer"
+          },
+          "employment_type": {
+            "$ref": "#/components/schemas/EmploymentType"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "flag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PayEquityFlag"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "no_compa_ratio_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoCompaRatioReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "employee_id",
+          "employee_code",
+          "first_name",
+          "last_name",
+          "employment_type",
+          "base",
+          "compa_ratio",
+          "flag",
+          "no_compa_ratio_reason"
+        ],
+        "title": "CohortMember",
+        "type": "object"
+      },
+      "CohortMembers": {
+        "description": "One cohort's people against its band (docs/07 8.11). SALARY_READ only; audited.",
+        "properties": {
+          "band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Band"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CohortMember"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          }
+        },
+        "required": [
+          "population",
+          "job_role",
+          "level",
+          "country_code",
+          "department",
+          "currency",
+          "band",
+          "thresholds",
+          "members"
+        ],
+        "title": "CohortMembers",
         "type": "object"
       },
       "Comp": {
@@ -129,6 +431,28 @@
         "title": "Country",
         "type": "object"
       },
+      "CountryStats": {
+        "description": "One country: in its own currency, and with each salary converted to USD.",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "local": {
+            "$ref": "#/components/schemas/Stats"
+          },
+          "usd": {
+            "$ref": "#/components/schemas/Stats"
+          }
+        },
+        "required": [
+          "country_code",
+          "local",
+          "usd"
+        ],
+        "title": "CountryStats",
+        "type": "object"
+      },
       "CurrencyOption": {
         "properties": {
           "code": {
@@ -195,6 +519,318 @@
           "name"
         ],
         "title": "Department",
+        "type": "object"
+      },
+      "DepartmentCost": {
+        "description": "One department's pay bill: the sum of its people's amounts (docs/09 section 3.5).",
+        "properties": {
+          "cost": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "cost_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "headcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headcount"
+          },
+          "share_of_total": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Share Of Total"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "department",
+          "headcount",
+          "cost",
+          "cost_usd",
+          "share_of_total",
+          "suppressed"
+        ],
+        "title": "DepartmentCost",
+        "type": "object"
+      },
+      "DepartmentCosts": {
+        "description": "In local currency (with USD next to it) for one currency's countries, else in USD.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fx_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx As Of"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentCost"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "headcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headcount"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "total": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "total_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "population",
+          "currency",
+          "fx_as_of",
+          "headcount",
+          "total",
+          "total_usd",
+          "suppressed",
+          "groups"
+        ],
+        "title": "DepartmentCosts",
+        "type": "object"
+      },
+      "DepartmentEquity": {
+        "description": "One department in one country: is the team as a whole paid below its bands?",
+        "properties": {
+          "below_threshold": {
+            "anyOf": [
+              {
+                "type": "boolean"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Below Threshold"
+          },
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "mean_compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean Compa Ratio"
+          },
+          "median_compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median Compa Ratio"
+          },
+          "overpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Overpaid Count"
+          },
+          "pct_below_band": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Pct Below Band"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          },
+          "underpaid_count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Underpaid Count"
+          }
+        },
+        "required": [
+          "department",
+          "count",
+          "median_compa_ratio",
+          "mean_compa_ratio",
+          "pct_below_band",
+          "underpaid_count",
+          "overpaid_count",
+          "below_threshold",
+          "suppressed"
+        ],
+        "title": "DepartmentEquity",
+        "type": "object"
+      },
+      "DepartmentStats": {
+        "properties": {
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          }
+        },
+        "required": [
+          "department",
+          "stats"
+        ],
+        "title": "DepartmentStats",
+        "type": "object"
+      },
+      "Direction": {
+        "enum": [
+          "top",
+          "bottom"
+        ],
+        "title": "Direction",
+        "type": "string"
+      },
+      "Earner": {
+        "properties": {
+          "amount": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "employee_code": {
+            "title": "Employee Code",
+            "type": "string"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "integer"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          }
+        },
+        "required": [
+          "employee_id",
+          "employee_code",
+          "first_name",
+          "last_name",
+          "job_role",
+          "level",
+          "department",
+          "amount"
+        ],
+        "title": "Earner",
         "type": "object"
       },
       "EmployeeCreate": {
@@ -644,6 +1280,51 @@
         "title": "FileFormat",
         "type": "string"
       },
+      "FxRateItem": {
+        "properties": {
+          "as_of": {
+            "format": "date",
+            "title": "As Of",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "rate_to_usd": {
+            "title": "Rate To Usd",
+            "type": "string"
+          },
+          "source": {
+            "title": "Source",
+            "type": "string"
+          }
+        },
+        "required": [
+          "currency",
+          "rate_to_usd",
+          "as_of",
+          "source"
+        ],
+        "title": "FxRateItem",
+        "type": "object"
+      },
+      "FxRates": {
+        "properties": {
+          "rates": {
+            "items": {
+              "$ref": "#/components/schemas/FxRateItem"
+            },
+            "title": "Rates",
+            "type": "array"
+          }
+        },
+        "required": [
+          "rates"
+        ],
+        "title": "FxRates",
+        "type": "object"
+      },
       "HealthResponse": {
         "properties": {
           "db": {
@@ -753,8 +1434,18 @@
         "type": "string"
       },
       "ImportJobReport": {
-        "description": "A dry-run report. `valid_count` rows have no error; `error_count` counts the entries\nof `errors` (one row can have several). Only a DRY_RUN job without errors can be\ncommitted, until `expires_at`.",
+        "description": "A dry-run report. `valid_count` rows have no error; `error_count` counts every error\n(one row can have several), of which `errors` lists the first 500. Only a DRY_RUN job\nwithout errors can be committed, until `expires_at`.",
         "properties": {
+          "allowed_values": {
+            "additionalProperties": {
+              "items": {
+                "type": "string"
+              },
+              "type": "array"
+            },
+            "title": "Allowed Values",
+            "type": "object"
+          },
           "committed_at": {
             "anyOf": [
               {
@@ -782,6 +1473,10 @@
             },
             "title": "Errors",
             "type": "array"
+          },
+          "errors_truncated": {
+            "title": "Errors Truncated",
+            "type": "boolean"
           },
           "expires_at": {
             "format": "date-time",
@@ -827,6 +1522,8 @@
           "valid_count",
           "error_count",
           "errors",
+          "errors_truncated",
+          "allowed_values",
           "preview",
           "created_at",
           "expires_at",
@@ -1026,6 +1723,33 @@
         "title": "JobRoleRef",
         "type": "object"
       },
+      "JobTitleStats": {
+        "properties": {
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Level"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          }
+        },
+        "required": [
+          "job_role",
+          "level",
+          "stats"
+        ],
+        "title": "JobTitleStats",
+        "type": "object"
+      },
       "Level": {
         "description": "Job level: L1 Associate, L2 Mid, L3 Senior, L4 Lead/Staff, L5 Principal, L6 Director.",
         "enum": [
@@ -1143,6 +1867,311 @@
         "title": "Money",
         "type": "object"
       },
+      "NoCompaRatioReason": {
+        "description": "Why an employee has no compa-ratio.",
+        "enum": [
+          "not_full_time",
+          "no_band"
+        ],
+        "title": "NoCompaRatioReason",
+        "type": "string"
+      },
+      "Overview": {
+        "description": "docs/09 section 3.1. `stats` is in `currency`: the population's one currency, else USD.",
+        "properties": {
+          "by_country": {
+            "items": {
+              "$ref": "#/components/schemas/CountryStats"
+            },
+            "title": "By Country",
+            "type": "array"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "fx_as_of": {
+            "anyOf": [
+              {
+                "format": "date",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Fx As Of"
+          },
+          "headcount": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Headcount"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          },
+          "total_payroll_usd": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Money"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "population",
+          "currency",
+          "fx_as_of",
+          "headcount",
+          "total_payroll_usd",
+          "stats",
+          "by_country"
+        ],
+        "title": "Overview",
+        "type": "object"
+      },
+      "PayBandItem": {
+        "description": "The band in force for a job role + level + country, in minor units of `currency`.",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "effective_from": {
+            "format": "date",
+            "title": "Effective From",
+            "type": "string"
+          },
+          "job_role_id": {
+            "title": "Job Role Id",
+            "type": "integer"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "max": {
+            "title": "Max",
+            "type": "integer"
+          },
+          "mid": {
+            "title": "Mid",
+            "type": "integer"
+          },
+          "min": {
+            "title": "Min",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "job_role_id",
+          "level",
+          "country_code",
+          "currency",
+          "min",
+          "mid",
+          "max",
+          "effective_from"
+        ],
+        "title": "PayBandItem",
+        "type": "object"
+      },
+      "PayBands": {
+        "properties": {
+          "bands": {
+            "items": {
+              "$ref": "#/components/schemas/PayBandItem"
+            },
+            "title": "Bands",
+            "type": "array"
+          }
+        },
+        "required": [
+          "bands"
+        ],
+        "title": "PayBands",
+        "type": "object"
+      },
+      "PayEquityCohorts": {
+        "properties": {
+          "cohorts": {
+            "items": {
+              "$ref": "#/components/schemas/CohortEquity"
+            },
+            "title": "Cohorts",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PayEquitySummary"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "view": {
+            "const": "cohorts",
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "view",
+          "population",
+          "thresholds",
+          "cohorts",
+          "summary"
+        ],
+        "title": "PayEquityCohorts",
+        "type": "object"
+      },
+      "PayEquityDepartments": {
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/DepartmentEquity"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "summary": {
+            "$ref": "#/components/schemas/PayEquitySummary"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          },
+          "view": {
+            "const": "departments",
+            "title": "View",
+            "type": "string"
+          }
+        },
+        "required": [
+          "view",
+          "population",
+          "country_code",
+          "thresholds",
+          "groups",
+          "summary"
+        ],
+        "title": "PayEquityDepartments",
+        "type": "object"
+      },
+      "PayEquityFlag": {
+        "description": "Compa-ratio against the band: < 0.80, 0.80 to 1.20 inclusive, > 1.20.",
+        "enum": [
+          "UNDERPAID",
+          "IN_BAND",
+          "OVERPAID"
+        ],
+        "title": "PayEquityFlag",
+        "type": "string"
+      },
+      "PayEquitySummary": {
+        "description": "Who was evaluated, who was left out and why, and who was flagged.\n\nFor a caller without SALARY_READ, all counts are null when fewer than 5 were evaluated.",
+        "properties": {
+          "employees_evaluated": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Evaluated"
+          },
+          "employees_flagged_overpaid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Flagged Overpaid"
+          },
+          "employees_flagged_underpaid": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Flagged Underpaid"
+          },
+          "employees_not_full_time": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Not Full Time"
+          },
+          "employees_without_band": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Employees Without Band"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "employees_evaluated",
+          "employees_without_band",
+          "employees_not_full_time",
+          "employees_flagged_underpaid",
+          "employees_flagged_overpaid",
+          "suppressed"
+        ],
+        "title": "PayEquitySummary",
+        "type": "object"
+      },
+      "PayEquityView": {
+        "enum": [
+          "cohorts",
+          "departments"
+        ],
+        "title": "PayEquityView",
+        "type": "string"
+      },
       "Permission": {
         "enum": [
           "EMPLOYEE_READ",
@@ -1160,6 +2189,67 @@
         ],
         "title": "Permission",
         "type": "string"
+      },
+      "Population": {
+        "description": "The filters actually applied. An empty list means no condition on that field.",
+        "properties": {
+          "comp": {
+            "$ref": "#/components/schemas/Comp"
+          },
+          "country": {
+            "items": {
+              "type": "string"
+            },
+            "title": "Country",
+            "type": "array"
+          },
+          "department_id": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Department Id",
+            "type": "array"
+          },
+          "employment_type": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "title": "Employment Type",
+            "type": "array"
+          },
+          "job_role_id": {
+            "items": {
+              "type": "integer"
+            },
+            "title": "Job Role Id",
+            "type": "array"
+          },
+          "level": {
+            "items": {
+              "$ref": "#/components/schemas/Level"
+            },
+            "title": "Level",
+            "type": "array"
+          },
+          "status": {
+            "items": {
+              "$ref": "#/components/schemas/EmployeeStatus"
+            },
+            "title": "Status",
+            "type": "array"
+          }
+        },
+        "required": [
+          "country",
+          "department_id",
+          "job_role_id",
+          "level",
+          "employment_type",
+          "status",
+          "comp"
+        ],
+        "title": "Population",
+        "type": "object"
       },
       "Problem": {
         "additionalProperties": true,
@@ -1593,6 +2683,109 @@
         "title": "SessionUser",
         "type": "object"
       },
+      "Stats": {
+        "description": "One group's statistics in minor units of `currency` (docs/07 section 8.2).\n\nPercentiles interpolate linearly; mean and percentiles are rounded half-even.",
+        "properties": {
+          "count": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Count"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "max": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Max"
+          },
+          "mean": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Mean"
+          },
+          "median": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Median"
+          },
+          "min": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Min"
+          },
+          "p25": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P25"
+          },
+          "p75": {
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "P75"
+          },
+          "suppressed": {
+            "title": "Suppressed",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "count",
+          "min",
+          "p25",
+          "median",
+          "mean",
+          "p75",
+          "max",
+          "currency",
+          "suppressed"
+        ],
+        "title": "Stats",
+        "type": "object"
+      },
       "TerminateRequest": {
         "additionalProperties": false,
         "properties": {
@@ -1630,6 +2823,70 @@
           "version"
         ],
         "title": "TerminateRequest",
+        "type": "object"
+      },
+      "Thresholds": {
+        "description": "Compa-ratio limits as decimal strings: below `low` is UNDERPAID, above `high` is\nOVERPAID, and a department whose median is below `rollup` is below threshold.",
+        "properties": {
+          "high": {
+            "title": "High",
+            "type": "string"
+          },
+          "low": {
+            "title": "Low",
+            "type": "string"
+          },
+          "rollup": {
+            "title": "Rollup",
+            "type": "string"
+          }
+        },
+        "required": [
+          "low",
+          "high",
+          "rollup"
+        ],
+        "title": "Thresholds",
+        "type": "object"
+      },
+      "TopEarners": {
+        "description": "docs/09 section 3.6: individuals, so SALARY_READ only. Ties go by employee code.",
+        "properties": {
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "direction": {
+            "$ref": "#/components/schemas/Direction"
+          },
+          "items": {
+            "items": {
+              "$ref": "#/components/schemas/Earner"
+            },
+            "title": "Items",
+            "type": "array"
+          },
+          "n": {
+            "title": "N",
+            "type": "integer"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          }
+        },
+        "required": [
+          "population",
+          "country_code",
+          "currency",
+          "direction",
+          "n",
+          "items"
+        ],
+        "title": "TopEarners",
         "type": "object"
       },
       "ValidationProblem": {
@@ -3389,6 +4646,85 @@
         ]
       }
     },
+    "/api/v1/fx-rates": {
+      "get": {
+        "operationId": "fx_rates_api_v1_fx_rates_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/FxRates"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Current USD rates with their date and source",
+        "tags": [
+          "reference"
+        ]
+      }
+    },
     "/api/v1/health": {
       "get": {
         "operationId": "health_api_v1_health_get",
@@ -3877,6 +5213,1302 @@
         "summary": "Import every row of an error-free dry-run, all or nothing",
         "tags": [
           "imports"
+        ]
+      }
+    },
+    "/api/v1/insights/by-department": {
+      "get": {
+        "operationId": "by_department_api_v1_insights_by_department_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ByDepartment"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Pay statistics per department",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/by-job-title": {
+      "get": {
+        "operationId": "by_job_title_api_v1_insights_by_job_title_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          },
+          {
+            "in": "query",
+            "name": "split_by_level",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Split By Level",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ByJobTitle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Pay statistics per job title within one country",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/department-cost": {
+      "get": {
+        "operationId": "department_cost_api_v1_insights_department_cost_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/DepartmentCosts"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Total pay per department and its share of the total",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/overview": {
+      "get": {
+        "operationId": "overview_api_v1_insights_overview_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Overview"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Headcount, payroll and pay by country",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/pay-equity": {
+      "get": {
+        "operationId": "pay_equity_api_v1_insights_pay_equity_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "view",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/PayEquityView",
+              "default": "cohorts"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "discriminator": {
+                    "mapping": {
+                      "cohorts": "#/components/schemas/PayEquityCohorts",
+                      "departments": "#/components/schemas/PayEquityDepartments"
+                    },
+                    "propertyName": "view"
+                  },
+                  "oneOf": [
+                    {
+                      "$ref": "#/components/schemas/PayEquityCohorts"
+                    },
+                    {
+                      "$ref": "#/components/schemas/PayEquityDepartments"
+                    }
+                  ],
+                  "title": "Response Pay Equity Api V1 Insights Pay Equity Get"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Compa-ratios against pay bands, per cohort or per department of one country",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/pay-equity/cohort": {
+      "get": {
+        "operationId": "pay_equity_cohort_api_v1_insights_pay_equity_cohort_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Job Role Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Level"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortMembers"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "One cohort's members against their band (SALARY_READ; audited)",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/top-earners": {
+      "get": {
+        "operationId": "top_earners_api_v1_insights_top_earners_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          },
+          {
+            "in": "query",
+            "name": "n",
+            "required": false,
+            "schema": {
+              "default": 10,
+              "maximum": 50,
+              "minimum": 1,
+              "title": "N",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "direction",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Direction",
+              "default": "top"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/TopEarners"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Highest or lowest paid people in one country (SALARY_READ; audited)",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/pay-bands": {
+      "get": {
+        "operationId": "pay_bands_api_v1_pay_bands_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "country",
+            "required": false,
+            "schema": {
+              "items": {
+                "pattern": "^[A-Z]{2}$",
+                "type": "string"
+              },
+              "title": "Country",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/PayBands"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Pay bands in force today (read-only)",
+        "tags": [
+          "reference"
         ]
       }
     },

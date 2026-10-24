@@ -15,8 +15,10 @@ from salary_api.core.config import Settings
 from salary_api.domain.constants import MAX_IMPORT_ROWS, MAX_UPLOAD_BYTES
 from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees.models import Employee
+from salary_api.modules.imports import service as imports_service
 from salary_api.modules.imports.columns import TEMPLATE_COLUMNS
 from salary_api.modules.imports.models import ImportJob
+from salary_api.modules.imports.parsing import RawRow, parse_csv
 from tests.conftest import signed_in_client
 from tests.factories import make_employee, make_job_role, make_user
 from tests.spreadsheets import (
@@ -57,6 +59,8 @@ def test_hr_uploads_a_csv_and_gets_a_201_dry_run_report(
         "valid_count": 2,
         "error_count": 0,
         "errors": [],
+        "errors_truncated": False,
+        "allowed_values": {},
         "preview": [
             {
                 "row": 2,
@@ -115,7 +119,7 @@ def test_a_dry_run_with_row_errors_is_still_a_201_listing_every_error(
             "row": 3,
             "column": "level",
             "code": "unknown_value",
-            "message": "'L9' is not a known level. Use one of L1, L2, L3, L4, L5, L6.",
+            "message": "'L9' is not a known level.",
             "value": "L9",
         },
         {
@@ -127,6 +131,8 @@ def test_a_dry_run_with_row_errors_is_still_a_201_listing_every_error(
         },
     ]
     assert [row["row"] for row in body["preview"]] == [2]
+    assert body["allowed_values"] == {"level": ["L1", "L2", "L3", "L4", "L5", "L6"]}
+    assert body["errors_truncated"] is False
 
 
 def test_a_dry_run_writes_only_the_import_job_and_its_audit_event(
@@ -342,3 +348,58 @@ def test_an_upload_expires_dry_runs_past_their_24_hours(
     job = db_session.get(ImportJob, old)
     assert job is not None
     assert (job.status, job.payload, job.preview) == ("EXPIRED", None, None)
+
+
+def test_a_report_keeps_the_first_500_errors_and_counts_them_all(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    make_import_reference(db_session)
+    content = import_csv(*(hire(n, level="L9", job_role="Chef") for n in range(1, 401)))
+
+    response = as_role("HR_MANAGER").post(IMPORTS, **upload("bad.csv", content))
+
+    body = response.json()
+    assert (body["error_count"], len(body["errors"]), body["errors_truncated"]) == (800, 500, True)
+    assert len(response.content) < 200_000  # no allowed values repeated in every message
+    assert set(body["allowed_values"]) == {"job_role", "level"}
+
+
+def test_the_upload_is_parsed_outside_a_database_transaction(
+    as_role: Callable[[str], TestClient],
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    # On SQLite every transaction holds the write lock (BEGIN IMMEDIATE): parsing a large
+    # file inside one would block every other writer meanwhile.
+    make_import_reference(db_session)
+    in_transaction: list[bool] = []
+
+    def parse_csv_watched(content: bytes, *, max_rows: int) -> list[RawRow]:
+        in_transaction.append(db_session.in_transaction())
+        return parse_csv(content, max_rows=max_rows)
+
+    monkeypatch.setattr(imports_service, "parse_csv", parse_csv_watched)
+
+    as_role("HR_MANAGER").post(IMPORTS, **upload("q4.csv", import_csv(hire(1))))
+
+    assert in_transaction == [False]
+
+
+def test_a_body_declared_over_the_cap_is_refused_before_it_is_read(
+    as_role: Callable[[str], TestClient], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def never(*_args: object, **_kwargs: object) -> None:
+        raise AssertionError("the upload reached the service")
+
+    monkeypatch.setattr(imports_service, "dry_run", never)
+    content = b"x" * (MAX_UPLOAD_BYTES + 100_000)
+
+    response = as_role("HR_MANAGER").post(IMPORTS, **upload("big.csv", content))
+
+    assert response.status_code == 413
+    body = response.json()
+    assert (body["type"], body["instance"]) == (f"{PROBLEMS}payload-too-large", IMPORTS)
+    assert body["request_id"] == response.headers["x-request-id"]

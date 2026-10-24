@@ -113,7 +113,7 @@ Parsing is the **only** format-specific step. Both parsers produce the same `Raw
 - Reads the **first sheet**, or the sheet named `Employees` if present, and only its first 50 columns (the template has 19), so a sheet that claims 16,384 columns costs nothing. A header row is required.
 - Cell types: date cells → `YYYY-MM-DD` text; numeric cells → the decimal text of `Decimal(repr(value))` (`1234.56`, never `1234.5599…`); booleans → `TRUE`/`FALSE`; everything else → string. So both parsers hand the validator the same text.
 
-**Both formats.** Header names are matched case-insensitively after trimming; unknown, repeated or missing required columns are one `400` that lists every problem and carries `expected_headers`. A value in a column with no header (often an unquoted comma in a CSV) is a `400` naming the row and column letter. Blank rows are skipped but still counted, so row numbers match the spreadsheet. A file with no employee rows is `400`; more than 10,000 rows is `422 validation` (`code: too_many_rows`).
+**Both formats.** Header names are matched case-insensitively after trimming; unknown, repeated or missing required columns are one `400` that lists every problem and carries `expected_headers`. A value in a column with no header (often an unquoted comma in a CSV) is a `400` naming the row and column letter. Blank rows are skipped but still counted, so row numbers match the spreadsheet; more than 1,000 blank rows is refused as too many rows, so a file of empty lines or a sheet with one cell at row 1,048,576 is never walked row by row. A header row may have at most 50 columns (CSV and XLSX). A file with no employee rows is `400`; more than 10,000 rows is `422 validation` (`code: too_many_rows`).
 
 ### 5.2 Normalization
 
@@ -149,9 +149,11 @@ Stored in `import_jobs` and returned to the UI with `201` (a report with row err
   "row_count": 248,
   "valid_count": 245,
   "error_count": 3,
+  "errors_truncated": false,
+  "allowed_values": { "job_role": ["Account Executive", "…", "Software Engineer"] },
   "errors": [
     { "row": 12, "column": "email",       "code": "duplicate_in_file", "message": "Same email as row 4.", "value": "a.rao@acme.example" },
-    { "row": 31, "column": "job_role",    "code": "unknown_value",     "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'? Job roles: Account Executive, …", "value": "Sr Engineer" },
+    { "row": 31, "column": "job_role",    "code": "unknown_value",     "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'?", "value": "Sr Engineer" },
     { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals.", "value": "450000.5" }
   ],
   "preview": [
@@ -168,8 +170,8 @@ Stored in `import_jobs` and returned to the UI with `201` (a report with row err
 ```
 
 - `row` numbers are **spreadsheet row numbers** (header = row 1), so the user can find the row in Excel.
-- `valid_count` counts rows without any error; `error_count` counts the entries of `errors` (one row can have several). Rows with errors = `row_count − valid_count`.
-- Error codes: `required`, `invalid_format`, `unknown_value` (the message lists the allowed values), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, and, as `POST /employees` names the same rules, `future_date`, `before_hire_date` and `currency_mismatch` ([glossary](glossary.md) §6).
+- `valid_count` counts rows without any error; `error_count` counts every error (one row can have several). Rows with errors = `row_count − valid_count`. `errors` holds the first **500** errors in row order (`errors_truncated: true` when there are more), so a bad 10,000-row file still gives a small report, far below Vercel's 4.5 MB response cap.
+- Error codes: `required`, `invalid_format`, `unknown_value` (the valid values are listed once per column in `allowed_values`, not in every message), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, and, as `POST /employees` names the same rules, `future_date`, `before_hire_date` and `currency_mismatch` ([glossary](glossary.md) §6).
 - Messages are written for HR users, with a "did you mean" suggestion for near-miss job roles (case-insensitive, then Python's `difflib` closest match).
 - `preview` holds the first 50 valid rows, for a sanity check in the UI. There is no `summary` block: the UI can count the preview or the errors itself.
 - Department isn't an import column. It is **derived from `job_role`** ([06-data-model.md](06-data-model.md)).
@@ -189,7 +191,7 @@ Preconditions (otherwise `409 Conflict` problem+json):
 
 Execution:
 - **One DB transaction**: insert employees → salary records → salary components → point each employee at its `HIRE` record → audit event → mark the job `COMMITTED`.
-- Bulk inserts (SQLAlchemy `insert()` with lists of rows, in chunks of 1,000), the same approach as the seed ([12-seed-data.md](12-seed-data.md)). Employee and record ids are allocated in Python (one more than the highest in use; the transaction holds SQLite's write lock from `BEGIN IMMEDIATE`), so no `RETURNING` is needed. `employees` and `salary_records` reference each other, so employees go in with `current_salary_record_id` null and one bulk `UPDATE` sets it once the records exist (foreign keys are checked per statement; a deferred check would be SQLite-only).
+- Bulk inserts (SQLAlchemy `insert()` with lists of rows, in chunks of 1,000), the same approach as the seed ([12-seed-data.md](12-seed-data.md)). Employee and record ids are allocated in Python (one more than the highest in use; the transaction holds SQLite's write lock from `BEGIN IMMEDIATE`), so no `RETURNING` is needed. **This assumes SQLite or Turso** (v1 has no Postgres): SQLite's rowid continues after explicit ids, while a Postgres sequence would not ([06](06-data-model.md) §8). Locally `BEGIN IMMEDIATE` serialises writers, so no other insert can take an allocated id. The libSQL driver used for Turso does not send `BEGIN IMMEDIATE`, so two imports (or an import and `POST /employees`) committing at the same moment can pick the same ids: the later one then fails on the primary key, rolls back completely, and is reported as `500 import-failed` with the job `FAILED`; the user uploads again. `employees` and `salary_records` reference each other, so employees go in with `current_salary_record_id` null and one bulk `UPDATE` sets it once the records exist (foreign keys are checked per statement; a deferred check would be SQLite-only).
 - The `HIRE` record has `effective_date = salary_effective_date` (the hire date by default), `changed_by` = the importing user, the role and level as a snapshot, and the allowances and the bonus target as components. The employee's current salary columns and `search_text` follow the same rules as `POST /employees`.
 - A duplicate found at commit returns `409` problem+json `duplicate` whose `conflicts` lists the rows (`{row, column, code: "duplicate_in_db", message, value}`); the job stays `DRY_RUN`. Any other exception rolls back, then, in a transaction of its own, marks the job `FAILED` with `failure_reason` (the error type, plus the database's message for a database error; never row values) and writes `import.fail`, and returns `500` problem+json `import-failed`. **No partial data is ever written.**
 - Response: `{ id, status: "COMMITTED", inserted }`.

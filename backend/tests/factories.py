@@ -38,6 +38,7 @@ from salary_api.modules.reference.models import (
 )
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
 from salary_api.modules.users.models import User
+from salary_api.seed.settings import SeedSettings
 
 # Low entropy on purpose, so secret scanners (gitleaks) do not mistake it for a real key.
 TEST_JWT_SECRET = "test-only-" + "x" * 32
@@ -63,6 +64,25 @@ def make_settings(**overrides: Any) -> Settings:
         "cors_origins": [],
     }
     return _SettingsWithoutEnvFile(**(values | overrides))
+
+
+class _SeedSettingsWithoutEnvFile(SeedSettings):
+    model_config = SettingsConfigDict(env_file=None)
+
+
+def make_seed_settings(**overrides: Any) -> SeedSettings:
+    """Seed settings for tests: in-memory SQLite, no passwords set unless given, no .env file.
+
+    Every value is passed explicitly, so a SEED_*_PASSWORD in the shell cannot leak in.
+    """
+    values: dict[str, Any] = {
+        "app_env": "test",
+        "database_url": "sqlite://",
+        "seed_admin_password": None,
+        "seed_hr_password": None,
+        "seed_viewer_password": None,
+    }
+    return _SeedSettingsWithoutEnvFile(**(values | overrides))
 
 
 def settings_from_environment() -> Settings:

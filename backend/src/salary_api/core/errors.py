@@ -4,18 +4,20 @@
 A status with no glossary slug uses `about:blank` and the HTTP status phrase as the title.
 """
 
+import traceback
 from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any, TypedDict
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError, ResponseValidationError
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
 from salary_api.core.request_id import REQUEST_ID_HEADER
+from salary_api.domain.money import FxRateMissingError
 
 PROBLEM_JSON = "application/problem+json"
 PROBLEM_TYPE_BASE = "https://acme.example/problems/"
@@ -280,6 +282,14 @@ def _from_request_validation_error(exc: RequestValidationError) -> ValidationFai
     return ValidationFailed(errors)
 
 
+def _frames(exc: BaseException) -> list[str]:
+    """`file:line in function` for each frame of the traceback, without any values."""
+    return [
+        f"{frame.filename}:{frame.lineno} in {frame.name}"
+        for frame in traceback.extract_tb(exc.__traceback__)
+    ]
+
+
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProblemError)
     async def handle_problem_error(request: Request, exc: ProblemError) -> JSONResponse:
@@ -295,12 +305,29 @@ def install_problem_handlers(app: FastAPI) -> None:
     ) -> JSONResponse:
         return problem_response(request, _from_request_validation_error(exc))
 
+    @app.exception_handler(FxRateMissingError)
+    async def handle_fx_rate_missing(request: Request, exc: FxRateMissingError) -> JSONResponse:
+        # A configuration error (docs/09 section 4): say which rate is missing, never guess one.
+        _logger.error("fx_rate_missing", path=request.url.path, currency=exc.currency)
+        problem = ProblemError(
+            500,
+            None,
+            "Internal Server Error",
+            f"No USD rate for {exc.currency}, so USD figures cannot be computed. "
+            "An administrator must add the rate.",
+            currency=exc.currency,
+        )
+        return problem_response(request, problem)
+
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        if isinstance(exc, ResponseValidationError):
-            # Its message holds the response body (salary data): log the type only.
-            _logger.error("unhandled_error", path=request.url.path, error_type=type(exc).__name__)
-        else:
-            _logger.error("unhandled_error", path=request.url.path, exc_info=exc)
+        # The message can hold personal or salary data (a response body, a refused name):
+        # log the type and where it was raised, never the message.
+        _logger.error(
+            "unhandled_error",
+            path=request.url.path,
+            error_type=type(exc).__name__,
+            frames=_frames(exc),
+        )
         problem = ProblemError(500, None, "Internal Server Error", "An unexpected error occurred.")
         return problem_response(request, problem)
