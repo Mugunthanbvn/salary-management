@@ -8,7 +8,7 @@ from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Self
 
-from salary_api.domain.currency import minor_unit_exponent
+from salary_api.domain.currency import USD, minor_unit_exponent
 
 
 class TooManyDecimalsError(ValueError):
@@ -26,6 +26,10 @@ class CurrencyMismatchError(ValueError):
         super().__init__(f"Cannot combine {expected} with {actual}")
         self.expected = expected
         self.actual = actual
+
+
+class InvalidFxRateError(ValueError):
+    """The rate is zero, negative or not finite, or a USD rate other than 1."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -92,6 +96,11 @@ class FxRate:
         if type(self.rate_to_usd) is not Decimal:
             kind = type(self.rate_to_usd).__name__
             raise TypeError(f"rate_to_usd must be a Decimal, not {kind}")
+        minor_unit_exponent(self.currency)  # raises UnknownCurrencyError
+        if not self.rate_to_usd.is_finite() or self.rate_to_usd <= 0:
+            raise InvalidFxRateError(f"{self.currency} rate must be positive: {self.rate_to_usd}")
+        if self.currency == USD and self.rate_to_usd != 1:
+            raise InvalidFxRateError(f"{USD} rate must be 1, not {self.rate_to_usd}")
 
 
 def _divide_half_even(numerator: int, denominator: int) -> int:

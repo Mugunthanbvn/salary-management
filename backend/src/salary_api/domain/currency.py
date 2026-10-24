@@ -24,6 +24,9 @@ _MINOR_UNIT_EXPONENTS: Final[Mapping[str, int]] = MappingProxyType(
 
 SUPPORTED_CURRENCIES: Final = frozenset(_MINOR_UNIT_EXPONENTS)
 
+USD: Final = "USD"
+"""The reporting currency: cross-currency figures are converted to it (ADR 0005)."""
+
 
 class UnknownCurrencyError(ValueError):
     """The code is not one of the supported ISO 4217 currencies (codes are upper case)."""
