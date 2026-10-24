@@ -12,7 +12,7 @@ from sqlalchemy.orm import Session
 from salary_api.core.errors import Duplicate, FieldError, Forbidden, NotFound, ValidationFailed
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
-from salary_api.core.schemas import Comp, Money
+from salary_api.core.schemas import Comp, Money, SalaryBasis
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.search import employee_search_text, fold
 from salary_api.modules.audit.service import AuditAction, record_event
@@ -117,6 +117,7 @@ def list_employees(
     """
     order = _sort_keys(query.sort)
     _refuse_salary_query_without_salary_read(principal, query, order)
+    _check_salary_comparison(query, order)
     where = repository.EmployeeFilter(
         search=fold(query.q) if query.q else None,
         countries=query.country,
@@ -166,6 +167,35 @@ def _refuse_salary_query_without_salary_read(
     salary_sort = any(key.field in repository.SALARY_SORT_FIELDS for key in order)
     if (salary_filter or salary_sort) and not can_see_salaries(principal):
         raise Forbidden("Filtering or sorting by salary requires SALARY_READ.")
+
+
+def _check_salary_comparison(query: EmployeeListQuery, order: list[repository.SortKey]) -> None:
+    """Salaries are compared in one currency or in USD, never as raw minor units of two
+    currencies (¥6,000,000 is not more than €60,000.00). Every salary is in its country's
+    currency, so one country also means one currency."""
+    errors: list[FieldError] = []
+    ranged = [
+        field
+        for field, value in (("salary_min", query.salary_min), ("salary_max", query.salary_max))
+        if value is not None
+    ]
+    minimum, maximum = query.salary_min, query.salary_max
+    if minimum is not None and maximum is not None and minimum > maximum:
+        message = "salary_min is above salary_max."
+        errors.append({"loc": ["query", "salary_min"], "code": "invalid_range", "message": message})
+    one_currency = len(query.currency) == 1 or len(query.country) == 1
+    if query.salary_basis != SalaryBasis.USD and not one_currency:
+        message = (
+            "Salaries in different currencies cannot be compared: choose one currency "
+            "(or one country), or use salary_basis=usd."
+        )
+        salary_sorted = any(key.field in repository.SALARY_SORT_FIELDS for key in order)
+        for field in ranged[:1] + (["sort"] if salary_sorted else []):
+            errors.append(
+                {"loc": ["query", field], "code": "currency_required", "message": message}
+            )
+    if errors:
+        raise ValidationFailed(errors)
 
 
 def _sort_keys(sort: str | None) -> list[repository.SortKey]:
