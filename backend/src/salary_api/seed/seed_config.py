@@ -211,8 +211,16 @@ TERMINATED_SHARE: Final = Decimal("0.03")
 
 # --- Base pay (section 5) -----------------------------------------------------------------------
 
-PAY_NOISE_SIGMA: Final = 0.12
+PAY_NOISE_SIGMA: Final = 0.06
 """Base pay = reference x exp(Normal(0, sigma)): log-normal noise with median 1."""
+
+PAY_NOISE_BOUNDS: Final = (Decimal("0.89"), Decimal("1.12"))
+"""Noise outside these bounds is drawn again (about 1.9 sigma each way, symmetric in log terms).
+
+With base pay rounded to its unit, a full-timer then always sits between 0.86 and 1.16 of the
+band mid, and a DE Customer Success one at 0.81 or more after the 0.92 gap: noise alone never
+flags anyone, so the flagged employees are exactly the planted outliers (docs/12 section 8).
+"""
 
 PART_TIME_FACTOR: Final = (Decimal("0.50"), Decimal("0.80"))
 """A part-timer's base is the full-time base times Uniform(low, high)."""

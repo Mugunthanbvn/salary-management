@@ -84,13 +84,18 @@ def draw_uniform(rng: random.Random, bounds: Bounds) -> Decimal:
     return low + rng.randint(0, steps) * _GRID
 
 
-def draw_noise(rng: random.Random, sigma: float) -> Decimal:
-    """exp(Normal(0, sigma)): log-normal pay noise with median 1.
+def draw_noise(rng: random.Random, sigma: float, bounds: Bounds) -> Decimal:
+    """exp(Normal(0, sigma)) within `bounds`: log-normal pay noise with median 1.
 
+    A value outside the bounds is drawn again, so there is no pile of values at a bound.
     The normal draw is a float; it is cut to four decimals before Decimal.exp, so the last bit
     of a platform's float maths cannot change a salary.
     """
-    return Decimal(rng.normalvariate(0.0, sigma)).quantize(_GRID).exp()
+    low, high = bounds
+    while True:
+        noise = Decimal(rng.normalvariate(0.0, sigma)).quantize(_GRID).exp()
+        if low <= noise <= high:
+            return noise
 
 
 def components_for(

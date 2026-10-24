@@ -231,7 +231,9 @@ def _draft(  # noqa: PLR0913  (one argument per fact already decided)
 ) -> _Draft:
     """Draw the hire date and the current base: reference x log-normal noise (x part-time)."""
     hire_date = config.ANCHOR_DATE - timedelta(days=_tenure_days(rng))
-    base = reference_minor(level, role.spec, country) * draw_noise(rng, config.PAY_NOISE_SIGMA)
+    base = reference_minor(level, role.spec, country) * draw_noise(
+        rng, config.PAY_NOISE_SIGMA, config.PAY_NOISE_BOUNDS
+    )
     if employment_type == EmploymentType.PART_TIME:
         base *= draw_uniform(rng, config.PART_TIME_FACTOR)
     return _Draft(
