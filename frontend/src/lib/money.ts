@@ -83,6 +83,12 @@ function toBigInt(amountMinor: number | bigint | string): bigint {
       `Money must be a safe integer of minor units, got ${amountMinor}`,
     );
   }
+  // Plain digits only: BigInt() would also take "", " 42 ", "+5" and "0x1F".
+  if (typeof amountMinor === "string" && !/^-?\d+$/.test(amountMinor)) {
+    throw new RangeError(
+      `Money must be a whole number of minor units, got ${JSON.stringify(amountMinor)}`,
+    );
+  }
   return BigInt(amountMinor);
 }
 

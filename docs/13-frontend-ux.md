@@ -84,7 +84,7 @@ Paging defaults: **page size 25**, options 25 / 50 / 100 (max 100) ([07-api-spec
 | Tabular figures | All numeric table cells use `font-variant-numeric: tabular-nums` and right alignment, so digits line up |
 | Compact mode | Charts and summary sentences may use compact notation (`€1.2M`, `formatMoney(..., { compact: true })`); tables always show full values |
 
-Unit tests cover JPY (no decimals), INR grouping, negative-free inputs, BigInt-sized amounts, and monthly rounding ([14-testing-strategy.md](14-testing-strategy.md)).
+Unit tests cover JPY (no decimals), INR grouping, negative amounts (a salary decrease), refused inputs (fractions, unsafe numbers, strings that aren't plain digits), BigInt-sized amounts, and monthly rounding ([14-testing-strategy.md](14-testing-strategy.md)).
 
 ### 3.4 Global toggles: comp basis and period
 
