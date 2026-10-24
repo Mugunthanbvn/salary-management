@@ -337,3 +337,21 @@ def test_a_failed_commit_never_marks_a_job_another_request_committed_meanwhile(
     assert result["http_status"] == 500
     db_session.refresh(job)
     assert (job.status, job.failure_reason) == ("COMMITTED", None)
+
+
+def test_an_expired_dry_run_with_errors_also_becomes_expired_at_commit(
+    app: FastAPI,
+    client: TestClient,
+    db_session: Session,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    user = make_user(db_session, role="HR_MANAGER")
+    job = make_dry_run(db_session, hire(1), hire(2, level="L9"), user=user)
+    frozen_time.shift(60 * 60 * 24)
+
+    result = _commit(signed_in_client(app, user, settings), job)
+
+    assert result["http_status"] == 409
+    db_session.refresh(job)
+    assert (job.status, job.preview) == ("EXPIRED", None)

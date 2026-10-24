@@ -87,3 +87,19 @@ def test_a_dry_run_past_its_24_hours_reads_as_expired_without_a_write(
     db_session.refresh(job)
     assert job.status == "DRY_RUN"
     assert len(db_session.scalars(select(AuditEvent)).all()) == events_before
+
+
+def test_an_expired_dry_run_shows_no_preview_salaries(
+    app: FastAPI,
+    client: TestClient,
+    db_session: Session,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    user = make_user(db_session, role="HR_MANAGER")
+    job = make_dry_run(db_session, user=user)
+    frozen_time.shift(60 * 60 * 24)
+
+    body = signed_in_client(app, user, settings).get(f"{IMPORTS}/{job.id}").json()
+
+    assert (body["status"], body["preview"]) == ("EXPIRED", [])
