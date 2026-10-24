@@ -4,7 +4,7 @@ Money is never a float. An amount always travels with its currency.
 """
 
 from dataclasses import dataclass
-from decimal import Decimal
+from decimal import Decimal, InvalidOperation
 from typing import Self
 
 from salary_api.domain.currency import minor_unit_exponent
@@ -12,6 +12,10 @@ from salary_api.domain.currency import minor_unit_exponent
 
 class TooManyDecimalsError(ValueError):
     """The amount has a non-zero digit past the currency's minor unit (e.g. ¥1000.5)."""
+
+
+class InvalidAmountError(ValueError):
+    """The amount is not a finite number (e.g. `"abc"`, `"1,234.56"`, `"NaN"`)."""
 
 
 @dataclass(frozen=True, slots=True)
@@ -35,13 +39,24 @@ class Money:
         Too many decimals are rejected, never rounded: `"1000.5"` JPY raises
         TooManyDecimalsError. Trailing zeros lose nothing, so `"1000.0"` JPY is ¥1000.
         """
-        if type(amount) not in (str, Decimal):
-            kind = type(amount).__name__
-            raise TypeError(f"a major-unit amount must be a str or Decimal, not {kind}")
-        numerator, denominator = Decimal(amount).as_integer_ratio()
+        numerator, denominator = _parse_major(amount).as_integer_ratio()
         amount_minor, remainder = divmod(
             numerator * 10 ** minor_unit_exponent(currency), denominator
         )
         if remainder:
             raise TooManyDecimalsError(f"{amount} has more decimals than {currency} allows")
         return cls(amount_minor, currency)
+
+
+def _parse_major(amount: str | Decimal) -> Decimal:
+    """The major-unit amount as a finite Decimal. A float is refused, not converted."""
+    if type(amount) not in (str, Decimal):
+        kind = type(amount).__name__
+        raise TypeError(f"a major-unit amount must be a str or Decimal, not {kind}")
+    try:
+        value = Decimal(amount)
+    except InvalidOperation:
+        raise InvalidAmountError(f"{amount!r} is not a number") from None
+    if not value.is_finite():
+        raise InvalidAmountError(f"{amount!r} is not a number")
+    return value
