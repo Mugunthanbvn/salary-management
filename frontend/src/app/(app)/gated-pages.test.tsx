@@ -1,20 +1,43 @@
-import { render, screen } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { screen } from "@testing-library/react";
+import { http, HttpResponse } from "msw";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
+import { API_ORIGIN } from "@/lib/api/origin";
+import type { components } from "@/lib/api/schema";
 import type { Me } from "@/lib/permissions";
-import { makeMe, VIEWER_PERMISSIONS } from "@/test/fixtures";
+import { makeMe, makeReference, VIEWER_PERMISSIONS } from "@/test/fixtures";
+import { server } from "@/test/msw/server";
+import { renderInApp } from "@/test/render";
+import { signedInRequest } from "@/test/server";
 
 import AskPage from "./ask/page";
 import ImportPage from "./employees/import/page";
 import NewEmployeePage from "./employees/new/page";
 
+type ReferenceData = components["schemas"]["ReferenceData"];
+
 const { getMe } = vi.hoisted(() => ({ getMe: vi.fn<() => Promise<Me>>() }));
 vi.mock("@/lib/api/me", () => ({ getMe }));
+vi.mock("next/headers", () => ({ cookies: vi.fn() }));
+vi.mock("next/navigation", () => ({
+  useRouter: () => ({ refresh: vi.fn(), push: vi.fn() }),
+}));
+
+// The add-employee form fills its dropdowns from GET /reference.
+beforeEach(() => {
+  signedInRequest();
+  server.use(
+    http.get<never, never, ReferenceData>(
+      `${API_ORIGIN}/api/v1/reference`,
+      () => HttpResponse.json(makeReference()),
+    ),
+  );
+});
 
 // Server Components: call the page, then render what it returns.
 async function renderPage(page: () => Promise<React.ReactElement>, me: Me) {
   getMe.mockResolvedValue(me);
-  render(await page());
+  renderInApp(await page(), { me });
 }
 
 describe("pages that need a permission", () => {
@@ -39,6 +62,25 @@ describe("pages that need a permission", () => {
     expect(
       screen.getByRole("heading", { name: "You don't have access to this" }),
     ).toBeVisible();
+  });
+
+  it("/employees/new needs SALARY_WRITE too: a new hire comes with a salary", async () => {
+    await renderPage(
+      NewEmployeePage,
+      makeMe({
+        permissions: ["EMPLOYEE_READ", "EMPLOYEE_WRITE", "SALARY_READ"],
+      }),
+    );
+
+    expect(
+      screen.getByRole("heading", { name: "You don't have access to this" }),
+    ).toBeVisible();
+  });
+
+  it("/employees/new shows the form to an HR manager", async () => {
+    await renderPage(NewEmployeePage, makeMe());
+
+    expect(screen.getByRole("form", { name: "New employee" })).toBeVisible();
   });
 
   it("/ask says Ask is switched off when the API has it off", async () => {
