@@ -1,4 +1,4 @@
-"""Engine and session factory. The database is chosen only by DATABASE_URL."""
+"""Engine and session factory, chosen only by DATABASE_URL (+ DATABASE_AUTH_TOKEN)."""
 
 from typing import Any
 
@@ -14,6 +14,9 @@ def create_db_engine(settings: Settings) -> Engine:
     connect_args: dict[str, Any] = {}
     if _is_in_memory_sqlite(url):
         connect_args["check_same_thread"] = False
+    if settings.database_auth_token and settings.database_auth_token.get_secret_value():
+        # Turso: the token goes to the driver, never into the URL or the logs.
+        connect_args["auth_token"] = settings.database_auth_token.get_secret_value()
     engine = create_engine(url, poolclass=_pool_class(settings, url), connect_args=connect_args)
     if url.get_backend_name() == "sqlite":
         event.listen(engine, "connect", _enable_foreign_keys)
