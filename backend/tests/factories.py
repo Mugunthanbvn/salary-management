@@ -22,7 +22,8 @@ TEST_JWT_SECRET = "test-only-" + "x" * 32
 # Argon2id with the cheapest parameters, so tests hash in well under a millisecond.
 # The app gets it through a dependency override (tests/conftest.py); production keeps
 # pwdlib's defaults.
-FAST_PASSWORD_HASHER = PasswordHasher(Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1))
+FAST_ARGON2 = Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1)
+FAST_PASSWORD_HASHER = PasswordHasher(FAST_ARGON2)
 
 
 class _SettingsWithoutEnvFile(Settings):

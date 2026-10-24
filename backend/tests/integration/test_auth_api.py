@@ -7,10 +7,10 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
-from salary_api.core.deps import get_session
-from salary_api.core.security import decode_access_token
+from salary_api.core.deps import get_password_hasher, get_session
+from salary_api.core.security import PasswordHasher, decode_access_token
 from tests.conftest import create_test_app
-from tests.factories import DEFAULT_PASSWORD, make_settings, make_user
+from tests.factories import DEFAULT_PASSWORD, FAST_ARGON2, make_settings, make_user
 
 LOGIN = "/api/v1/auth/login"
 PROBLEMS = "https://acme.example/problems/"
@@ -92,3 +92,47 @@ def test_login_requires_email_and_password(client: TestClient, body: dict[str, s
     response = client.post(LOGIN, json=body)
 
     assert response.status_code == 422
+
+
+@pytest.mark.parametrize("reason", ["wrong password", "unknown email", "inactive user"])
+def test_login_failure_returns_the_same_401_whatever_the_reason(
+    client: TestClient, db_session: Session, reason: str
+) -> None:
+    make_user(db_session, email="hr@acme.example", is_active=reason != "inactive user")
+    email = "nobody@acme.example" if reason == "unknown email" else "hr@acme.example"
+    password = "not the password" if reason == "wrong password" else DEFAULT_PASSWORD
+
+    response = client.post(LOGIN, json={"email": email, "password": password})
+
+    assert response.status_code == 401
+    assert response.headers["content-type"] == "application/problem+json"
+    assert "set-cookie" not in response.headers
+    body = response.json()
+    assert (body["type"], body["title"], body["detail"]) == (
+        f"{PROBLEMS}unauthenticated",
+        "Not authenticated",
+        "Invalid email or password",
+    )
+
+
+class _CountingHasher(PasswordHasher):
+    """The fast test hasher, counting how often a password is checked."""
+
+    def __init__(self) -> None:
+        super().__init__(FAST_ARGON2)
+        self.verify_calls = 0
+
+    def verify(self, password: str, password_hash: str) -> bool:
+        self.verify_calls += 1
+        return super().verify(password, password_hash)
+
+
+def test_login_with_an_unknown_email_still_checks_a_password_hash(
+    app: FastAPI, client: TestClient
+) -> None:
+    hasher = _CountingHasher()
+    app.dependency_overrides[get_password_hasher] = lambda: hasher
+
+    client.post(LOGIN, json={"email": "nobody@acme.example", "password": DEFAULT_PASSWORD})
+
+    assert hasher.verify_calls == 1  # against a dummy hash, so it takes as long as a real check
