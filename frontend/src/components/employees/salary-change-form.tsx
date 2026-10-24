@@ -224,19 +224,19 @@ function SalaryChangeForm({
         </div>
       </div>
 
-      <div className="grid gap-5 sm:grid-cols-3">
-        <ChangeSelect
-          id={`${id}-role`}
-          label="New job role"
-          current={employee.job_role.title}
-          value={jobRoleId}
-          onChange={setJobRoleId}
-          error={error("job_role_id")}
-          options={reference.job_roles.map((r) => ({
-            value: String(r.id),
-            label: r.title,
-          }))}
-        />
+      <ChangeSelect
+        id={`${id}-role`}
+        label="New job role"
+        current={employee.job_role.title}
+        value={jobRoleId}
+        onChange={setJobRoleId}
+        error={error("job_role_id")}
+        options={reference.job_roles.map((r) => ({
+          value: String(r.id),
+          label: r.title,
+        }))}
+      />
+      <div className="grid gap-5 sm:grid-cols-2">
         <ChangeSelect
           id={`${id}-level`}
           label="New level"
@@ -292,6 +292,7 @@ function SalaryChangeForm({
         onChange={setRows}
         currency={currency}
         errors={errors}
+        replaces
       />
 
       <div className="flex flex-col gap-2">

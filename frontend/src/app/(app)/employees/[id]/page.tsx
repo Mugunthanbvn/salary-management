@@ -104,35 +104,38 @@ export default async function EmployeePage({
         ) : null}
       </PageTitle>
 
-      <Section question={`What is ${name} paid?`}>
-        {data.salary_masked ? (
-          <p className="text-[17px] text-ink-2">
-            Compensation details are restricted for your role.
-          </p>
-        ) : (
-          <Compensation employee={data} />
-        )}
-      </Section>
-
-      {history ? (
-        <Section question={`How did ${possessive(name)} pay get here?`}>
-          {history.data ? (
-            <SalaryTimeline records={history.data.records} />
-          ) : historyProblem ? (
-            <ErrorState
-              title={historyProblem.title}
-              detail={
-                historyProblem.detail ?? "The salary history couldn't load."
-              }
-              requestId={historyProblem.requestId}
-            />
-          ) : null}
+      {/* In their own box, so the last section ends without a rule. */}
+      <div>
+        <Section question={`What is ${name} paid?`}>
+          {data.salary_masked ? (
+            <p className="text-[17px] text-ink-2">
+              Compensation details are restricted for your role.
+            </p>
+          ) : (
+            <Compensation employee={data} />
+          )}
         </Section>
-      ) : null}
 
-      <Section question={`Who is ${name}?`}>
-        <Profile employee={data} reference={ref} />
-      </Section>
+        {history ? (
+          <Section question={`How did ${possessive(name)} pay get here?`}>
+            {history.data ? (
+              <SalaryTimeline records={history.data.records} />
+            ) : historyProblem ? (
+              <ErrorState
+                title={historyProblem.title}
+                detail={
+                  historyProblem.detail ?? "The salary history couldn't load."
+                }
+                requestId={historyProblem.requestId}
+              />
+            ) : null}
+          </Section>
+        ) : null}
+
+        <Section question={`Who is ${name}?`}>
+          <Profile employee={data} reference={ref} />
+        </Section>
+      </div>
 
       {/* Room for the phone action bar, so it never covers the end of the page. */}
       {showsPhoneBar ? (

@@ -78,8 +78,8 @@ export function isComponentError(key: string, prefix = "components"): boolean {
 }
 
 /**
- * Allowances and bonus targets on top of base pay: add, change or remove rows. The list
- * replaces the current set, so it starts as a copy of it.
+ * Allowances and bonus targets on top of base pay: add, change or remove rows. In a salary
+ * change the list replaces the current set (`replaces`), so it starts as a copy of it.
  */
 export function ComponentsEditor({
   rows,
@@ -87,12 +87,14 @@ export function ComponentsEditor({
   currency,
   errors,
   prefix = "components",
+  replaces = false,
 }: {
   rows: ComponentRow[];
   onChange: (rows: ComponentRow[]) => void;
   currency: string;
   errors: Record<string, string>;
   prefix?: string;
+  replaces?: boolean;
 }) {
   const id = useId();
   const update = (key: number, patch: Partial<ComponentRow>) =>
@@ -105,7 +107,8 @@ export function ComponentsEditor({
           Allowances and bonus targets
         </p>
         <p className="text-sm text-ink-2">
-          Yearly amounts in {currency}. The list replaces the current one.
+          Yearly amounts in {currency}.
+          {replaces ? " The list replaces the current one." : ""}
         </p>
       </div>
       <FieldError id={`${id}-list-error`} message={listError} />
