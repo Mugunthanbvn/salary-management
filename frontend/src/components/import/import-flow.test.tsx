@@ -17,6 +17,12 @@ import { makeFile, useNodeFormData } from "@/test/upload";
 
 import { ImportFlow } from "./import-flow";
 
+const { saveFile } = vi.hoisted(() => ({ saveFile: vi.fn() }));
+vi.mock("@/lib/download", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/download")>()),
+  saveFile,
+}));
+
 type ImportCommitResult = components["schemas"]["ImportCommitResult"];
 type ImportJobReport = components["schemas"]["ImportJobReport"];
 type Problem = components["schemas"]["Problem"];
@@ -170,6 +176,25 @@ describe("ImportFlow: upload", () => {
     expect(
       screen.getByRole("button", { name: "Import 245 employees" }),
     ).toBeDisabled();
+  });
+
+  it("downloads the list of problems to fix in the spreadsheet", async () => {
+    serveUpload(WITH_ERRORS);
+    renderFlow();
+    await upload();
+
+    await userEvent.click(
+      await screen.findByRole("button", {
+        name: "Download the list of problems",
+      }),
+    );
+
+    expect(saveFile).toHaveBeenCalledTimes(1);
+    const [file, filename] = saveFile.mock.calls[0] as [Blob, string];
+    expect(filename).toBe("q4-new-hires-problems.csv");
+    expect(await file.text()).toContain(
+      "77,base_salary,too_many_decimals,JPY amounts can't have decimals.,450000.5",
+    );
   });
 
   it.each([
