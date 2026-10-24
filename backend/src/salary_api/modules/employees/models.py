@@ -38,7 +38,7 @@ class Employee(Base):
         Index("ix_employees_status_employment_type", "status", "employment_type"),
         Index("ix_employees_currency_base", "currency", "current_base_minor"),
         Index("ix_employees_last_first", "last_name", "first_name"),
-        Index("ix_employees_search_text", "search_text"),
+        # No index on search_text: search is an infix LIKE, a scan of at most 10k short rows.
     )
 
     id: Mapped[int] = mapped_column(primary_key=True)

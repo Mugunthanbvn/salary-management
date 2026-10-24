@@ -19,7 +19,7 @@ The **source of truth** at build time is FastAPI's generated OpenAPI document (`
 | Versioning | URL prefix. Breaking changes would go to `/api/v2`; additive changes stay in v1 |
 | Format | JSON (`application/json`), UTF-8. File endpoints use `multipart/form-data` (upload) or a file response (download) |
 | Field casing | `snake_case`, matching Pydantic models and the generated TS types |
-| IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key |
+| IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key. An id in a path, query or body is 1 to 2⁶³ − 1 (a 64-bit integer); anything else is a 422 `validation`, not a 404 |
 | Dates | `YYYY-MM-DD`; timestamps ISO-8601 UTC with `Z` |
 | Auth | Session JWT in the `session` httpOnly cookie (browser) or `Authorization: Bearer <JWT>` (server-side fetches). Both are accepted; when both are sent, the Bearer header is used |
 | Request ID | Optional `X-Request-ID` in; always echoed in the response header and in error bodies |
@@ -51,7 +51,7 @@ Offset pagination (10k rows; deep-page cost is negligible, see [19-performance.m
 
 | Param | Default | Limits |
 |---|---|---|
-| `page` | `1` | ≥ 1 |
+| `page` | `1` | 1 to (2⁶³ − 1) ÷ 100, so the offset always fits a 64-bit integer |
 | `page_size` | `25` | 1–100 |
 
 ```json
@@ -122,7 +122,7 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 
 ### 1.7 Masking for users without `SALARY_READ` (VIEWER)
 
-- Individual salary fields (`current_base`, `current_total`, and the detail's `current_salary` with its components) are returned as `null`, and the item carries `"salary_masked": true`. The employee service masks, so exports and Ask tools that call it get the same result.
+- Individual salary fields (`current_base`, `current_total`, and the detail's `current_salary` with its components) are returned as `null`, and the item carries `"salary_masked": true`. `version` is `null` too: it goes up with every salary change, so it would date them (only writers need it). The employee service masks, so exports and Ask tools that call it get the same result.
 - Endpoints that exist only to reveal individual pay (salary history, top earners, cohort member lists) return **403**.
 - Filtering or sorting by individual salary returns **403**. Otherwise repeated range queries could reveal one person's pay.
 - Aggregates are allowed, but any group with fewer than **5** people is suppressed: values and `count` are `null`, `"suppressed": true` (the small-group rule, [ADR 0009](adr/0009-permission-rbac-small-group-rule.md)).
@@ -286,7 +286,7 @@ Unknown query parameters are refused with 422, like unknown body fields.
 **Salary ranges and salary sorts across currencies (decided in B4).** Raw minor units of two currencies are never compared (¥6,000,000 is not more than €60,000.00). So a salary range or a salary sort needs one of:
 
 - **exactly one `currency`**, or **exactly one `country`** (every salary is in its country's currency): amounts are compared in that local currency;
-- **`salary_basis=usd`**: amounts are compared by USD value. For a range, the service turns the USD bounds into exact local bounds per currency in Python with `Decimal` (`domain/money.py` `min_local_amount` / `max_local_amount`, which agree with `to_usd`'s half-even rounding at the boundary), so SQL still compares within one currency. For a sort, SQL orders by `min(amount, cap) × factor` per currency, where the integer `factor` (US cents per local minor unit × 10⁶, half-even) and `cap` (so the key fits 64 bits) come from `usd_sort_key`. It is an ordering key only; amounts in the response stay local, and no USD figure is computed in SQL. With `salary_basis=usd`, every currency the list can hold (the `currency` filter, else every supported currency) needs a row in `fx_rates`; a missing rate is a configuration error (500), never a rate of 0 or 1.
+- **`salary_basis=usd`**: amounts are compared by USD value. For a range, the service turns the USD bounds into exact local bounds per currency in Python with `Decimal` (`domain/money.py` `min_local_amount` / `max_local_amount`, which agree with `to_usd`'s half-even rounding at the boundary), so SQL still compares within one currency. For a sort, SQL orders by `min(amount, cap) × factor` per currency, where the integer `factor` (US cents per local minor unit × 10⁶, half-even) and `cap` (so the key fits 64 bits) come from `usd_sort_key`. It is an ordering key only; amounts in the response stay local, and no USD figure is computed in SQL. Rates are read only when `salary_basis=usd` comes with a salary range or a salary sort (`salary_basis=usd` alone compares nothing). Then every currency the list can hold (the `currency` filter, else every supported currency) needs a row in `fx_rates`; a missing rate is a configuration error (500), never a rate of 0 or 1.
 
 Otherwise the request is a 422 `validation` with code `currency_required` on `salary_min`/`salary_max` or `sort`: "choose one currency (or one country), or use salary_basis=usd".
 
@@ -317,7 +317,7 @@ Otherwise the request is a 422 `validation` with code `currency_required` on `sa
 }
 ```
 
-For a VIEWER: `current_base` and `current_total` are `null`, and `salary_masked` is `true`.
+For a VIEWER: `current_base`, `current_total` and `version` are `null`, and `salary_masked` is `true`.
 
 Errors: 403 if a salary filter/sort is used without `SALARY_READ` (checked in the service, so exports and Ask tools get it too); 422 for a salary range or salary sort without one currency or one country (and no `salary_basis=usd`).
 
@@ -351,7 +351,7 @@ Creates the employee **and** its `HIRE` salary record in one transaction.
 
 `201` returns the employee detail (as §6.3) with a `Location: /api/v1/employees/{id}` header. Writes exactly one `employee.create` event (the created fields; the salary only as `salary_record_id`).
 
-- `employee_code` matches `ACME-` and six ASCII digits; when omitted it is one more than the highest code in use.
+- `employee_code` matches `ACME-` and six ASCII digits; when omitted it is one more than the highest code of that form in use. After `ACME-999999` a code must be given: 409 `invalid-state` otherwise.
 - `email` is stored trimmed and lowercased; names are 1–100 characters.
 - Amounts are JSON **integers** of minor units: `5400000.0`, `"5400000"` and fractions are refused, not converted. `base_minor` is 1 to `MAX_AMOUNT_MINOR` (10¹⁵ − 1); a component is 0 to `MAX_AMOUNT_MINOR`. At most 20 components, each `type` + `name` once.
 

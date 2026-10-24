@@ -233,7 +233,7 @@ Department is derived through `job_role → department`; `employees` does not st
 | Column | Type | Null | Constraint / default | Notes |
 |---|---|---|---|---|
 | `id` | INTEGER | no | PK | Internal |
-| `employee_code` | VARCHAR(12) | no | UNIQUE; format `ACME-` + six ASCII digits (validated in the API) | Human-facing ID used for search and import duplicate detection. When a create leaves it out, it is one more than the highest code in use |
+| `employee_code` | VARCHAR(12) | no | UNIQUE; format `ACME-` + six ASCII digits (validated in the API) | Human-facing ID used for search and import duplicate detection. When a create leaves it out, it is one more than the highest `ACME-######` code in use (none is generated past `ACME-999999`) |
 | `first_name` | VARCHAR(100) | no | | Unicode (e.g. `José`, `Müller`, `佐藤`) |
 | `last_name` | VARCHAR(100) | no | | |
 | `email` | VARCHAR(254) | no | UNIQUE | Work email, stored trimmed and lowercased (the model normalises every value, as for `users`), so uniqueness ignores case; seed uses the reserved `acme.example` domain |
@@ -248,7 +248,7 @@ Department is derived through `job_role → department`; `employees` does not st
 | `currency` | CHAR(3) | no | | Currency of the current salary; always the country's `default_currency` |
 | `current_base_minor` | BIGINT | no | CHECK `> 0` | Denormalized from the current salary record |
 | `current_total_minor` | BIGINT | no | CHECK `>= current_base_minor` | base + sum(components) |
-| `current_salary_record_id` | INTEGER | yes* | FK → `salary_records.id` | *Nullable only for the instant inside the creating transaction (the employee row must exist before its first salary record). The service guarantees it is set before commit; an integration test asserts no committed employee has it null |
+| `current_salary_record_id` | INTEGER | yes* | FK → `salary_records.id` (inline on SQLite; added with `ALTER TABLE` once `salary_records` exists elsewhere, as the two tables reference each other) | *Nullable only for the instant inside the creating transaction (the employee row must exist before its first salary record). The service guarantees it is set before commit; an integration test asserts no committed employee has it null |
 | `version` | INTEGER | no | default `1` | Optimistic locking: every update does `WHERE id=? AND version=?` (SQLAlchemy `version_id_col`; the service sets the next version) and increments it ([ADR 0013](adr/0013-soft-delete-optimistic-locking.md)). `employees/locking.py` turns a stale version into `409 version-conflict` |
 | `created_at`, `updated_at` | TIMESTAMP tz | no | | |
 
@@ -263,7 +263,6 @@ Indexes (see [19-performance.md](19-performance.md) for the reasoning):
 | `ix_employees_status_employment_type` | `status, employment_type` | Default insight population (active full-time) |
 | `ix_employees_currency_base` | `currency, current_base_minor` | Salary-range filter within one currency, top/bottom earners |
 | `ix_employees_last_first` | `last_name, first_name` | Default sort |
-| `ix_employees_search_text` | `search_text` | Prefix search (`LIKE 'term%'`); infix search scans, which is acceptable at 10k |
 
 ### 4.6 `salary_records` (append-only)
 
@@ -288,7 +287,7 @@ Indexes: `ix_salary_records_employee_effective` on `(employee_id, effective_date
 
 **Ordering rule:** the current record is the one with the greatest `(effective_date, id)`. Because future dates are rejected, the latest record is always the current one, which is what makes the denormalization in §6.2 safe.
 
-**Immutability:** repositories expose no update or delete for this table or `salary_components`. A wrong entry is fixed by appending a `CORRECTION` record. As with `audit_events`, the `core/append_only.py` decorator makes the ORM refuse to update or delete a loaded row, and a Session refuse bulk `UPDATE`/`DELETE` statements on both tables (`AppendOnlyError`). Bulk inserts are allowed.
+**Immutability:** repositories expose no update or delete for this table or `salary_components`. A wrong entry is fixed by appending a `CORRECTION` record. As with `audit_events`, the `core/append_only.py` decorator makes the ORM refuse to update or delete a loaded row, and a Session refuse bulk `UPDATE`/`DELETE` statements on both tables (`AppendOnlyError`). A component is inserted only in the same flush as its new record: adding one to a record already written would change that record's total (`AppendOnlyError` too). Bulk inserts are allowed.
 
 ### 4.7 `salary_components`
 
@@ -455,6 +454,7 @@ fold(s)     = NFKD-normalize → strip combining marks → casefold
 - SQLite's `LIKE` is case-insensitive only for ASCII, so `Müller` would not match `müller` with plain `LIKE`. Folding in Python makes search behave the same on SQLite, libSQL and Postgres.
 - Accent stripping is **decided**: `muller` also finds `Müller`, and `jose` finds `José`.
 - The query term goes through the same `fold()`, then `search_text LIKE '%term%'`, with `%` and `_` escaped.
+- No index on `search_text`: an infix `LIKE` cannot use a B-tree index (and SQLite does not use one for this prefix `LIKE` either), so search scans at most 10k short rows, about 3 ms for a page and its count (measured on SQLite, 10k rows). FTS5 is the upgrade path ([19-performance.md](19-performance.md) §7).
 - Romanized names for Japanese employees appear in `email`, so searching `sato` finds `佐藤`'s record through the email part.
 
 ---

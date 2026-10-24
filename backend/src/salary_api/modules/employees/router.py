@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, Query, Request, Response
 
-from salary_api.core.deps import SessionDep, require_permission
+from salary_api.core.deps import IdPath, SessionDep, require_permission
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
 from salary_api.modules.employees import service
@@ -63,7 +63,7 @@ def create_employee(
     responses=problem_responses(401, 403, 404),
     summary="One employee (salary masked without SALARY_READ)",
 )
-def get_employee(employee_id: int, principal: CanRead, session: SessionDep) -> EmployeeDetail:
+def get_employee(employee_id: IdPath, principal: CanRead, session: SessionDep) -> EmployeeDetail:
     return service.get_employee(session, principal, employee_id)
 
 
@@ -74,7 +74,7 @@ def get_employee(employee_id: int, principal: CanRead, session: SessionDep) -> E
     summary="Edit profile fields (needs the version you read)",
 )
 def update_employee(
-    employee_id: int, body: EmployeeUpdate, principal: CanWrite, session: SessionDep
+    employee_id: IdPath, body: EmployeeUpdate, principal: CanWrite, session: SessionDep
 ) -> EmployeeDetail:
     return service.update_employee(session, principal, employee_id, body)
 
@@ -86,7 +86,7 @@ def update_employee(
     summary="Terminate an employee (soft delete; history is kept)",
 )
 def terminate_employee(
-    employee_id: int, body: TerminateRequest, principal: CanWrite, session: SessionDep
+    employee_id: IdPath, body: TerminateRequest, principal: CanWrite, session: SessionDep
 ) -> EmployeeDetail:
     return service.terminate_employee(session, principal, employee_id, body)
 
@@ -98,6 +98,6 @@ def terminate_employee(
     summary="Reactivate a terminated employee",
 )
 def reactivate_employee(
-    employee_id: int, body: ReactivateRequest, principal: CanWrite, session: SessionDep
+    employee_id: IdPath, body: ReactivateRequest, principal: CanWrite, session: SessionDep
 ) -> EmployeeDetail:
     return service.reactivate_employee(session, principal, employee_id, body)

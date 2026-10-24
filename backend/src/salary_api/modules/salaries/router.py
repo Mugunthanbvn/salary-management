@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends
 
-from salary_api.core.deps import SessionDep, require_permission
+from salary_api.core.deps import IdPath, SessionDep, require_permission
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
 from salary_api.modules.salaries import service
@@ -22,7 +22,7 @@ CanChangeSalary = Annotated[Principal, Depends(require_permission(Permission.SAL
     summary="Record a salary change (appends to the history)",
 )
 def record_salary_change(
-    employee_id: int, body: SalaryChangeRequest, principal: CanChangeSalary, session: SessionDep
+    employee_id: IdPath, body: SalaryChangeRequest, principal: CanChangeSalary, session: SessionDep
 ) -> SalaryChange:
     return service.record_salary_change(session, principal, employee_id, body)
 
@@ -34,6 +34,6 @@ def record_salary_change(
     summary="Salary history, oldest first (SALARY_READ only)",
 )
 def salary_history(
-    employee_id: int, principal: CanReadSalary, session: SessionDep
+    employee_id: IdPath, principal: CanReadSalary, session: SessionDep
 ) -> SalaryHistory:
     return service.salary_history(session, principal, employee_id)
