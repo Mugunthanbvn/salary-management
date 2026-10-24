@@ -12,13 +12,15 @@ from pathlib import Path
 import pytest
 from alembic import command
 from alembic.config import Config
-from sqlalchemy import insert
+from sqlalchemy import Engine, insert
 
 from salary_api.core.db import create_engine_for_url
 from salary_api.modules.reference.models import Country
+from salary_api.seed import runner
 from salary_api.seed.cli import main
 from salary_api.seed.errors import SeedRefused
-from salary_api.seed.loader import ALEMBIC_INI
+from salary_api.seed.generator import generate
+from salary_api.seed.loader import ALEMBIC_INI, checkpoint, load, migrate
 from salary_api.seed.runner import SeedOptions, run_seed
 from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings
 
@@ -62,6 +64,41 @@ def test_the_seed_migrates_an_empty_file_and_fills_it(tmp_path: Path) -> None:
     with closing(sqlite3.connect(database)) as connection:
         version = connection.execute("SELECT version_num FROM alembic_version").fetchone()
     assert version is not None
+
+
+def test_checkpoint_folds_the_wal_into_the_main_file_while_the_engine_is_open(
+    tmp_path: Path,
+) -> None:
+    database = tmp_path / "seed.db"
+    wal = tmp_path / "seed.db-wal"
+    engine = create_engine_for_url(_url(database))
+    try:
+        migrate(engine)
+        with engine.begin() as connection:
+            load(connection, generate(seed=1, employees=30), [])
+        assert wal.stat().st_size > 0
+
+        checkpoint(engine)
+
+        assert wal.stat().st_size == 0
+    finally:
+        engine.dispose()
+
+
+def test_the_seed_checkpoints_before_it_closes_the_database(
+    tmp_path: Path, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    wal_sizes: list[int] = []
+
+    def checkpoint_and_measure(engine: Engine) -> None:
+        checkpoint(engine)
+        wal_sizes.append((tmp_path / "seed.db-wal").stat().st_size)
+
+    monkeypatch.setattr(runner, "checkpoint", checkpoint_and_measure)
+
+    _run(tmp_path / "seed.db")
+
+    assert wal_sizes == [0]
 
 
 def test_the_seed_file_is_one_self_contained_file(tmp_path: Path) -> None:
