@@ -27,7 +27,7 @@ class AuditEvent(Base):
     entity_id: Mapped[str | None] = mapped_column(String(40))
     # Never holds password hashes, tokens or raw emails of failed logins.
     diff: Mapped[dict[str, Any] | None] = mapped_column(JSON)
-    request_id: Mapped[str | None] = mapped_column(String(64))
+    request_id: Mapped[str | None] = mapped_column(String(128))  # the middleware accepts 128
     at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
 
 

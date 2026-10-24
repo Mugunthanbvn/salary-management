@@ -350,7 +350,7 @@ The benchmark for pay equity. Compa-ratio = employee base ÷ `mid_minor` ([09-in
 | `entity` | VARCHAR(40) | no | | e.g. `employee`, `user`, `fx_rate`, `import_job` |
 | `entity_id` | VARCHAR(40) | yes | | String, so it fits integer IDs, currency codes and country codes |
 | `diff` | JSON | yes | | `{"field": [old, new], ...}` for updates; contextual payload for other actions (filters used for an export, tools called for an ask). **Never contains password hashes or tokens** |
-| `request_id` | VARCHAR(64) | yes | | Correlates with logs |
+| `request_id` | VARCHAR(128) | yes | | Correlates with logs; as long as the longest `X-Request-ID` the middleware accepts |
 | `at` | TIMESTAMP tz | no | | |
 
 Indexes: `ix_audit_events_at` on `at` (admin log, newest first); `ix_audit_events_actor_action_at` on `(actor_id, action, at)` (per-user Ask rate limit, user activity); `ix_audit_events_entity` on `(entity, entity_id)` (history of one record).
