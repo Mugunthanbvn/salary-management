@@ -52,4 +52,11 @@ describe("formatMoney", () => {
   ])("keeps every digit of a huge $kind amount", ({ amount }) => {
     expect(formatMoney(amount, "EUR")).toBe("€1,234,567,890,123,456,789.01");
   });
+
+  it.each([
+    { kind: "fraction", amount: 12.5 },
+    { kind: "unsafe integer", amount: 2 ** 60 },
+  ])("refuses a $kind number, because money is never a float", ({ amount }) => {
+    expect(() => formatMoney(amount, "EUR")).toThrow(RangeError);
+  });
 });
