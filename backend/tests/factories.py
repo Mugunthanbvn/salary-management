@@ -27,7 +27,7 @@ from salary_api.domain.enums import (
 from salary_api.domain.search import employee_search_text
 from salary_api.modules.employees import repository as employees
 from salary_api.modules.employees.models import Employee
-from salary_api.modules.reference.models import Country, Department, JobFamily, JobRole
+from salary_api.modules.reference.models import Country, Department, FxRate, JobFamily, JobRole
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
 from salary_api.modules.users.models import User
 
@@ -266,3 +266,41 @@ def make_employee(
 def _next_code(session: Session) -> str:
     highest = employees.highest_employee_code(session)
     return f"ACME-{int(highest.removeprefix('ACME-')) + 1 if highest else 1:06d}"
+
+
+# Illustrative USD rates (USD per major unit), like the seed's static snapshot.
+USD_RATES = {
+    "USD": "1",
+    "EUR": "1.085",
+    "GBP": "1.27",
+    "INR": "0.01198",
+    "JPY": "0.0067",
+    "CAD": "0.73",
+    "AUD": "0.66",
+    "SGD": "0.74",
+    "BRL": "0.18",
+}
+FX_AS_OF = date(2026, 10, 1)
+
+
+def make_fx_rate(
+    session: Session, currency: str, rate_to_usd: str | None = None, *, as_of: date = FX_AS_OF
+) -> FxRate:
+    """The USD rate of `currency` (USD_RATES by default), created on first use."""
+    existing = session.get(FxRate, currency)
+    if existing is not None:
+        return existing
+    rate = FxRate(
+        currency=currency,
+        rate_to_usd=rate_to_usd or USD_RATES[currency],
+        as_of=as_of,
+        source="Static snapshot (illustrative)",
+    )
+    session.add(rate)
+    session.flush()
+    return rate
+
+
+def make_fx_rates(session: Session) -> list[FxRate]:
+    """A USD rate for every supported currency."""
+    return [make_fx_rate(session, currency) for currency in USD_RATES]

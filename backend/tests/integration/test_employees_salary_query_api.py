@@ -10,7 +10,12 @@ import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.factories import make_employee
+from salary_api.core.permissions import Principal, Role
+from salary_api.core.schemas import SalaryBasis
+from salary_api.domain.money import FxRateMissingError
+from salary_api.modules.employees import service
+from salary_api.modules.employees.schemas import EmployeeListQuery
+from tests.factories import make_employee, make_fx_rate, make_fx_rates
 
 EMPLOYEES = "/api/v1/employees"
 PROBLEMS = "https://acme.example/problems/"
@@ -112,3 +117,54 @@ def test_a_salary_sort_in_one_currency_orders_by_amount(
     )
 
     assert _last_names(response.json()) == ["High", "Mid", "Low"]
+
+
+@pytest.fixture
+def salaries_worth_about_108_500_usd(db_session: Session) -> None:
+    make_fx_rates(db_session)  # EUR 1.085, JPY 0.0067, INR 0.01198
+    make_employee(db_session, country="US", base_minor=10_850_000, last_name="Dollar")
+    make_employee(db_session, country="DE", base_minor=10_000_000, last_name="Euro")
+    make_employee(db_session, country="DE", base_minor=9_999_999, last_name="Euro cent less")
+    make_employee(db_session, country="JP", base_minor=16_194_030, last_name="Yen")
+    make_employee(db_session, country="IN", base_minor=500_000_000, last_name="Rupee")
+
+
+@pytest.mark.parametrize(
+    ("bounds", "last_names"),
+    [
+        ({"salary_min": 10_850_000}, ["Dollar", "Euro", "Yen"]),
+        ({"salary_max": 10_849_999}, ["Euro cent less", "Rupee"]),
+        ({"salary_min": 5_990_000, "salary_max": 5_990_000}, ["Rupee"]),
+    ],
+)
+@pytest.mark.usefixtures("salaries_worth_about_108_500_usd")
+def test_a_usd_salary_range_compares_every_currency_by_its_usd_value(
+    as_role: Callable[[str], TestClient], bounds: dict[str, int], last_names: list[str]
+) -> None:
+    # $108,500.00 = €100,000.00 = ¥16,194,030 (half-even to the cent); ₹5,000,000 = $59,900
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params=bounds | {"salary_basis": "usd"})
+
+    assert response.status_code == 200
+    assert _last_names(response.json()) == last_names
+
+
+def test_a_usd_range_needs_only_the_rates_of_the_currencies_asked_for(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_fx_rate(db_session, "EUR")
+    make_employee(db_session, country="DE", base_minor=10_000_000, last_name="Euro")
+
+    response = as_role("HR_MANAGER").get(
+        EMPLOYEES, params={"currency": "EUR", "salary_basis": "usd", "salary_min": 10_850_000}
+    )
+
+    assert _last_names(response.json()) == ["Euro"]
+
+
+def test_a_usd_range_without_a_needed_rate_is_a_configuration_error(db_session: Session) -> None:
+    make_fx_rate(db_session, "EUR")
+    hr = Principal(user_id=1, email="hr@acme.example", full_name="HR", role=Role.HR_MANAGER)
+    query = EmployeeListQuery(salary_basis=SalaryBasis.USD, salary_min=1)
+
+    with pytest.raises(FxRateMissingError):
+        service.list_employees(db_session, hr, query)
