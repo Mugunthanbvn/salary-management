@@ -193,6 +193,52 @@ describe("ImportFlow: upload", () => {
     ).toBeDisabled();
   });
 
+  it("says when the API lists only the first of many problems", async () => {
+    serveUpload({ ...WITH_ERRORS, error_count: 1234, errors_truncated: true });
+    renderFlow();
+
+    await upload();
+
+    expect(
+      await screen.findByText("Showing the first 4 of 1,234 errors."),
+    ).toBeVisible();
+  });
+
+  it("lists the values a column accepts when a cell has an unknown one", async () => {
+    serveUpload({
+      ...WITH_ERRORS,
+      allowed_values: {
+        job_role: ["Customer Success Manager", "Software Engineer"],
+      },
+    });
+    renderFlow();
+
+    await upload();
+
+    const accepted = await screen.findByRole("region", {
+      name: "What can these columns hold?",
+    });
+    expect(accepted).toHaveTextContent("job_role");
+    expect(accepted).toHaveTextContent(
+      "Customer Success Manager, Software Engineer",
+    );
+  });
+
+  it("leaves the accepted values out when no cell has an unknown value", async () => {
+    serveUpload(WITH_ERRORS);
+    renderFlow();
+
+    await upload();
+
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "3 rows need fixing",
+    });
+    expect(
+      screen.queryByRole("region", { name: "What can these columns hold?" }),
+    ).toBeNull();
+  });
+
   it("downloads the list of problems to fix in the spreadsheet", async () => {
     serveUpload(WITH_ERRORS);
     renderFlow();

@@ -302,6 +302,8 @@ export function makeImportReport(
     valid_count: 3,
     error_count: 0,
     errors: [],
+    errors_truncated: false,
+    allowed_values: {},
     preview: [
       makePreviewRow(),
       makePreviewRow({
