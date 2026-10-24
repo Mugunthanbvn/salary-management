@@ -128,6 +128,8 @@ MATRIX = [
     Endpoint("GET", "/api/v1/insights/top-earners", (401, 403, 200, 200), _in_germany),
     Endpoint("GET", "/api/v1/insights/pay-equity", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/insights/pay-equity/cohort", (401, 403, 200, 200), _a_cohort),
+    Endpoint("GET", "/api/v1/pay-bands", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/fx-rates", (401, 200, 200, 200)),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
