@@ -18,6 +18,15 @@ class InvalidAmountError(ValueError):
     """The amount is not a finite number (e.g. `"abc"`, `"1,234.56"`, `"NaN"`)."""
 
 
+class CurrencyMismatchError(ValueError):
+    """Two amounts in different currencies were combined. Convert both to USD first."""
+
+    def __init__(self, expected: str, actual: str) -> None:
+        super().__init__(f"Cannot combine {expected} with {actual}")
+        self.expected = expected
+        self.actual = actual
+
+
 @dataclass(frozen=True, slots=True)
 class Money:
     """An exact amount: `amount_minor` counts the currency's minor unit (cents, paise, yen)."""
@@ -54,10 +63,16 @@ class Money:
         return Decimal((sign, digits, -minor_unit_exponent(self.currency)))
 
     def __add__(self, other: "Money") -> "Money":
+        self._require_same_currency(other)
         return Money(self.amount_minor + other.amount_minor, self.currency)
 
     def __sub__(self, other: "Money") -> "Money":
+        self._require_same_currency(other)
         return Money(self.amount_minor - other.amount_minor, self.currency)
+
+    def _require_same_currency(self, other: "Money") -> None:
+        if other.currency != self.currency:
+            raise CurrencyMismatchError(self.currency, other.currency)
 
 
 def _parse_major(amount: str | Decimal) -> Decimal:
