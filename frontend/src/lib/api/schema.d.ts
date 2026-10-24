@@ -193,6 +193,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/overview": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Headcount, payroll and pay by country */
+        get: operations["overview_api_v1_insights_overview_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference": {
         parameters: {
             query?: never;
@@ -544,11 +561,36 @@ export interface components {
             /** Currency */
             currency: string;
         };
+        /** Overview */
+        Overview: {
+            /** Headcount */
+            headcount: number;
+            population: components["schemas"]["Population"];
+        };
         /**
          * Permission
          * @enum {string}
          */
         Permission: "EMPLOYEE_READ" | "EMPLOYEE_WRITE" | "SALARY_READ" | "SALARY_WRITE" | "INSIGHTS_READ" | "EXPORT" | "IMPORT" | "ASK" | "USER_ADMIN" | "FX_ADMIN" | "REFERENCE_ADMIN" | "AUDIT_READ";
+        /**
+         * Population
+         * @description The filters actually applied. An empty list means no condition on that field.
+         */
+        Population: {
+            comp: components["schemas"]["Comp"];
+            /** Country */
+            country: string[];
+            /** Department Id */
+            department_id: number[];
+            /** Employment Type */
+            employment_type: components["schemas"]["EmploymentType"][];
+            /** Job Role Id */
+            job_role_id: number[];
+            /** Level */
+            level: components["schemas"]["Level"][];
+            /** Status */
+            status: components["schemas"]["EmployeeStatus"][];
+        };
         /**
          * Problem
          * @description An RFC 9457 problem. Some problems add members, e.g. `current_version`.
@@ -1660,6 +1702,79 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    overview_api_v1_insights_overview_get: {
+        parameters: {
+            query?: {
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                country?: string[];
+                comp?: components["schemas"]["Comp"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Overview"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed */
