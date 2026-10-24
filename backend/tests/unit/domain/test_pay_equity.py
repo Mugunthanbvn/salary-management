@@ -50,6 +50,12 @@ def test_compa_ratio_is_base_over_band_midpoint_unrounded(
     assert result == CompaRatio(ratio)
 
 
+def test_a_plain_full_time_string_from_the_database_counts_as_full_time() -> None:
+    result = compa_ratio(Money(4600000, "EUR"), Money(5000000, "EUR"), "FULL_TIME")  # type: ignore[arg-type]
+
+    assert result == CompaRatio(Decimal("0.92"))
+
+
 def test_an_employee_with_no_band_has_no_compa_ratio_and_reason_no_band() -> None:
     result = compa_ratio(Money(4600000, "EUR"), None, FULL_TIME)
 
