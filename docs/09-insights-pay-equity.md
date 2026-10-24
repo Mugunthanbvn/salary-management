@@ -57,7 +57,7 @@ Every insight takes `comp`:
 
 - All amounts are **integer minor units** plus an **ISO 4217 currency code** (see [adr/0004-money-integer-minor-units.md](adr/0004-money-integer-minor-units.md)).
 - The minor-unit exponent comes from currency metadata (JPY = 0, USD/EUR/GBP/INR/… = 2).
-- Arithmetic in the domain layer uses Python `int` (sums) and `decimal.Decimal` (means, percentiles, ratios, FX). **Floats are never used for money.**
+- Arithmetic in the domain layer uses Python `int` (sums, means) and `decimal.Decimal` (percentiles, ratios, FX). **Floats are never used for money.**
 - API responses carry amounts as `{ "amount_minor": 5200000, "currency": "EUR" }`. Rendering (thousands separators, symbols) is the client's job.
 
 ### 2.5 Currency-context rules (the core anti-misleading rule)
@@ -93,7 +93,7 @@ These are implemented as **pure functions** in `domain/stats.py`, unit-tested wi
 | `count` | Number of employees in the group after filters |
 | `min`, `max` | Smallest and largest amount |
 | `sum` | Σ amounts (integer; same currency only, or USD) |
-| `mean` | `sum / count` in `Decimal`, rounded **half-even** to the minor unit |
+| `mean` | `sum / count`, rounded **half-even** to the minor unit, in exact integer arithmetic (`domain/rounding.py`; never float) |
 | `median` | `percentile(0.5)` |
 | `p25`, `p75` | `percentile(0.25)`, `percentile(0.75)` |
 | `percentile(p)` | **Linear interpolation between closest ranks**, the same as NumPy's default (`method="linear"`) and SQL `PERCENTILE_CONT`. For sorted values `x[0..n-1]`: `h = (n − 1) × p`, `lo = floor(h)`, `hi = ceil(h)`, `result = x[lo] + (h − lo) × (x[hi] − x[lo])`, computed in `Decimal` and rounded half-even to the minor unit |
@@ -233,6 +233,7 @@ compa_ratio(employee) = employee_base / band(job_role, level, country).mid
 - Uses **base salary only**. Bands are defined on base pay, and allowances follow country policy (for example India's HRA), not the role's market value. The `comp` toggle doesn't apply to this endpoint, and the UI disables it there with a tooltip.
 - Computed in `Decimal`. Shown rounded to 2 dp; full precision is kept for flag decisions.
 - An employee whose role + level + country has **no band** gets `compa_ratio: null` and `no_band: true`, is excluded from the rollups, and is counted in `summary.employees_without_band` (expected to be 0 with seeded data; a test asserts this).
+- A **non-`FULL_TIME`** employee (part-time or contractor) also gets `compa_ratio: null` and is excluded from the rollups: their pay isn't FTE-normalised, so comparing it with a full-time band would mislead. This check comes before the band check (`domain/pay_equity.py`, reason `not_full_time`).
 
 #### Flags
 

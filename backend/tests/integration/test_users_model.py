@@ -69,3 +69,16 @@ def test_the_database_rejects_a_role_outside_the_glossary(db_session: Session) -
 
     with pytest.raises(IntegrityError, match="CHECK"):
         db_session.execute(insert(User).values(**row))
+
+
+def test_a_user_email_is_stored_trimmed_and_lowercased(db_session: Session) -> None:
+    user = _add_user(db_session, email="  Admin@Acme.Example ")
+
+    assert user.email == "admin@acme.example"
+
+
+def test_emails_that_differ_only_in_case_cannot_both_be_saved(db_session: Session) -> None:
+    _add_user(db_session, email="Ana@acme.example")
+
+    with pytest.raises(IntegrityError, match="UNIQUE"):
+        _add_user(db_session, email="ana@ACME.example")

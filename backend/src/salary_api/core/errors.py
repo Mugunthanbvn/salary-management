@@ -159,6 +159,12 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
         "description": "Not authenticated: no valid session, or the user is inactive",
     },
     403: {"model": Problem, "description": "Forbidden: a required permission is missing"},
+    404: {"model": Problem, "description": "Not found"},
+    409: {
+        "model": Problem,
+        "description": "Conflict: `duplicate`, `version-conflict` (with `current_version`) "
+        "or `invalid-state`",
+    },
     429: {
         "model": Problem,
         "description": "Too many requests",

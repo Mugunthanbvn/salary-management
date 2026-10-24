@@ -152,7 +152,7 @@ def make_employee(session, *, country="DE", level="L3", base_minor=6_000_000,
 
 Each builder sets sensible defaults, so a test only states the fields that matter to it. That keeps the intent visible: a test about Germany says `country="DE"` and nothing else.
 
-`make_user(session, role="VIEWER", email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`.
+`make_user(session, role=..., email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`. `role` defaults to `VIEWER`, the least privilege, so a test that needs more says so. The email is unique per call unless given.
 
 ---
 
@@ -220,7 +220,7 @@ These are the behaviours we intend to cover. The list grows during TDD, and name
 - Unknown body fields are rejected (`extra="forbid"`).
 
 **Authz matrix (`test_authz_matrix.py`)**
-One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table (`MATRIX`, one `Endpoint(method, path, (anon, viewer, hr, admin))` row per route) lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). A row whose request needs a body, a query or a database row (an id in the path) gets a `prepare(session)` function that returns the request's keyword arguments and an optional concrete `url`. Adding an endpoint without adding it to the matrix fails a guard test that introspects the FastAPI routes (`fastapi.routing.iter_route_contexts`, which also sees inside included routers); a row without a route fails too. Only health, `openapi.json` and the docs page are exempt. So no endpoint can ship without a declared permission.
+One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table (`MATRIX`, one `Endpoint(method, path, (anon, viewer, hr, admin))` row per route) lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). A row whose request needs a body, a query or a database row (an id in the path) gets a `prepare(session)` function that returns the request's keyword arguments and an optional concrete `url`. Adding an endpoint without adding it to the matrix fails a guard test that introspects every route of the app, under `/api/v1` or not (`fastapi.routing.iter_route_contexts`, which also sees inside included routers); a row without a route fails too. Only health, `openapi.json` and the docs page are exempt (an explicit list). The Swagger OAuth2 redirect page is turned off, because FastAPI served it outside `/api/v1`. So no endpoint can ship without a declared permission.
 
 | Endpoint (sample) | Anonymous | VIEWER | HR_MANAGER | ADMIN |
 |---|---|---|---|---|

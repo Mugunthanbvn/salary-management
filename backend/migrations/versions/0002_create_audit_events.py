@@ -26,7 +26,7 @@ def upgrade() -> None:
         sa.Column("entity", sa.String(length=40), nullable=False),
         sa.Column("entity_id", sa.String(length=40), nullable=True),
         sa.Column("diff", sa.JSON(), nullable=True),
-        sa.Column("request_id", sa.String(length=64), nullable=True),
+        sa.Column("request_id", sa.String(length=128), nullable=True),
         sa.Column("at", sa.DateTime(timezone=True), nullable=False),
         sa.ForeignKeyConstraint(
             ["actor_id"], ["users.id"], name=op.f("fk_audit_events_actor_id_users")

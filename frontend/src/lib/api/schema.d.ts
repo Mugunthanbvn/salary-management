@@ -55,6 +55,127 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/countries": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Countries and their salary currency */
+        get: operations["countries_api_v1_countries_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/employees": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Search, filter, sort and page employees (salary masked without SALARY_READ) */
+        get: operations["list_employees_api_v1_employees_get"];
+        put?: never;
+        /** Create an employee with their hire salary */
+        post: operations["create_employee_api_v1_employees_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/employees/{employee_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One employee (salary masked without SALARY_READ) */
+        get: operations["get_employee_api_v1_employees__employee_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        /** Edit profile fields (needs the version you read) */
+        patch: operations["update_employee_api_v1_employees__employee_id__patch"];
+        trace?: never;
+    };
+    "/api/v1/employees/{employee_id}/reactivate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Reactivate a terminated employee */
+        post: operations["reactivate_employee_api_v1_employees__employee_id__reactivate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/employees/{employee_id}/salary-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a salary change (appends to the history) */
+        post: operations["record_salary_change_api_v1_employees__employee_id__salary_changes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/employees/{employee_id}/salary-history": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Salary history, oldest first (SALARY_READ only) */
+        get: operations["salary_history_api_v1_employees__employee_id__salary_history_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/employees/{employee_id}/terminate": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Terminate an employee (soft delete; history is kept) */
+        post: operations["terminate_employee_api_v1_employees__employee_id__terminate_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/health": {
         parameters: {
             query?: never;
@@ -72,10 +193,235 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reference data for forms and filters */
+        get: operations["reference_api_v1_reference_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ChangedBy */
+        ChangedBy: {
+            /** Full Name */
+            full_name: string;
+            /** Id */
+            id: number;
+        };
+        /**
+         * Comp
+         * @description Which amount a salary filter or statistic uses: the base or the total compensation.
+         * @enum {string}
+         */
+        Comp: "base" | "total";
+        /** Component */
+        Component: {
+            amount: components["schemas"]["Money"];
+            /** Name */
+            name: string;
+            type: components["schemas"]["ComponentType"];
+        };
+        /**
+         * ComponentIn
+         * @description An annual allowance or bonus target, in the salary's currency.
+         */
+        ComponentIn: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Name */
+            name: string;
+            type: components["schemas"]["ComponentType"];
+        };
+        /**
+         * ComponentType
+         * @description A salary component on top of base pay (ADR 0010).
+         * @enum {string}
+         */
+        ComponentType: "ALLOWANCE" | "BONUS_TARGET";
+        /** Country */
+        Country: {
+            /** Code */
+            code: string;
+            /** Default Currency */
+            default_currency: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** CurrencyOption */
+        CurrencyOption: {
+            /** Code */
+            code: string;
+            /** Exponent */
+            exponent: number;
+        };
+        /**
+         * CurrentSalary
+         * @description The salary record the current salary comes from.
+         */
+        CurrentSalary: {
+            /** Components */
+            components: components["schemas"]["Component"][];
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /** Id */
+            id: number;
+            reason: components["schemas"]["SalaryReason"];
+        };
+        /** Department */
+        Department: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /** EmployeeCreate */
+        EmployeeCreate: {
+            /** Country Code */
+            country_code: string;
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code?: string | null;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Job Role Id */
+            job_role_id: number;
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            salary: components["schemas"]["HireSalary"];
+        };
+        /** EmployeeDetail */
+        EmployeeDetail: {
+            /** Country Code */
+            country_code: string;
+            current_base: components["schemas"]["Money"] | null;
+            current_salary: components["schemas"]["CurrentSalary"] | null;
+            current_total: components["schemas"]["Money"] | null;
+            department: components["schemas"]["Department"];
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code: string;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Id */
+            id: number;
+            job_role: components["schemas"]["JobRoleRef"];
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            /** Salary Masked */
+            salary_masked: boolean;
+            status: components["schemas"]["EmployeeStatus"];
+            /** Termination Date */
+            termination_date: string | null;
+            /** Version */
+            version: number;
+        };
+        /**
+         * EmployeeListItem
+         * @description An employee in a list. Without SALARY_READ the salary fields are null and
+         *     `salary_masked` is true (docs/07-api-spec.md section 1.7).
+         */
+        EmployeeListItem: {
+            /** Country Code */
+            country_code: string;
+            current_base: components["schemas"]["Money"] | null;
+            current_total: components["schemas"]["Money"] | null;
+            department: components["schemas"]["Department"];
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code: string;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Id */
+            id: number;
+            job_role: components["schemas"]["JobRoleRef"];
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            /** Salary Masked */
+            salary_masked: boolean;
+            status: components["schemas"]["EmployeeStatus"];
+            /** Version */
+            version: number;
+        };
+        /** EmployeePage */
+        EmployeePage: {
+            /** Items */
+            items: components["schemas"]["EmployeeListItem"][];
+            /** Page */
+            page: number;
+            /** Page Size */
+            page_size: number;
+            /** Total */
+            total: number;
+        };
+        /**
+         * EmployeeStatus
+         * @enum {string}
+         */
+        EmployeeStatus: "ACTIVE" | "TERMINATED";
+        /**
+         * EmployeeUpdate
+         * @description Profile fields only. Salary, role, level and country change through a salary change,
+         *     so history explains them; they are refused here as unknown fields.
+         */
+        EmployeeUpdate: {
+            /** Email */
+            email?: string;
+            /** Employment Type */
+            employment_type?: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name?: string;
+            /** Last Name */
+            last_name?: string;
+            /** Version */
+            version: number;
+        };
+        /**
+         * EmploymentType
+         * @enum {string}
+         */
+        EmploymentType: "FULL_TIME" | "PART_TIME" | "CONTRACTOR";
         /**
          * Features
          * @description Optional features. `ask` is false when no LLM_API_KEY is configured.
@@ -110,6 +456,61 @@ export interface components {
             /** Version */
             version: string;
         };
+        /**
+         * HireSalary
+         * @description The first salary. `currency` may be left out: it is always the country's currency.
+         */
+        HireSalary: {
+            /** Base Minor */
+            base_minor: number;
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["ComponentIn"][];
+            /** Currency */
+            currency?: string | null;
+            /** Note */
+            note?: string | null;
+        };
+        /**
+         * JobFamily
+         * @description The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).
+         * @enum {string}
+         */
+        JobFamily: "ENGINEERING" | "PRODUCT" | "DESIGN" | "SALES" | "CUSTOMER_SUCCESS" | "MARKETING" | "OPERATIONS" | "FINANCE" | "PEOPLE" | "LEGAL";
+        /** JobRole */
+        JobRole: {
+            /** Department Id */
+            department_id: number;
+            family: components["schemas"]["JobFamily"];
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+        };
+        /**
+         * JobRoleRef
+         * @description A job role as other resources show it.
+         */
+        JobRoleRef: {
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+        };
+        /**
+         * Level
+         * @description Job level: L1 Associate, L2 Mid, L3 Senior, L4 Lead/Staff, L5 Principal, L6 Director.
+         * @enum {string}
+         */
+        Level: "L1" | "L2" | "L3" | "L4" | "L5" | "L6";
+        /** LevelOption */
+        LevelOption: {
+            code: components["schemas"]["Level"];
+            /** Label */
+            label: string;
+        };
         /** LoginRequest */
         LoginRequest: {
             /** Email */
@@ -132,6 +533,16 @@ export interface components {
             /** Permissions */
             permissions: components["schemas"]["Permission"][];
             user: components["schemas"]["SessionUser"];
+        };
+        /**
+         * Money
+         * @description An exact amount: integer minor units of an ISO 4217 currency, never a float.
+         */
+        Money: {
+            /** Amount Minor */
+            amount_minor: number;
+            /** Currency */
+            currency: string;
         };
         /**
          * Permission
@@ -158,11 +569,118 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /** ReactivateRequest */
+        ReactivateRequest: {
+            /** Version */
+            version: number;
+        };
+        /**
+         * ReferenceData
+         * @description Every dropdown value, and what filters are validated against (docs/07 section 5).
+         */
+        ReferenceData: {
+            /** Countries */
+            countries: components["schemas"]["Country"][];
+            /** Currencies */
+            currencies: components["schemas"]["CurrencyOption"][];
+            /** Departments */
+            departments: components["schemas"]["Department"][];
+            /** Employment Types */
+            employment_types: components["schemas"]["EmploymentType"][];
+            /** Job Roles */
+            job_roles: components["schemas"]["JobRole"][];
+            /** Levels */
+            levels: components["schemas"]["LevelOption"][];
+            /** Salary Change Reasons */
+            salary_change_reasons: components["schemas"]["SalaryReason"][];
+        };
         /**
          * Role
          * @enum {string}
          */
         Role: "ADMIN" | "HR_MANAGER" | "VIEWER";
+        /**
+         * SalaryBasis
+         * @description How salaries in different currencies are compared: in local currency, or in USD.
+         * @enum {string}
+         */
+        SalaryBasis: "local" | "usd";
+        /** SalaryChange */
+        SalaryChange: {
+            /** Employee Version */
+            employee_version: number;
+            record: components["schemas"]["SalaryHistoryRecord"];
+        };
+        /**
+         * SalaryChangeRequest
+         * @description A new salary record. Role, level and country default to the current ones.
+         */
+        SalaryChangeRequest: {
+            /** Base Minor */
+            base_minor: number;
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["ComponentIn"][];
+            /** Country Code */
+            country_code?: string | null;
+            /** Currency */
+            currency?: string | null;
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /** Job Role Id */
+            job_role_id?: number | null;
+            level?: components["schemas"]["Level"] | null;
+            /** Note */
+            note?: string | null;
+            reason: components["schemas"]["SalaryReason"];
+            /** Version */
+            version: number;
+        };
+        /** SalaryHistory */
+        SalaryHistory: {
+            /** Employee Id */
+            employee_id: number;
+            /** Records */
+            records: components["schemas"]["SalaryHistoryRecord"][];
+        };
+        /** SalaryHistoryRecord */
+        SalaryHistoryRecord: {
+            base: components["schemas"]["Money"];
+            /** Base Change Pct */
+            base_change_pct: string | null;
+            changed_by: components["schemas"]["ChangedBy"] | null;
+            /** Components */
+            components: components["schemas"]["Component"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /** Id */
+            id: number;
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"];
+            /** Note */
+            note: string | null;
+            reason: components["schemas"]["SalaryReason"];
+            total: components["schemas"]["Money"];
+        };
+        /**
+         * SalaryReason
+         * @description Why a salary record was written.
+         * @enum {string}
+         */
+        SalaryReason: "HIRE" | "PROMOTION" | "MERIT" | "MARKET_ADJUSTMENT" | "CORRECTION";
         /** SessionUser */
         SessionUser: {
             /** Email */
@@ -172,6 +690,15 @@ export interface components {
             /** Id */
             id: number;
             role: components["schemas"]["Role"];
+        };
+        /** TerminateRequest */
+        TerminateRequest: {
+            /** Note */
+            note?: string | null;
+            /** Termination Date */
+            termination_date?: string | null;
+            /** Version */
+            version: number;
         };
         /**
          * ValidationProblem
@@ -385,6 +912,738 @@ export interface operations {
             };
         };
     };
+    countries_api_v1_countries_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["Country"][];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    list_employees_api_v1_employees_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                country?: string[];
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                currency?: string[];
+                salary_min?: number | null;
+                salary_max?: number | null;
+                salary_basis?: components["schemas"]["SalaryBasis"] | null;
+                comp?: components["schemas"]["Comp"] | null;
+                sort?: string | null;
+                page?: number;
+                page_size?: number;
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeePage"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    create_employee_api_v1_employees_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeCreate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_employee_api_v1_employees__employee_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    update_employee_api_v1_employees__employee_id__patch: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["EmployeeUpdate"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reactivate_employee_api_v1_employees__employee_id__reactivate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["ReactivateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    record_salary_change_api_v1_employees__employee_id__salary_changes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalaryChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalaryChange"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    salary_history_api_v1_employees__employee_id__salary_history_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalaryHistory"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    terminate_employee_api_v1_employees__employee_id__terminate_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["TerminateRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
     health_api_v1_health_get: {
         parameters: {
             query?: never;
@@ -401,6 +1660,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reference_api_v1_reference_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceData"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed */
