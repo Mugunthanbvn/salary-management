@@ -1,5 +1,9 @@
 import type { Metadata, Viewport } from "next";
 import { Atkinson_Hyperlegible_Next, Source_Serif_4 } from "next/font/google";
+import { NuqsAdapter } from "nuqs/adapters/next/app";
+
+import { Toaster } from "@/components/ui/sonner";
+
 import "./globals.css";
 
 // Body, tables, labels and buttons (docs/design/DESIGN.md "Type").
@@ -20,7 +24,7 @@ const serif = Source_Serif_4({
 });
 
 export const metadata: Metadata = {
-  title: "ACME Pay",
+  title: { default: "ACME Pay", template: "%s · ACME Pay" },
   description: "Salary management for ACME's HR team",
 };
 
@@ -33,7 +37,11 @@ export const viewport: Viewport = {
 export default function RootLayout({ children }: LayoutProps<"/">) {
   return (
     <html lang="en" className={`${sans.variable} ${serif.variable}`}>
-      <body className="min-h-dvh">{children}</body>
+      <body className="min-h-dvh">
+        {/* Filter, sort and paging state lives in the URL (docs/13-frontend-ux.md §3.2). */}
+        <NuqsAdapter>{children}</NuqsAdapter>
+        <Toaster />
+      </body>
     </html>
   );
 }
