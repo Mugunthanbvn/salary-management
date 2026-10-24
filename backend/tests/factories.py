@@ -24,10 +24,18 @@ from salary_api.domain.enums import (
     Level,
     SalaryReason,
 )
+from salary_api.domain.rounding import divide_half_even
 from salary_api.domain.search import employee_search_text
 from salary_api.modules.employees import repository as employees
 from salary_api.modules.employees.models import Employee
-from salary_api.modules.reference.models import Country, Department, FxRate, JobFamily, JobRole
+from salary_api.modules.reference.models import (
+    Country,
+    Department,
+    FxRate,
+    JobFamily,
+    JobRole,
+    PayBand,
+)
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
 from salary_api.modules.users.models import User
 
@@ -304,3 +312,31 @@ def make_fx_rate(
 def make_fx_rates(session: Session) -> list[FxRate]:
     """A USD rate for every supported currency."""
     return [make_fx_rate(session, currency) for currency in USD_RATES]
+
+
+def make_pay_band(
+    session: Session,
+    *,
+    job_role: JobRole | None = None,
+    level: Level | str = Level.L3,
+    country: str = "DE",
+    mid_minor: int = 6_000_000,
+    min_minor: int | None = None,
+    max_minor: int | None = None,
+    effective_from: date = date(2026, 1, 1),
+) -> PayBand:
+    """A saved pay band in the country's currency; min and max default to 0.8 and 1.2 x mid
+    (the seed's band width, docs/glossary.md section 3), rounded half-even."""
+    band = PayBand(
+        job_role_id=(job_role or make_job_role(session)).id,
+        level=Level(level),
+        country_code=country,
+        currency=make_country(session, country).default_currency,
+        min_minor=min_minor if min_minor is not None else divide_half_even(mid_minor * 8, 10),
+        mid_minor=mid_minor,
+        max_minor=max_minor if max_minor is not None else divide_half_even(mid_minor * 12, 10),
+        effective_from=effective_from,
+    )
+    session.add(band)
+    session.flush()
+    return band

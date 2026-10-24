@@ -17,6 +17,7 @@ from salary_api.modules.reference.models import (
     PayBand,
 )
 from tests.conftest import FROZEN_NOW
+from tests.factories import make_pay_band
 
 
 def _department(session: Session, name: str = "Engineering") -> Department:
@@ -116,16 +117,21 @@ def _band_row(session: Session, **overrides: Any) -> dict[str, Any]:
     return row | overrides
 
 
-def test_a_pay_band_is_stored_with_its_minor_amounts(db_session: Session) -> None:
-    db_session.execute(insert(PayBand).values(**_band_row(db_session)))
+def test_a_pay_band_is_stored_in_its_country_currency_at_0_8_to_1_2_of_mid(
+    db_session: Session,
+) -> None:
+    band_id = make_pay_band(db_session, country="JP", level="L3", mid_minor=6_000_001).id
+    db_session.expunge_all()
 
-    band = db_session.query(PayBand).one()
+    band = db_session.get(PayBand, band_id)
+
+    assert band is not None
     assert (band.level, band.currency, band.min_minor, band.mid_minor, band.max_minor) == (
         "L3",
-        "EUR",
-        4_800_000,
-        6_000_000,
-        7_200_000,
+        "JPY",
+        4_800_001,  # 4,800,000.8 rounded half-even
+        6_000_001,
+        7_200_001,  # 7,200,001.2
     )
 
 
