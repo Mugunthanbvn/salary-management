@@ -8,6 +8,7 @@ that currency; any other population is shown in USD, each salary converted befor
 statistics are computed (section 2.6).
 """
 
+from collections import Counter, defaultdict
 from collections.abc import Iterable, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import date
@@ -147,13 +148,16 @@ def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -
     scope = _scope(session, principal, countries)
     rows = repository.amounts_by_job_role(session, _where(query, countries), query.comp)
     split = query.split_by_level
-    roles = _groups(
-        ((role_id, title, level if split else None), currency, amount)
-        for role_id, title, level, currency, amount in rows
+    # The hidden set comes from the whole nesting, so with or without the split (and in pay
+    # equity's cohorts) the same people are hidden.
+    hidden = scope.audience.hidden_nodes(
+        Counter(
+            (query.country, dept_id, role_id, level) for role_id, _t, dept_id, level, *_ in rows
+        )
     )
-    # Each role's total is a breakdown of its own: it is visible without the split.
-    hidden = scope.audience.hidden_groups(
-        [role.count for role in roles], within=_partitions([role.key[0] for role in roles])
+    roles = _groups(
+        ((query.country, dept_id, role_id, title, level if split else None), currency, amount)
+        for role_id, title, dept_id, level, currency, amount in rows
     )
     return ByJobTitle(
         population=_population(query, countries, query.comp),
@@ -161,11 +165,11 @@ def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -
         split_by_level=split,
         groups=[
             JobTitleStats(
-                job_role=JobRoleRef(id=role.key[0], title=role.key[1]),
-                level=role.key[2],
-                stats=scope.stats(role.members, hidden=index in hidden),
+                job_role=JobRoleRef(id=role.key[2], title=role.key[3]),
+                level=role.key[4],
+                stats=scope.stats(role.members, hidden=_node(role.key) in hidden),
             )
-            for index, role in enumerate(roles)
+            for role in roles
         ],
     )
 
@@ -300,20 +304,16 @@ def pay_equity(
     if query.view == PayEquityView.DEPARTMENTS:
         return _department_view(query, pays, names, audience)
     rollups = cohort_rollup(pays)
-    hidden = audience.hidden_groups(
-        [rollup.base.count for rollup in rollups],
-        within=[
-            *_partitions([(names.department_of(r), r.cohort.country_code) for r in rollups]),
-            *_partitions([rollup.cohort.country_code for rollup in rollups]),
-        ],
-    )
+    hidden = audience.hidden_nodes(_cohort_counts(rollups, names))
     return PayEquityCohorts(
         view=PayEquityView.COHORTS,
         population=_population(query, query.country, Comp.BASE),
         thresholds=_THRESHOLDS,
         cohorts=[
-            _cohort_equity(rollup, names, hidden=index in hidden, audience=audience)
-            for index, rollup in enumerate(rollups)
+            _cohort_equity(
+                rollup, names, hidden=_cohort_path(rollup, names) in hidden, audience=audience
+            )
+            for rollup in rollups
         ],
         summary=_pay_equity_summary(pay_equity_summary(pays), audience),
     )
@@ -327,7 +327,13 @@ def _department_view(
         department_rollup(pays),
         key=lambda rollup: (names.departments[rollup.department_id], rollup.department_id),
     )
-    hidden = audience.hidden_groups([rollup.ratios.count for rollup in rollups])
+    # The same nesting as the cohorts view, so both views hide the same people.
+    hidden_nodes = audience.hidden_nodes(_cohort_counts(cohort_rollup(pays), names))
+    hidden = {
+        index
+        for index, rollup in enumerate(rollups)
+        if (rollup.country_code, rollup.department_id) in hidden_nodes
+    }
     return PayEquityDepartments(
         view=PayEquityView.DEPARTMENTS,
         population=_population(query, query.country, Comp.BASE),
@@ -420,6 +426,16 @@ def _pays(session: Session, query: PayEquityQuery) -> tuple[list[EmployeePay], _
             )
         )
     return pays, _Names(departments, roles, bands)
+
+
+def _cohort_path(rollup: CohortRollup, names: "_Names") -> tuple[object, ...]:
+    """The cohort's place in the nesting: (country, department, job role, level)."""
+    key = rollup.cohort
+    return (key.country_code, names.department_of(rollup), key.job_role_id, key.level)
+
+
+def _cohort_counts(rollups: Iterable[CohortRollup], names: "_Names") -> Counter[tuple[object, ...]]:
+    return Counter({_cohort_path(rollup, names): rollup.base.count for rollup in rollups})
 
 
 def _cohort_equity(
@@ -626,38 +642,58 @@ class _Audience:
         """The small-group rule: without SALARY_READ, fewer than MIN_GROUP_SIZE is hidden."""
         return not self.salary_visible and count < MIN_GROUP_SIZE
 
-    def hidden_groups(
-        self, counts: Sequence[int], *, within: Iterable[Sequence[int]] = ()
-    ) -> set[int]:
-        """The indexes of the groups of a breakdown that this caller may not see.
+    def hidden_groups(self, counts: Sequence[int]) -> set[int]:
+        """The indexes of the groups of one flat breakdown (countries, departments) that this
+        caller may not see.
 
-        The small-group rule hides groups under MIN_GROUP_SIZE. Then complementary
-        suppression (docs/09 section 2.8): in any breakdown with a visible total (the whole
-        list, and each list of indexes in `within`, such as the levels of one job role) where
-        exactly one group is hidden, the smallest visible group is hidden too, so the total
-        minus the visible groups never gives one hidden group away. Ties go to the group
-        listed first. Hiding a group can leave another breakdown with one hidden group, so
-        this repeats until nothing changes.
+        The small-group rule hides groups under MIN_GROUP_SIZE. If that hides exactly one,
+        the smallest visible group is hidden too (complementary suppression, docs/09 2.8), so
+        the total minus the visible groups never gives it away. Ties go to the group listed
+        first. Nested breakdowns use hidden_nodes.
         """
         hidden = {index for index, count in enumerate(counts) if self.hides(count)}
-        breakdowns = [range(len(counts)), *within]
-        changed = bool(hidden)
+        visible = [index for index in range(len(counts)) if index not in hidden]
+        if len(hidden) == 1 and visible:
+            hidden.add(min(visible, key=lambda index: (counts[index], index)))
+        return hidden
+
+    def hidden_nodes(self, leaves: Mapping[tuple[object, ...], int]) -> set[tuple[object, ...]]:
+        """The hidden nodes of a nesting such as country > department > job role > level.
+
+        `leaves` maps each finest group's path to its headcount; every prefix of a path is a
+        parent whose total some endpoint shows. A node is hidden when it has fewer than
+        MIN_GROUP_SIZE people. Then, until nothing changes, for every node: if exactly one
+        child is hidden, the smallest visible child is hidden too; and a node that is hidden
+        must have a hidden child, else its children would add up to it. So every parent has
+        none or at least two hidden children. Ties go by the path, so every endpoint that
+        shows the same groups hides the same ones.
+        """
+        if self.salary_visible:
+            return set()
+        counts: defaultdict[tuple[object, ...], int] = defaultdict(int)
+        children: defaultdict[tuple[object, ...], set[tuple[object, ...]]] = defaultdict(set)
+        for path, count in leaves.items():
+            for depth in range(len(path) + 1):
+                counts[path[:depth]] += count
+                if depth:
+                    children[path[: depth - 1]].add(path[:depth])
+        hidden = {node for node, count in counts.items() if self.hides(count)}
+        changed = True
         while changed:
             changed = False
-            for breakdown in breakdowns:
-                visible = [index for index in breakdown if index not in hidden]
-                if len(breakdown) - len(visible) == 1 and visible:
-                    hidden.add(min(visible, key=lambda index: (counts[index], index)))
+            for node, kids in children.items():
+                visible = [kid for kid in kids if kid not in hidden]
+                hidden_kids = len(kids) - len(visible)
+                if visible and (hidden_kids == 1 or (node in hidden and hidden_kids == 0)):
+                    hidden.add(min(visible, key=lambda kid: (counts[kid], repr(kid))))
                     changed = True
         return hidden
 
 
-def _partitions[K](parents: Sequence[K]) -> list[list[int]]:
-    """The indexes of the groups that share a parent (e.g. one job role's levels)."""
-    indexes: dict[K, list[int]] = {}
-    for index, parent in enumerate(parents):
-        indexes.setdefault(parent, []).append(index)
-    return list(indexes.values())
+def _node(key: tuple[object, ...]) -> tuple[object, ...]:
+    """A group key (country, department, role, title, level or None) as a nesting path."""
+    country, department, role, _title, level = key
+    return (country, department, role) if level is None else (country, department, role, level)
 
 
 # --- Currency: one local currency, else USD with each amount converted (docs/09 2.5-2.6)
