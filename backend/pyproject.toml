@@ -1,0 +1,105 @@
+[project]
+name = "salary-api"
+version = "0.1.0"
+description = "ACME Salary Management API (FastAPI)"
+requires-python = ">=3.13"
+dependencies = [
+    "alembic>=1.20.1",
+    "fastapi>=0.162.0",
+    "openai>=3.37.0",
+    "openpyxl>=3.1.5",
+    "pwdlib[argon2]>=0.3.1",
+    "pydantic>=2.14.1",
+    "pydantic-settings>=2.16.1",
+    "pyjwt>=2.15.1",
+    "python-multipart>=0.0.32",
+    "sqlalchemy>=2.1.6",
+    "structlog>=26.1.0",
+    "uvicorn[standard]>=0.54.0",
+]
+
+[build-system]
+requires = ["uv_build>=0.11.32,<0.12.0"]
+build-backend = "uv_build"
+
+[dependency-groups]
+dev = [
+    "httpx>=0.28.1",
+    "hypothesis>=6.170.9",
+    "lefthook>=2.2.2",
+    "pyright>=1.1.414",
+    "pytest>=9.1.1",
+    "pytest-cov>=7.1.0",
+    "pytest-randomly>=5.0.0",
+    "pytest-socket>=0.8.1",
+    "pytest-xdist>=3.8.0",
+    "ruff>=0.17.2",
+    "time-machine>=3.5.1",
+]
+seed = [
+    "faker>=40.43.0",
+]
+
+[tool.uv]
+default-groups = ["dev", "seed"]
+
+[tool.ruff]
+target-version = "py313"
+line-length = 100
+src = ["src", "tests"]
+
+[tool.ruff.lint]
+select = ["E", "F", "I", "B", "UP", "SIM", "S", "PT", "RUF", "N", "PL"]
+
+[tool.ruff.lint.per-file-ignores]
+# Tests use plain asserts and literal status codes.
+"tests/**" = ["S101", "PLR2004"]
+
+[tool.ruff.lint.isort]
+known-first-party = ["salary_api"]
+
+[tool.ruff.format]
+docstring-code-format = true
+
+[tool.pyright]
+include = ["src", "tests", "migrations", "scripts"]
+strict = ["src"]
+typeCheckingMode = "basic"
+pythonVersion = "3.13"
+venvPath = "."
+venv = ".venv"
+
+[tool.pytest.ini_options]
+minversion = "9.0"
+testpaths = ["tests"]
+addopts = [
+    "-ra",
+    "--strict-markers",
+    "--strict-config",
+    "--import-mode=importlib",
+    "-n", "auto",
+    "--disable-socket",
+    "--allow-unix-socket",
+]
+markers = [
+    "slow: slower tests (seed, large imports); deselect with -m 'not slow'",
+    "sqlite_only: relies on SQLite behaviour (PRAGMAs)",
+]
+xfail_strict = true
+filterwarnings = ["error"]
+
+[tool.coverage.run]
+branch = true
+source_pkgs = ["salary_api"]
+# Excluded per docs/14-testing-strategy.md section 7: wiring and CLI argument parsing.
+omit = ["*/salary_api/main.py", "*/salary_api/seed/cli.py"]
+
+[tool.coverage.report]
+show_missing = true
+skip_empty = true
+exclude_also = [
+    "if TYPE_CHECKING:",
+    "if __name__ == .__main__.:",
+    "raise NotImplementedError",
+    "@overload",
+]
