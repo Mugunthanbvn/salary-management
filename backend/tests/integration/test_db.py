@@ -3,7 +3,7 @@
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, insert
+from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, event, insert
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
@@ -52,3 +52,19 @@ def test_production_engine_does_not_pool_connections() -> None:
     engine = create_db_engine(settings)
 
     assert isinstance(engine.pool, NullPool)
+
+
+def test_database_auth_token_is_passed_to_the_driver_as_a_connect_argument() -> None:
+    engine = create_db_engine(make_settings(database_auth_token="turso-token"))
+    driver_kwargs: dict[str, object] = {}
+
+    @event.listens_for(engine, "do_connect")
+    def capture_driver_kwargs(_dialect, _record, _args, kwargs: dict[str, object]) -> None:
+        driver_kwargs.update(kwargs)
+        kwargs.pop("auth_token")  # the stdlib sqlite3 driver does not take it
+
+    with engine.connect():
+        pass
+
+    assert driver_kwargs["auth_token"] == "turso-token"
+    engine.dispose()
