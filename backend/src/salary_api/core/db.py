@@ -1,15 +1,25 @@
 """Engine and session factory, chosen only by DATABASE_URL (+ DATABASE_AUTH_TOKEN)."""
 
 import sqlite3
-from collections.abc import Callable, Generator
+from collections.abc import Callable, Generator, Iterator, Sequence
 from contextlib import contextmanager
-from typing import Any
+from typing import Any, Final
 
 from sqlalchemy import URL, Connection, Engine, create_engine, event, make_url
 from sqlalchemy.orm import Session, sessionmaker
 from sqlalchemy.pool import NullPool, Pool, StaticPool
 
 from salary_api.core.config import Settings
+
+BULK_CHUNK_SIZE: Final = 1_000
+"""Rows per bulk INSERT or UPDATE and values per IN (...) list: few round trips to the
+database, and far below every database's limit on bound parameters."""
+
+
+def in_chunks[T](values: Sequence[T], size: int = BULK_CHUNK_SIZE) -> Iterator[Sequence[T]]:
+    """`values` in consecutive slices of at most `size`."""
+    for start in range(0, len(values), size):
+        yield values[start : start + size]
 
 
 def create_db_engine(settings: Settings) -> Engine:

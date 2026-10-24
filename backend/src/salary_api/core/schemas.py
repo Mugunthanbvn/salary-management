@@ -37,3 +37,10 @@ class Comp(StrEnum):
 
     BASE = "base"
     TOTAL = "total"
+
+
+class FileFormat(StrEnum):
+    """The file a download is written as: `?format=csv|xlsx`."""
+
+    CSV = "csv"
+    XLSX = "xlsx"

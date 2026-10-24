@@ -29,7 +29,7 @@ The problem is small: **10,000 employees, about 30,000 salary records, about 10 
 | `GET /employees/{id}` | **p95 < 300 ms** | Deployed, warm | |
 | Insight endpoints (overview, by-department, by-job-title, distribution, department-cost, raises, pay-equity) | **p95 < 300 ms** | Deployed, warm | Whole-org population, the worst case |
 | Salary change / create / update | **p95 < 300 ms** | Deployed, warm | One transaction, a few statements |
-| Export 10,000 rows (CSV / XLSX) | **< 3 s** **(proposed)** | Deployed | ~1 MB CSV / ~600 KB XLSX, under the 4.5 MB body cap |
+| Export 10,000 rows (CSV / XLSX) | **< 3 s** CSV / **< 5 s** XLSX | Deployed | ~1.4 MB CSV / ~600 KB XLSX, under the 4.5 MB body cap. XLSX is set at 5 s because openpyxl alone takes about 2.5 s to write 190,000 cells (measured, §9) |
 | Import dry-run of 10,000 rows | **< 5 s** **(proposed)** | Deployed | Validation in memory; 2 duplicate-check queries |
 | Import commit of 10,000 rows | **< 30 s** **(proposed)** | Deployed | One transaction, chunked inserts with IDs pre-allocated in Python; checked against the day-1 spike's bulk-insert timing, and the row cap is lowered if needed |
 | Cold start (first request after idle) | **~1–2 s** | Vercel Python function | Not part of the p95 budget; measured and reported separately |
@@ -202,8 +202,8 @@ To be filled in with measured values. Each row records the date, commit and envi
 | `GET /insights/overview` p95 | < 300 ms | TBD | | |
 | `GET /insights/pay-equity` p95 | < 300 ms | TBD | | |
 | Salary change p95 | < 300 ms | TBD | | |
-| Export 10k CSV / XLSX | < 3 s | TBD | | |
-| Import dry-run / commit 10k | < 5 s / < 30 s | TBD | | |
+| Export 10k CSV / XLSX | < 3 s / < 5 s | 0.7–0.9 s / 3.3–4.0 s | 2026-10-24, B7 | Local: 4-core dev container, Python 3.13, in-memory SQLite (`RUN_SLOW=1 uv run pytest -m slow -n 0 -s tests/integration/test_import_timing.py`) |
+| Import dry-run / commit 10k | < 5 s / < 30 s | CSV 0.6–1.2 s, XLSX 3.6 s / 1.3–2.1 s | 2026-10-24, B7 | Same; 1.37 MB CSV, 0.49 MB XLSX, every row with a bonus and an allowance. Turso not measured yet |
 | Cold start | ~1–2 s | TBD | | |
 | LCP `/employees` | < 2.5 s | TBD | | |
 | Backend test suite | < 30 s | TBD | | |

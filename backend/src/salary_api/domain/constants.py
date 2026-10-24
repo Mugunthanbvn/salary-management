@@ -1,5 +1,6 @@
 """Named business thresholds (docs/glossary.md §3, docs/06 §5.1). Change them here only."""
 
+from datetime import timedelta
 from decimal import Decimal
 from typing import Final
 
@@ -18,3 +19,18 @@ PAY_EQUITY_HIGH: Final = Decimal("1.20")
 
 ROLLUP_THRESHOLD: Final = Decimal("0.95")
 """A department whose median compa-ratio is below this is systematically below band."""
+
+MAX_UPLOAD_BYTES: Final = 4 * 1024 * 1024
+"""The largest import upload (4 MB), below Vercel's 4.5 MB request body cap."""
+
+MAX_IMPORT_ROWS: Final = 10_000
+"""The most data rows one import file may have."""
+
+MAX_XLSX_UNCOMPRESSED_BYTES: Final = 50 * 1024 * 1024
+"""An XLSX file is a zip: refuse one that would expand past 50 MB (zip-bomb guard)."""
+
+DRY_RUN_TTL: Final = timedelta(hours=24)
+"""How long a dry-run can be committed after the upload."""
+
+MAX_ACTIVE_DRY_RUNS: Final = 3
+"""Dry-runs a user keeps open; a newer upload expires the oldest (docs/11 section 5.8)."""

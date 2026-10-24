@@ -462,12 +462,13 @@ Writes exactly one `salary.change` event: `salary_record_id`, `reason`, `effecti
 
 ### 6.8 `GET /employees/export`: `EXPORT`
 
-Accepts **all filters of §6.1** plus `format=csv|xlsx`. Streams a file:
+Accepts **all filters and the sort of §6.1** plus `format=csv|xlsx` (`csv` by default); `page` and `page_size` are refused (422): the whole filtered list is exported. The same service code builds the filters and sort as the list, with the same refusals (403 for salary filters or sorts without `SALARY_READ`, 422 for a salary comparison across currencies). Returns a file:
 
-- `Content-Disposition: attachment; filename="employees-2026-10-24.csv"`.
+- `text/csv; charset=utf-8` (UTF-8 with a BOM) or `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (one sheet, `Employees`).
+- `Content-Disposition: attachment; filename="acme-employees-2026-10-24.csv"` (today's date, UTC).
 - Columns depend on permission: without `SALARY_READ`, salary columns are omitted entirely (not blank).
-- Every cell starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with `'` (formula-injection protection, [08-security-rbac.md](08-security-rbac.md) §7).
-- Writes `export.download` with the filters used and the row count.
+- Every text cell starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with `'` (formula-injection protection, [08-security-rbac.md](08-security-rbac.md) §7).
+- Writes `export.download` with `format`, `filters` (the filters and sort in effect), `row_count` and `salary_included`.
 
 Full column list and format details: [11-import-export.md](11-import-export.md).
 
@@ -477,16 +478,16 @@ Full column list and format details: [11-import-export.md](11-import-export.md).
 
 ### 7.1 `GET /imports/template?format=csv|xlsx`: `IMPORT`
 
-Downloads an empty template with the header row (and, for XLSX, a second sheet listing valid job roles, countries, levels and currencies).
+Downloads the template (`format` defaults to `csv`): the header row and one example row, as an attachment `acme-import-template.csv|xlsx`. The XLSX file adds a protected "Reference" sheet listing the valid job roles, levels, employment types, countries and currencies, and dropdowns on those columns ([11](11-import-export.md) §4). 422 for another `format`.
 
 ### 7.2 `POST /imports`: `IMPORT`
 
-`multipart/form-data` with field `file`. Max 4 MB; max 10,000 data rows **(proposed)**. Accepts `.csv` (UTF-8, with or without BOM) and `.xlsx` (values only, see [11-import-export.md](11-import-export.md)).
+`multipart/form-data` with field `file`. Max 4 MB; max 10,000 data rows. Accepts `.csv` (UTF-8, with or without BOM) and `.xlsx` (values only, see [11-import-export.md](11-import-export.md)); the extension picks the parser and the content must match it.
 
-Runs parse → validate → duplicate checks (within the file and against the DB). **Nothing is written to employee tables.**
+Runs parse → validate → duplicate checks (within the file and against the DB). **Nothing is written to employee tables**: only the `import_jobs` row and the `import.dry_run` audit event (`job_id`, `filename`, `format`, `file_sha256`, `row_count`, `valid_count`, `error_count`).
 
 ```json
-// 201
+// 201, with Location: /api/v1/imports/31
 {
   "id": 31,
   "status": "DRY_RUN",
@@ -496,26 +497,31 @@ Runs parse → validate → duplicate checks (within the file and against the DB
   "valid_count": 409,
   "error_count": 3,
   "errors": [
-    { "row": 18, "column": "email", "code": "duplicate_in_db", "message": "Email already used by ACME-002210." },
-    { "row": 40, "column": "job_title", "code": "unknown_value", "message": "\"Sr Engineer\" is not a known job role. Did you mean \"Senior Software Engineer\"?" },
-    { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY has no minor unit." }
+    { "row": 18, "column": "email", "code": "duplicate_in_db", "message": "This email is already used by ACME-002210.", "value": "lena@acme.example" },
+    { "row": 40, "column": "job_role", "code": "unknown_value", "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'? Job roles: …", "value": "Sr Engineer" },
+    { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals.", "value": "450000.5" }
   ],
-  "preview": [ { "row": 2, "employee_code": "ACME-010002", "full_name": "Lena Müller", "country_code": "DE", "base": { "amount_minor": 5400000, "currency": "EUR" } } ],
-  "expires_at": "2026-10-25T09:12:00Z"
+  "preview": [ { "row": 2, "employee_code": "ACME-010002", "first_name": "Lena", "last_name": "Müller", "email": "lena.mueller@acme.example",
+                 "job_role": "Software Engineer", "department": "Engineering", "level": "L2", "employment_type": "FULL_TIME",
+                 "country_code": "DE", "hire_date": "2026-09-01", "salary_effective_date": "2026-09-01",
+                 "base": { "amount_minor": 5400000, "currency": "EUR" }, "total": { "amount_minor": 5892000, "currency": "EUR" } } ],
+  "created_at": "2026-10-24T09:12:00Z",
+  "expires_at": "2026-10-25T09:12:00Z",
+  "committed_at": null
 }
 ```
 
-Errors: 413, 415, 400 `bad-request` (unreadable file / header mismatch, reported with the expected headers). Row-level problems are not an error status: they come back in `errors[]` with the 201.
+Errors: 413 `payload-too-large`; 415 `unsupported-media-type` (not `.csv`/`.xlsx`, including `.xlsm` and `.xls`); 400 `bad-request` (unreadable file, a formula without a saved value, or a header mismatch, which adds `expected_headers`); 422 `validation` with code `too_many_rows`. Row-level problems are not an error status: they come back in `errors[]` with the 201. A user keeps at most 3 open dry-runs: a new upload marks the oldest `EXPIRED` ([11](11-import-export.md) §5.8).
 
 ### 7.3 `GET /imports/{id}`: `IMPORT`
 
-Returns the stored job (same shape). Only the creator or an ADMIN can see it (404 otherwise).
+Returns the stored job (same shape as §7.2). Only its creator, or a caller with `USER_ADMIN` (the administrator's permission), can see it; anyone else gets 404 `not-found`, as for an unknown id. A `DRY_RUN` job past `expires_at` is shown with `status: "EXPIRED"` (the read writes nothing). `preview` is empty once the job has ended.
 
 ### 7.4 `POST /imports/{id}/commit`: `IMPORT`
 
-- Only the job's creator or an `ADMIN` may commit (404 otherwise).
-- Requires `status=DRY_RUN`, `error_count=0` and not expired; otherwise 409 `invalid-state`. An expired job is marked `EXPIRED` at that point.
-- Re-runs duplicate checks against the DB (data may have changed since the preview); new conflicts → 409 `duplicate` with the conflicting rows, nothing written.
+- Only the job's creator or a caller with `USER_ADMIN` may commit (404 otherwise). No request body.
+- Requires `status=DRY_RUN`, `error_count=0` and not expired; otherwise 409 `invalid-state` (committing twice included). An expired job is marked `EXPIRED` at that point.
+- Re-runs duplicate checks against the DB (data may have changed since the preview); new conflicts → 409 `duplicate` with `conflicts: [{ row, column, code: "duplicate_in_db", message, value }]`, nothing written, the job stays `DRY_RUN`.
 - Inserts all employees + `HIRE` salary records in **one transaction**; any other failure rolls back everything, marks the job `FAILED` and returns 500 `import-failed`.
 - 200 `{ "id": 31, "status": "COMMITTED", "inserted": 409 }`. Writes `import.commit` (`import.fail` on rollback; `import.dry_run` at upload).
 

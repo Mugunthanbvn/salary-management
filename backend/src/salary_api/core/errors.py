@@ -49,6 +49,34 @@ class ProblemError(Exception):
         self.headers: dict[str, str] = {}
 
 
+class BadRequest(ProblemError):
+    """400: an unreadable upload, or a header row that does not match the template."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(400, "bad-request", "Bad request", detail, **extra)
+
+
+class PayloadTooLarge(ProblemError):
+    """413: an upload over the size cap."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(413, "payload-too-large", "Payload too large", detail, **extra)
+
+
+class UnsupportedMediaType(ProblemError):
+    """415: an upload that is not CSV or XLSX."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(415, "unsupported-media-type", "Unsupported media type", detail, **extra)
+
+
+class ImportFailed(ProblemError):
+    """500: an import commit failed and was rolled back; the job is FAILED, nothing written."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(500, "import-failed", "Import failed", detail, **extra)
+
+
 class Unauthenticated(ProblemError):
     """401: missing, invalid or expired token, or an inactive user."""
 
@@ -154,6 +182,11 @@ PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
 
 # Route-level error responses, more specific than the app-wide 4XX.
 _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
+    400: {
+        "model": Problem,
+        "description": "Bad request: the file cannot be read, or its header row does not "
+        "match the template (`expected_headers`)",
+    },
     401: {
         "model": Problem,
         "description": "Not authenticated: no valid session, or the user is inactive",
@@ -165,6 +198,8 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
         "description": "Conflict: `duplicate`, `version-conflict` (with `current_version`) "
         "or `invalid-state`",
     },
+    413: {"model": Problem, "description": "Payload too large: the upload is over 4 MB"},
+    415: {"model": Problem, "description": "Unsupported media type: not a .csv or .xlsx file"},
     429: {
         "model": Problem,
         "description": "Too many requests",
@@ -174,6 +209,10 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
                 "schema": {"type": "integer"},
             }
         },
+    },
+    500: {
+        "model": Problem,
+        "description": "`import-failed`: the commit was rolled back and the job marked FAILED",
     },
 }
 

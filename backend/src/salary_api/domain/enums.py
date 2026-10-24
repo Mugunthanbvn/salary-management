@@ -63,3 +63,19 @@ class PayEquityFlag(StrEnum):
     UNDERPAID = "UNDERPAID"
     IN_BAND = "IN_BAND"
     OVERPAID = "OVERPAID"
+
+
+class ImportStatus(StrEnum):
+    """Where an import job is: previewed, committed, failed at commit, or too old to commit."""
+
+    DRY_RUN = "DRY_RUN"
+    COMMITTED = "COMMITTED"
+    FAILED = "FAILED"
+    EXPIRED = "EXPIRED"
+
+
+class ImportFormat(StrEnum):
+    """The file type of an import job (upper case in the DB and the API)."""
+
+    CSV = "CSV"
+    XLSX = "XLSX"

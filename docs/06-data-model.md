@@ -370,15 +370,18 @@ Holds a dry-run result between "preview" and "commit", because serverless functi
 | `row_count` | INTEGER | no | | |
 | `valid_count` | INTEGER | no | | |
 | `error_count` | INTEGER | no | | |
-| `errors` | JSON | no | | `[{row, column, code, message}]` |
-| `payload` | JSON | yes | | Normalized, validated rows; cleared 7 days after the job ends **(proposed)** (it contains salary data) |
-| `created_by` | INTEGER | no | FK → `users.id` | Only the creator (or an ADMIN) may commit |
+| `errors` | JSON | no | | `[{row, column, code, message, value}]`, in row order |
+| `preview` | JSON | yes | | The first 50 valid rows as the UI shows them; cleared when the job ends (it contains salary data) |
+| `payload` | JSON | yes | | Every normalized, validated row. Stored only when the dry-run has no errors (only then can it be committed); cleared as soon as the job is `COMMITTED`, `FAILED` or `EXPIRED` (it contains salary data) |
+| `created_by` | INTEGER | no | FK → `users.id` | Only the creator, or a user with `USER_ADMIN`, may see or commit the job |
 | `created_at` | TIMESTAMP tz | no | | |
 | `committed_at` | TIMESTAMP tz | yes | | |
-| `expires_at` | TIMESTAMP tz | no | | `created_at` + 24 h **(proposed)** |
-| `failure_reason` | TEXT | yes | | Set when status becomes `FAILED` |
+| `expires_at` | TIMESTAMP tz | no | | `created_at` + 24 h |
+| `failure_reason` | TEXT | yes | | Set when status becomes `FAILED` (the error type and database message, never row values) |
 
-Commit rules: status must be `DRY_RUN`; `error_count` must be 0; `expires_at` must not have passed (24 h, **proposed**), otherwise it becomes `EXPIRED`. Duplicate checks run **again** at commit time (data may have changed since the preview). All rows are inserted in one transaction; any failure rolls back everything and marks the job `FAILED`.
+Index `ix_import_jobs_created_by_status` finds a user's open dry-runs (at most 3, [11-import-export.md](11-import-export.md) §5.8).
+
+Commit rules: status must be `DRY_RUN`; `error_count` must be 0; `expires_at` must not have passed (24 h), otherwise it becomes `EXPIRED`. Duplicate checks run **again** at commit time (data may have changed since the preview). All rows are inserted in one transaction; any failure rolls back everything and marks the job `FAILED`.
 
 ---
 
@@ -432,7 +435,7 @@ employees.job_role_id, level       = new_record.job_role_id, level   (if changed
 employees.version                  = version + 1
 ```
 
-The salary service (`modules/salaries/service.py`, `_make_current`) is the only writer of these columns. It sets the `current_salary_record` relationship, not only the id, so a session that already loaded the old record sees the new one.
+The salary service (`modules/salaries/service.py`: `_make_current`, and `record_hires_in_bulk` for imports, which points each new employee at its `HIRE` record with one bulk `UPDATE`) is the only writer of these columns after the insert. It sets the `current_salary_record` relationship, not only the id, so a session that already loaded the old record sees the new one.
 
 An integration test asserts the invariant for every employee after the seed and after random sequences of changes: the denormalized columns equal the latest salary record.
 

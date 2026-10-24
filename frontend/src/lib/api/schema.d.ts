@@ -90,6 +90,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/employees/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export the filtered employee list as CSV or XLSX (salary columns need SALARY_READ) */
+        get: operations["export_employees_api_v1_employees_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/employees/{employee_id}": {
         parameters: {
             query?: never;
@@ -193,6 +210,74 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a CSV or XLSX file and get its dry-run report (nothing is imported yet) */
+        post: operations["upload_import_api_v1_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/template": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Download the import template (header and an example row) as CSV or XLSX */
+        get: operations["download_template_api_v1_imports_template_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/{import_id}": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** An import job's report (only for its creator or an administrator) */
+        get: operations["get_import_api_v1_imports__import_id__get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
+    "/api/v1/imports/{import_id}/commit": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Import every row of an error-free dry-run, all or nothing */
+        post: operations["commit_import_api_v1_imports__import_id__commit_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference": {
         parameters: {
             query?: never;
@@ -214,6 +299,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_upload_import_api_v1_imports_post */
+        Body_upload_import_api_v1_imports_post: {
+            /**
+             * File
+             * @description A .csv (UTF-8) or .xlsx file, at most 4 MB
+             */
+            file: string;
+        };
         /** ChangedBy */
         ChangedBy: {
             /** Full Name */
@@ -441,6 +534,12 @@ export interface components {
         } & {
             [key: string]: unknown;
         };
+        /**
+         * FileFormat
+         * @description The file a download is written as: `?format=csv|xlsx`.
+         * @enum {string}
+         */
+        FileFormat: "csv" | "xlsx";
         /** HealthResponse */
         HealthResponse: {
             /**
@@ -473,6 +572,118 @@ export interface components {
             /** Note */
             note?: string | null;
         };
+        /** ImportCommitResult */
+        ImportCommitResult: {
+            /** Id */
+            id: number;
+            /** Inserted */
+            inserted: number;
+            /**
+             * Status
+             * @constant
+             */
+            status: "COMMITTED";
+        };
+        /**
+         * ImportFormat
+         * @description The file type of an import job (upper case in the DB and the API).
+         * @enum {string}
+         */
+        ImportFormat: "CSV" | "XLSX";
+        /**
+         * ImportJobReport
+         * @description A dry-run report. `valid_count` rows have no error; `error_count` counts the entries
+         *     of `errors` (one row can have several). Only a DRY_RUN job without errors can be
+         *     committed, until `expires_at`.
+         */
+        ImportJobReport: {
+            /** Committed At */
+            committed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Count */
+            error_count: number;
+            /** Errors */
+            errors: components["schemas"]["ImportRowError"][];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Filename */
+            filename: string;
+            format: components["schemas"]["ImportFormat"];
+            /** Id */
+            id: number;
+            /** Preview */
+            preview: components["schemas"]["ImportPreviewRow"][];
+            /** Row Count */
+            row_count: number;
+            status: components["schemas"]["ImportStatus"];
+            /** Valid Count */
+            valid_count: number;
+        };
+        /**
+         * ImportPreviewRow
+         * @description A valid row as it will be imported. The department follows from the job role.
+         */
+        ImportPreviewRow: {
+            base: components["schemas"]["Money"];
+            /** Country Code */
+            country_code: string;
+            /** Department */
+            department: string;
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code: string;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Job Role */
+            job_role: string;
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            /** Row */
+            row: number;
+            /**
+             * Salary Effective Date
+             * Format: date
+             */
+            salary_effective_date: string;
+            total: components["schemas"]["Money"];
+        };
+        /**
+         * ImportRowError
+         * @description One refused cell (docs/glossary.md section 6). `row` is the spreadsheet row number
+         *     (the header is row 1); `value` is the cell as written, null when it was empty.
+         */
+        ImportRowError: {
+            code: components["schemas"]["RowErrorCode"];
+            /** Column */
+            column: string;
+            /** Message */
+            message: string;
+            /** Row */
+            row: number;
+            /** Value */
+            value: string | null;
+        };
+        /**
+         * ImportStatus
+         * @description Where an import job is: previewed, committed, failed at commit, or too old to commit.
+         * @enum {string}
+         */
+        ImportStatus: "DRY_RUN" | "COMMITTED" | "FAILED" | "EXPIRED";
         /**
          * JobFamily
          * @description The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).
@@ -599,6 +810,13 @@ export interface components {
          * @enum {string}
          */
         Role: "ADMIN" | "HR_MANAGER" | "VIEWER";
+        /**
+         * RowErrorCode
+         * @description Why a cell is refused (docs/glossary.md section 6). The date and currency codes are the
+         *     ones POST /employees uses for the same rules.
+         * @enum {string}
+         */
+        RowErrorCode: "required" | "invalid_format" | "unknown_value" | "too_many_decimals" | "future_date" | "before_hire_date" | "currency_mismatch" | "duplicate_in_file" | "duplicate_in_db";
         /**
          * SalaryBasis
          * @description How salaries in different currencies are compared: in local currency, or in USD.
@@ -1100,6 +1318,87 @@ export interface operations {
             };
             /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_employees_api_v1_employees_export_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                country?: string[];
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                currency?: string[];
+                salary_min?: number | null;
+                salary_max?: number | null;
+                salary_basis?: components["schemas"]["SalaryBasis"] | null;
+                comp?: components["schemas"]["Comp"] | null;
+                sort?: string | null;
+                format?: components["schemas"]["FileFormat"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file, as an attachment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
@@ -1669,6 +1968,340 @@ export interface operations {
                 };
                 content: {
                     "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    upload_import_api_v1_imports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_import_api_v1_imports_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportJobReport"];
+                };
+            };
+            /** @description Bad request: the file cannot be read, or its header row does not match the template (`expected_headers`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Payload too large: the upload is over 4 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unsupported media type: not a .csv or .xlsx file */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    download_template_api_v1_imports_template_get: {
+        parameters: {
+            query?: {
+                format?: components["schemas"]["FileFormat"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file, as an attachment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    get_import_api_v1_imports__import_id__get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                import_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportJobReport"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    commit_import_api_v1_imports__import_id__commit_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                import_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportCommitResult"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description `import-failed`: the commit was rolled back and the job marked FAILED */
+            500: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Client error */

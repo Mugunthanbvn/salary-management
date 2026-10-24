@@ -1,0 +1,5 @@
+﻿employee_code,first_name,last_name,email,job_role,level,employment_type,country,hire_date,currency,base_salary,bonus_target,allowance_1_name,allowance_1_amount,allowance_2_name,allowance_2_amount,allowance_3_name,allowance_3_amount,salary_effective_date
+ACME-010001,Jürgen,Müller,Jurgen.Muller@acme.example,Software Engineer,L2,FULL_TIME,DE,2022-04-01,EUR,52000,4160.5,Transport,1200,,,,,2022-04-01
+ACME-010002,花子,佐藤,hanako.sato@acme.example,software engineer,l3,full_time,jp,2021-07-15,,6500000,,,,,,,,
+ACME-010003,Ananya,Rao,a.rao@acme.example,Customer Success Manager,L1,PART_TIME,IN,2023-01-09,INR,1500000,,HRA,600000,Special allowance,120000.75,,,2023-02-01
+ACME-010004,José,García,jose.garcia@acme.example,Sr Engineer,L2,CONTRACTOR,JP,2024-05-20,JPY,450000.5,,,,,,,,

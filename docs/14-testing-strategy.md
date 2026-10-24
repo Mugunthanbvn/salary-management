@@ -251,7 +251,7 @@ One parametrized test enumerates **every endpoint × every role (+ anonymous)** 
 ### 5.4 Import / export ([11-import-export.md](11-import-export.md))
 
 - The CSV parser and the XLSX parser produce **identical row dicts** for the same template content (a golden-file test with `tests/fixtures/import_sample.csv` and `.xlsx`).
-- XLSX: formulas are read as their stored values (`data_only=True`); macros are ignored; a non-xlsx file renamed to `.xlsx` → 422.
+- XLSX: formulas are read as their stored values (`data_only=True`); macros are ignored; a non-xlsx file renamed to `.xlsx` → 400 `bad-request` (an unreadable upload, [glossary](glossary.md) §5).
 - Size cap: > 4 MB → 413. Row cap exceeded → 422.
 - The validator reports **every** row error with a row number and a field, not just the first.
 - Duplicates are detected within the file (employee_code, email; case-insensitive) and against the database.
