@@ -6,9 +6,15 @@ Model builders (make_employee, make_salary_record, ...) are added with their mod
 
 from typing import Any
 
+from pydantic_settings import SettingsConfigDict
+
 from salary_api.core.config import Settings
 
 TEST_JWT_SECRET = "test-only-jwt-secret-0123456789abcdef"
+
+
+class _SettingsWithoutEnvFile(Settings):
+    model_config = SettingsConfigDict(env_file=None)
 
 
 def make_settings(**overrides: Any) -> Settings:
@@ -20,4 +26,4 @@ def make_settings(**overrides: Any) -> Settings:
         "cookie_secure": False,
         "cors_origins": [],
     }
-    return Settings(_env_file=None, **(values | overrides))
+    return _SettingsWithoutEnvFile(**(values | overrides))

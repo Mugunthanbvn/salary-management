@@ -82,6 +82,6 @@ def client(app: FastAPI, db_session: Session) -> Iterator[TestClient]:
 
 
 @pytest.fixture
-def frozen_time() -> Iterator[time_machine.Coordinates]:
+def frozen_time() -> Iterator[time_machine.Traveller]:
     with time_machine.travel(FROZEN_NOW, tick=False) as traveller:
         yield traveller
