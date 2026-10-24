@@ -17,11 +17,13 @@ import { makeFile, useNodeFormData } from "@/test/upload";
 
 import { ImportFlow } from "./import-flow";
 
+type ImportCommitResult = components["schemas"]["ImportCommitResult"];
 type ImportJobReport = components["schemas"]["ImportJobReport"];
 type Problem = components["schemas"]["Problem"];
 type ValidationProblem = components["schemas"]["ValidationProblem"];
 
 const UPLOAD_URL = "/api/v1/imports";
+const COMMIT_URL = "/api/v1/imports/:id/commit";
 
 function renderFlow(searchParams = "") {
   const urls: URLSearchParams[] = [];
@@ -237,5 +239,147 @@ describe("ImportFlow: upload", () => {
     expect(screen.getByRole("heading", { level: 1 })).toHaveTextContent(
       "Import employees",
     );
+  });
+});
+
+describe("ImportFlow: import", () => {
+  async function checkedFile() {
+    serveUpload();
+    renderFlow();
+    await upload();
+    await screen.findByRole("heading", {
+      level: 1,
+      name: "Ready to import 3 employees",
+    });
+  }
+
+  function serveCommit(status: number, body: ImportCommitResult | Problem) {
+    const committed: string[] = [];
+    server.use(
+      http.post<{ id: string }, never, ImportCommitResult | Problem>(
+        COMMIT_URL,
+        ({ params }) => {
+          committed.push(params.id);
+          return HttpResponse.json(body, { status });
+        },
+      ),
+    );
+    return committed;
+  }
+
+  it("imports the checked file and says how many were added", async () => {
+    const committed = serveCommit(200, {
+      id: 31,
+      status: "COMMITTED",
+      inserted: 3,
+    });
+    await checkedFile();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Import 3 employees" }),
+    );
+
+    expect(await screen.findByText("Imported 3 employees")).toBeVisible();
+    expect(committed).toEqual(["31"]);
+    expect(
+      screen.getByRole("heading", { level: 1, name: "3 employees imported" }),
+    ).toBeVisible();
+    expect(
+      screen.getByRole("link", { name: "See them in the employee list" }),
+    ).toHaveAttribute("href", "/employees");
+  });
+
+  it.each([
+    {
+      why: "the check expired",
+      status: 409,
+      body: makeProblem("invalid-state", 409, {
+        title: "Invalid state",
+        detail:
+          "This dry-run expired 24 hours after the upload. Upload the file again.",
+      }),
+      says: [
+        "This check can't be imported any more. This dry-run expired 24 hours after the upload. Upload the file again.",
+      ],
+    },
+    {
+      why: "the import failed",
+      status: 500,
+      body: makeProblem("import-failed", 500, {
+        title: "Import failed",
+        detail:
+          "Import 31 failed and nothing was written. Upload the file again to retry.",
+        request_id: "req-500",
+        job_id: 31,
+      }),
+      says: [
+        "The import failed, and nothing was saved. Import 31 failed and nothing was written.",
+        "req-500",
+      ],
+    },
+  ])(
+    "says so, and imports nothing, when $why",
+    async ({ status, body, says }) => {
+      serveCommit(status, body);
+      await checkedFile();
+
+      await userEvent.click(
+        screen.getByRole("button", { name: "Import 3 employees" }),
+      );
+
+      const alert = await screen.findByRole("alert");
+      for (const text of says) expect(alert).toHaveTextContent(text);
+      expect(
+        screen.getByRole("button", { name: "Import 3 employees" }),
+      ).toBeDisabled();
+      expect(
+        screen.getByRole("button", { name: "Upload the file again" }),
+      ).toBeVisible();
+    },
+  );
+
+  it("shows which rows someone added since the check", async () => {
+    serveCommit(
+      409,
+      makeProblem("duplicate", 409, {
+        title: "Duplicate",
+        detail: "2 rows are now already in the directory (see conflicts).",
+        conflicts: [
+          makeRowError({
+            row: 3,
+            column: "email",
+            code: "duplicate_in_db",
+            message: "An employee with this email already exists.",
+            value: "lena.weber@acme.example",
+          }),
+          makeRowError({
+            row: 4,
+            column: "employee_code",
+            code: "duplicate_in_db",
+            message: "An employee with this code already exists.",
+            value: "ACME-010003",
+          }),
+        ],
+      }),
+    );
+    await checkedFile();
+
+    await userEvent.click(
+      screen.getByRole("button", { name: "Import 3 employees" }),
+    );
+
+    const alert = await screen.findByRole("alert");
+    expect(alert).toHaveTextContent(
+      "Nothing was imported: some of these people were added after the check.",
+    );
+    const table = within(alert).getByRole("table", {
+      name: /Already in the directory/,
+    });
+    expect(
+      within(table).getByRole("rowgroup", { name: "Row 3" }),
+    ).toHaveTextContent("lena.weber@acme.example");
+    expect(
+      within(table).getByRole("rowgroup", { name: "Row 4" }),
+    ).toHaveTextContent("ACME-010003");
   });
 });
