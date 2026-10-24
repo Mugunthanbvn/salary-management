@@ -180,5 +180,5 @@ def test_an_unexpected_error_is_logged_with_its_type_and_frames_but_not_its_mess
     logged = capsys.readouterr().out
     assert "ValueError" in logged
     assert "req-log" in logged
-    assert '"personal"' in logged  # the frame, by function name
+    assert " in personal" in logged  # the frame where it was raised
     assert "Lena" not in logged
