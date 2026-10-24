@@ -103,6 +103,10 @@ def _someone_elses_import(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/imports/{make_dry_run(session).id}"}
 
 
+def _someone_elses_import_commit(session: Session) -> dict[str, Any]:
+    return {"url": f"/api/v1/imports/{make_dry_run(session).id}/commit"}
+
+
 def _salary_history(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{make_employee(session).id}/salary-history"}
 
@@ -124,6 +128,7 @@ MATRIX = [
     Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
     Endpoint("POST", "/api/v1/imports", (401, 403, 201, 201), _import_file),
     Endpoint("GET", IMPORT, (401, 403, 404, 200), _someone_elses_import),
+    Endpoint("POST", f"{IMPORT}/commit", (401, 403, 404, 200), _someone_elses_import_commit),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
