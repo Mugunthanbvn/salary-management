@@ -26,6 +26,10 @@ class InvalidAmountError(ValueError):
     """The amount is not a finite number (e.g. `"abc"`, `"1,234.56"`, `"NaN"`)."""
 
 
+class AmountTooLargeError(InvalidAmountError):
+    """The amount is 10**15 minor units or more (MAX_AMOUNT_MINOR is the largest accepted)."""
+
+
 class CurrencyMismatchError(ValueError):
     """Two amounts in different currencies were combined. Convert both to USD first."""
 
@@ -78,7 +82,7 @@ class Money:
             return cls(0, currency)
         shift = exponent + minor_unit_exponent(currency)  # amount_minor = digits x 10**shift
         if len(digits) + shift > MAX_AMOUNT_DIGITS:
-            raise InvalidAmountError(f"{amount} is too large: the limit is {MAX_AMOUNT_MINOR}")
+            raise AmountTooLargeError(f"{amount} is too large: the limit is {MAX_AMOUNT_MINOR}")
         if shift < 0 and any(digits[shift:]):
             raise TooManyDecimalsError(f"{amount} has more decimals than {currency} allows")
         kept = digits[:shift] if shift < 0 else digits + (0,) * shift

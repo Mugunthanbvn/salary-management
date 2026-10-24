@@ -17,9 +17,15 @@ from typing import Final
 from pydantic import TypeAdapter, ValidationError
 
 from salary_api.domain.compensation import total_compensation
+from salary_api.domain.constants import MAX_AMOUNT_MINOR
 from salary_api.domain.currency import SUPPORTED_CURRENCIES, USD, minor_unit_exponent
 from salary_api.domain.enums import ComponentType, EmploymentType, Level
-from salary_api.domain.money import InvalidAmountError, Money, TooManyDecimalsError
+from salary_api.domain.money import (
+    AmountTooLargeError,
+    InvalidAmountError,
+    Money,
+    TooManyDecimalsError,
+)
 from salary_api.modules.employees.schemas import EmployeeCode, PersonName, WorkEmail
 from salary_api.modules.imports.columns import ALLOWANCE_SLOTS, TEMPLATE_COLUMNS
 from salary_api.modules.imports.parsing import RawRow
@@ -397,6 +403,10 @@ class _RowCheck:
         except TooManyDecimalsError:
             if currency is not None:
                 self._fail(column, RowErrorCode.TOO_MANY_DECIMALS, _decimals_message(currency))
+            return None
+        except AmountTooLargeError:
+            message = f"{column} can be at most {MAX_AMOUNT_MINOR:,} minor units."
+            self._fail(column, RowErrorCode.INVALID_FORMAT, message)
             return None
         except InvalidAmountError:
             message = (
