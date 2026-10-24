@@ -155,3 +155,25 @@ def test_the_app_hashes_with_pwdlib_default_parameters() -> None:
     default_hash = PasswordHasher(Argon2Hasher()).hash("correct horse battery")
 
     assert not get_password_hasher().needs_rehash(default_hash)
+
+
+class _CountingArgon2(Argon2Hasher):
+    """Cheap argon2 that counts how many hashes it computes."""
+
+    def __init__(self) -> None:
+        super().__init__(time_cost=1, memory_cost=8, parallelism=1)
+        self.hashes = 0
+
+    def hash(self, password: str | bytes, *, salt: bytes | None = None) -> str:
+        self.hashes += 1
+        return super().hash(password, salt=salt)
+
+
+def test_the_dummy_hash_is_ready_before_the_first_unknown_email_login() -> None:
+    argon2 = _CountingArgon2()
+    hasher = PasswordHasher(argon2)  # built once, at app start-up
+    argon2.hashes = 0
+
+    hasher.verify("a guess", hasher.dummy_hash)
+
+    assert argon2.hashes == 0  # one verify only: as long as for a known email, even cold
