@@ -3,7 +3,18 @@
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, event, func, insert, select
+from sqlalchemy import (
+    Column,
+    ForeignKey,
+    Integer,
+    MetaData,
+    String,
+    Table,
+    event,
+    func,
+    insert,
+    select,
+)
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
@@ -83,4 +94,19 @@ def test_writes_committed_inside_a_rolled_back_session_are_undone() -> None:
 
     with engine.connect() as connection:
         assert connection.execute(select(func.count()).select_from(notes)).scalar() == 0
+    engine.dispose()
+
+
+def test_database_errors_do_not_show_bound_values() -> None:
+    engine = create_db_engine(make_settings())
+    metadata = MetaData()
+    people = Table("people", metadata, Column("email", String, unique=True))
+    metadata.create_all(engine)
+
+    with engine.connect() as connection:
+        connection.execute(insert(people).values(email="ana@acme.example"))
+        with pytest.raises(IntegrityError) as error:
+            connection.execute(insert(people).values(email="ana@acme.example"))
+
+    assert "ana@acme.example" not in str(error.value)
     engine.dispose()
