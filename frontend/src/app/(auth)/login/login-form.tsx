@@ -1,6 +1,5 @@
 "use client";
 
-import { useSearchParams } from "next/navigation";
 import { useState, type FormEvent } from "react";
 
 import { Button } from "@/components/ui/button";
@@ -38,13 +37,19 @@ function tooManyAttempts(response: Response): string {
 }
 
 /**
+ * The page to open after signing in, from /login?next=…. Only a path on this site: an open
+ * redirect could take someone who just signed in to a look-alike site. Read when the form is
+ * sent, not while rendering, so the page prerenders without waiting for the URL.
+ */
+function nextPage(): string {
+  return safeNextPath(new URLSearchParams(window.location.search).get("next"));
+}
+
+/**
  * Email and password, posted with a client fetch through the /api rewrite, never a Server
  * Action: the browser itself must receive FastAPI's Set-Cookie (docs/17-deployment.md §3.4).
  */
 export function LoginForm() {
-  // Only a path on this site: an open redirect could take someone who just signed in to a
-  // look-alike site.
-  const next = safeNextPath(useSearchParams().get("next"));
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -58,7 +63,7 @@ export function LoginForm() {
         body: { email: text(form, "email"), password: text(form, "password") },
       });
       if (data) {
-        hardNavigate(next);
+        hardNavigate(nextPage());
         return;
       }
       setError(errorMessage(response));

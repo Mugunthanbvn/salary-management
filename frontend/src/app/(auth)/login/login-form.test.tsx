@@ -24,14 +24,13 @@ function problem(status: number, slug: string, title: string): Problem {
   };
 }
 
-const { hardNavigate, search } = vi.hoisted(() => ({
-  hardNavigate: vi.fn(),
-  search: { value: "" },
-}));
+const { hardNavigate } = vi.hoisted(() => ({ hardNavigate: vi.fn() }));
 vi.mock("@/lib/hard-navigate", () => ({ hardNavigate }));
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(search.value),
-}));
+
+/** The page the proxy sent the person from, as /login?next=… in the address bar. */
+function openLoginPage(search = "") {
+  window.history.replaceState(null, "", `/login${search}`);
+}
 
 const LOGIN_URL = "/api/v1/auth/login";
 
@@ -48,7 +47,7 @@ async function signIn(email = "hr@acme.example", password = "correct horse") {
 }
 
 beforeEach(() => {
-  search.value = "";
+  openLoginPage();
 });
 
 describe("LoginForm", () => {
@@ -80,7 +79,7 @@ describe("LoginForm", () => {
   ])(
     "after signing in with next=$next, opens $opens",
     async ({ next, opens }) => {
-      search.value = new URLSearchParams({ next }).toString();
+      openLoginPage(`?${new URLSearchParams({ next }).toString()}`);
       server.use(
         http.post<never, LoginRequest, LoginResponse>(LOGIN_URL, () =>
           HttpResponse.json(signedIn()),
