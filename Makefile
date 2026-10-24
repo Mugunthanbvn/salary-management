@@ -78,7 +78,8 @@ lint: lint-backend lint-frontend ## Lint and check formatting (backend + fronten
 lint-backend: ## ruff check + ruff format --check
 	cd $(BACKEND) && uv run ruff check . && uv run ruff format --check .
 
-lint-frontend: ## eslint + prettier --check
+lint-frontend: ## eslint + prettier --check (route types first: type-aware rules need them)
+	$(PNPM) exec next typegen
 	$(PNPM) lint
 	$(PNPM) format:check
 

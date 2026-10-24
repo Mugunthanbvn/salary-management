@@ -4,8 +4,8 @@ Masking lives here, not in the router: the Ask tools and exports call these func
 directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 """
 
-from collections.abc import Mapping
-from dataclasses import replace
+from collections.abc import Mapping, Sequence
+from dataclasses import dataclass, replace
 from datetime import date
 from typing import Any
 
@@ -22,7 +22,7 @@ from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Comp, Money, SalaryBasis
 from salary_api.domain.currency import SUPPORTED_CURRENCIES
-from salary_api.domain.enums import EmployeeStatus
+from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.domain.money import (
     FxRate,
     FxRateMissingError,
@@ -39,6 +39,7 @@ from salary_api.modules.employees.schemas import (
     CurrentSalary,
     EmployeeCreate,
     EmployeeDetail,
+    EmployeeFilterQuery,
     EmployeeListItem,
     EmployeeListQuery,
     EmployeePage,
@@ -121,6 +122,79 @@ def create_employee(
     )
     session.commit()
     return get_employee(session, principal, employee.id)
+
+
+@dataclass(frozen=True, slots=True)
+class NewHire:
+    """A new employee and their first salary, already validated (the bulk import's rows)."""
+
+    employee_code: str
+    first_name: str
+    last_name: str
+    email: str  # trimmed and lowercased
+    job_role_id: int
+    level: Level
+    employment_type: EmploymentType
+    country_code: str
+    hire_date: date
+    salary_effective_date: date  # of the HIRE record; on or after the hire date
+    pay: salaries.Pay  # in the country's currency
+
+
+def add_hires_in_bulk(session: Session, hires: Sequence[NewHire], *, changed_by: int) -> None:
+    """Insert new employees, each with a HIRE salary record, with bulk inserts. Joins the
+    caller's transaction (no commit, no audit event: the caller writes one for the batch).
+
+    The same rules as create_employee: search text, and the current salary copied from the
+    HIRE record. Ids are allocated here, so no RETURNING is needed; the caller's
+    transaction holds the write lock (BEGIN IMMEDIATE on SQLite).
+    """
+    now = utc_now()
+    first_id = repository.highest_id(session) + 1
+    ids = range(first_id, first_id + len(hires))
+    repository.insert_many(
+        session,
+        [
+            {
+                "id": employee_id,
+                "employee_code": hire.employee_code,
+                "first_name": hire.first_name,
+                "last_name": hire.last_name,
+                "email": hire.email,
+                "search_text": employee_search_text(
+                    hire.first_name, hire.last_name, hire.employee_code, hire.email
+                ),
+                "job_role_id": hire.job_role_id,
+                "level": hire.level,
+                "employment_type": hire.employment_type,
+                "country_code": hire.country_code,
+                "status": EmployeeStatus.ACTIVE,
+                "hire_date": hire.hire_date,
+                "termination_date": None,
+                "currency": hire.pay.base.currency,
+                "current_base_minor": hire.pay.base.amount_minor,
+                "current_total_minor": hire.pay.total.amount_minor,
+                "version": 1,
+                "created_at": now,
+                "updated_at": now,
+            }
+            for employee_id, hire in zip(ids, hires, strict=True)
+        ],
+    )
+    salaries.record_hires_in_bulk(
+        session,
+        [
+            salaries.BulkHire(
+                employee_id=employee_id,
+                job_role_id=hire.job_role_id,
+                level=hire.level,
+                effective_date=hire.salary_effective_date,
+                pay=hire.pay,
+            )
+            for employee_id, hire in zip(ids, hires, strict=True)
+        ],
+        changed_by=changed_by,
+    )
 
 
 def get_employee(session: Session, principal: Principal, employee_id: int) -> EmployeeDetail:
@@ -225,23 +299,7 @@ def list_employees(
 
     Salary filters and sorts need SALARY_READ (Forbidden otherwise).
     """
-    order = _sort_keys(query.sort)
-    _refuse_salary_query_without_salary_read(principal, query, order)
-    _check_salary_comparison(query, order)
-    usd_rates = _usd_rates_for(session, query, order)
-    if usd_rates:
-        order = _by_usd_value(order, usd_rates)
-    where = repository.EmployeeFilter(
-        search=fold(query.q) if query.q else None,
-        countries=query.country,
-        department_ids=query.department_id,
-        job_role_ids=query.job_role_id,
-        levels=query.level,
-        employment_types=query.employment_type,
-        statuses=query.status,
-        currencies=query.currency,
-        salary=_salary_range(query, usd_rates),
-    )
+    where, order = _filter_and_order(session, principal, query)
     employees = repository.page(
         session,
         where,
@@ -261,8 +319,43 @@ def list_employees(
     )
 
 
+def matching_employees(
+    session: Session, principal: Principal, query: EmployeeFilterQuery
+) -> Sequence[Employee]:
+    """Every employee the query matches, in its order, without paging (the export).
+
+    The same filters, sort and refusals as list_employees: what you see is what you export.
+    """
+    where, order = _filter_and_order(session, principal, query)
+    return repository.all_matching(session, where, order=order)
+
+
+def _filter_and_order(
+    session: Session, principal: Principal, query: EmployeeFilterQuery
+) -> tuple[repository.EmployeeFilter, list[repository.SortKey]]:
+    """The WHERE and ORDER BY of a query, once the caller may filter and sort that way."""
+    order = _sort_keys(query.sort)
+    _refuse_salary_query_without_salary_read(principal, query, order)
+    _check_salary_comparison(query, order)
+    usd_rates = _usd_rates_for(session, query, order)
+    if usd_rates:
+        order = _by_usd_value(order, usd_rates)
+    where = repository.EmployeeFilter(
+        search=fold(query.q) if query.q else None,
+        countries=query.country,
+        department_ids=query.department_id,
+        job_role_ids=query.job_role_id,
+        levels=query.level,
+        employment_types=query.employment_type,
+        statuses=query.status,
+        currencies=query.currency,
+        salary=_salary_range(query, usd_rates),
+    )
+    return where, order
+
+
 def _salary_range(
-    query: EmployeeListQuery, usd_rates: Mapping[str, FxRate]
+    query: EmployeeFilterQuery, usd_rates: Mapping[str, FxRate]
 ) -> repository.SalaryRange | None:
     """The salary range in local minor units: as given, or converted from USD per currency."""
     minimum, maximum = query.salary_min, query.salary_max
@@ -295,7 +388,7 @@ def _by_usd_value(
 
 
 def _usd_rates_for(
-    session: Session, query: EmployeeListQuery, order: list[repository.SortKey]
+    session: Session, query: EmployeeFilterQuery, order: list[repository.SortKey]
 ) -> dict[str, FxRate]:
     """When salaries are compared in USD: the rate of every currency the list can hold (the
     `currency` filter, else every supported currency). A missing rate is a configuration
@@ -314,7 +407,7 @@ def _usd_rates_for(
 
 
 def _refuse_salary_query_without_salary_read(
-    principal: Principal, query: EmployeeListQuery, order: list[repository.SortKey]
+    principal: Principal, query: EmployeeFilterQuery, order: list[repository.SortKey]
 ) -> None:
     """Without SALARY_READ, narrowing a salary range could reveal one person's pay (docs/08 4.1)."""
     salary_filter = any(
@@ -325,7 +418,7 @@ def _refuse_salary_query_without_salary_read(
         raise Forbidden("Filtering or sorting by salary requires SALARY_READ.")
 
 
-def _check_salary_comparison(query: EmployeeListQuery, order: list[repository.SortKey]) -> None:
+def _check_salary_comparison(query: EmployeeFilterQuery, order: list[repository.SortKey]) -> None:
     """Salaries are compared in one currency or in USD, never as raw minor units of two
     currencies (¥6,000,000 is not more than €60,000.00). Every salary is in its country's
     currency, so one country also means one currency."""

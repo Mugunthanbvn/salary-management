@@ -84,9 +84,10 @@ def test_an_unknown_employee_is_404_not_found(as_role: Callable[[str], TestClien
 def test_a_path_that_is_not_an_integer_id_is_not_an_employee(
     as_role: Callable[[str], TestClient],
 ) -> None:
-    response = as_role("HR_MANAGER").get(f"{EMPLOYEES}/export")
+    response = as_role("HR_MANAGER").get(f"{EMPLOYEES}/not-an-id")
 
-    assert response.status_code in {404, 405}  # never a 422 from the id route
+    # Never a 422 from the id route. /employees/export is the export (its own tests).
+    assert response.status_code in {404, 405}
 
 
 def test_list_shows_active_employees_by_last_name_first_name_then_id(

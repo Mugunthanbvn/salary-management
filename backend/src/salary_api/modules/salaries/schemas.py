@@ -13,6 +13,10 @@ from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, JobR
 AmountMinor = Annotated[int, Field(strict=True, ge=0, le=MAX_AMOUNT_MINOR)]
 BaseMinor = Annotated[int, Field(strict=True, gt=0, le=MAX_AMOUNT_MINOR)]
 Note = Annotated[str, StringConstraints(strip_whitespace=True, max_length=500)]
+# The name of an allowance or bonus target; imports check allowance names with it too.
+ComponentName = Annotated[
+    str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)
+]
 # Packages have a handful of components; the cap keeps one request small.
 MAX_COMPONENTS = 20
 
@@ -23,7 +27,7 @@ class ComponentIn(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     type: ComponentType
-    name: Annotated[str, StringConstraints(strip_whitespace=True, min_length=1, max_length=60)]
+    name: ComponentName
     amount_minor: AmountMinor
 
 

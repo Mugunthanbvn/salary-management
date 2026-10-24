@@ -8,6 +8,8 @@ from salary_api.domain.enums import (
     ComponentType,
     EmployeeStatus,
     EmploymentType,
+    ImportFormat,
+    ImportStatus,
     Level,
     PayEquityFlag,
     SalaryReason,
@@ -23,6 +25,8 @@ from salary_api.domain.enums import (
         (SalaryReason, ["HIRE", "PROMOTION", "MERIT", "MARKET_ADJUSTMENT", "CORRECTION"]),
         (ComponentType, ["ALLOWANCE", "BONUS_TARGET"]),
         (PayEquityFlag, ["UNDERPAID", "IN_BAND", "OVERPAID"]),
+        (ImportStatus, ["DRY_RUN", "COMMITTED", "FAILED", "EXPIRED"]),
+        (ImportFormat, ["CSV", "XLSX"]),
     ],
 )
 def test_domain_enums_use_the_glossary_values(enum: type[StrEnum], values: list[str]) -> None:

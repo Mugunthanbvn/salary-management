@@ -4,13 +4,14 @@
 A status with no glossary slug uses `about:blank` and the HTTP status phrase as the title.
 """
 
+import traceback
 from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any, TypedDict
 
 import structlog
 from fastapi import FastAPI, Request
-from fastapi.exceptions import RequestValidationError, ResponseValidationError
+from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, ConfigDict
 from starlette.exceptions import HTTPException as StarletteHTTPException
@@ -48,6 +49,34 @@ class ProblemError(Exception):
         self.detail = detail
         self.extra = extra
         self.headers: dict[str, str] = {}
+
+
+class BadRequest(ProblemError):
+    """400: an unreadable upload, or a header row that does not match the template."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(400, "bad-request", "Bad request", detail, **extra)
+
+
+class PayloadTooLarge(ProblemError):
+    """413: an upload over the size cap."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(413, "payload-too-large", "Payload too large", detail, **extra)
+
+
+class UnsupportedMediaType(ProblemError):
+    """415: an upload that is not CSV or XLSX."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(415, "unsupported-media-type", "Unsupported media type", detail, **extra)
+
+
+class ImportFailed(ProblemError):
+    """500: an import commit failed and was rolled back; the job is FAILED, nothing written."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(500, "import-failed", "Import failed", detail, **extra)
 
 
 class Unauthenticated(ProblemError):
@@ -169,6 +198,11 @@ PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
 
 # Route-level error responses, more specific than the app-wide 4XX.
 _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
+    400: {
+        "model": Problem,
+        "description": "Bad request: the file cannot be read, or its header row does not "
+        "match the template (`expected_headers`)",
+    },
     401: {
         "model": Problem,
         "description": "Not authenticated: no valid session, or the user is inactive",
@@ -180,6 +214,8 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
         "description": "Conflict: `duplicate`, `version-conflict` (with `current_version`) "
         "or `invalid-state`",
     },
+    413: {"model": Problem, "description": "Payload too large: the upload is over 4 MB"},
+    415: {"model": Problem, "description": "Unsupported media type: not a .csv or .xlsx file"},
     429: {
         "model": Problem,
         "description": "Too many requests",
@@ -189,6 +225,10 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
                 "schema": {"type": "integer"},
             }
         },
+    },
+    500: {
+        "model": Problem,
+        "description": "`import-failed`: the commit was rolled back and the job marked FAILED",
     },
     502: {"model": Problem, "description": "`upstream-unavailable`: the LLM provider failed"},
     503: {"model": Problem, "description": "`feature-disabled`: the feature is switched off"},
@@ -258,6 +298,14 @@ def _from_request_validation_error(exc: RequestValidationError) -> ValidationFai
     return ValidationFailed(errors)
 
 
+def _frames(exc: BaseException) -> list[str]:
+    """`file:line in function` for each frame of the traceback, without any values."""
+    return [
+        f"{frame.filename}:{frame.lineno} in {frame.name}"
+        for frame in traceback.extract_tb(exc.__traceback__)
+    ]
+
+
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProblemError)
     async def handle_problem_error(request: Request, exc: ProblemError) -> JSONResponse:
@@ -289,10 +337,13 @@ def install_problem_handlers(app: FastAPI) -> None:
 
     @app.exception_handler(Exception)
     async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
-        if isinstance(exc, ResponseValidationError):
-            # Its message holds the response body (salary data): log the type only.
-            _logger.error("unhandled_error", path=request.url.path, error_type=type(exc).__name__)
-        else:
-            _logger.error("unhandled_error", path=request.url.path, exc_info=exc)
+        # The message can hold personal or salary data (a response body, a refused name):
+        # log the type and where it was raised, never the message.
+        _logger.error(
+            "unhandled_error",
+            path=request.url.path,
+            error_type=type(exc).__name__,
+            frames=_frames(exc),
+        )
         problem = ProblemError(500, None, "Internal Server Error", "An unexpected error occurred.")
         return problem_response(request, problem)

@@ -251,7 +251,7 @@ One parametrized test enumerates **every endpoint × every role (+ anonymous)** 
 ### 5.4 Import / export ([11-import-export.md](11-import-export.md))
 
 - The CSV parser and the XLSX parser produce **identical row dicts** for the same template content (a golden-file test with `tests/fixtures/import_sample.csv` and `.xlsx`).
-- XLSX: formulas are read as their stored values (`data_only=True`); macros are ignored; a non-xlsx file renamed to `.xlsx` → 422.
+- XLSX: formulas are read as their stored values (`data_only=True`); macros are ignored; a non-xlsx file renamed to `.xlsx` → 400 `bad-request` (an unreadable upload, [glossary](glossary.md) §5).
 - Size cap: > 4 MB → 413. Row cap exceeded → 422.
 - The validator reports **every** row error with a row number and a field, not just the first.
 - Duplicates are detected within the file (employee_code, email; case-insensitive) and against the database.
@@ -289,7 +289,7 @@ All of these use `FakeLLM`. No network in CI.
 
 - `formatMoney(minor, currency, options)` formats JPY with no decimals, INR with lakh grouping, `US$`/`CA$`/`A$`/`S$`, compact mode and huge amounts; monthly is annual ÷ 12 rounded half-even (ties tested). No float maths: it takes a `bigint`, a digit string or a safe-integer `number`, and refuses anything else.
 - Filter state ↔ URL (nuqs): changing a filter updates the query string, and loading a URL restores the filters.
-- Employee form validation messages (zod) match the backend rules (required fields, positive salary, decimals allowed for the currency).
+- Employee forms: typed amounts become minor units by string maths (JPY 0 decimals, EUR 2; `12.345` EUR refused with the API's message, no floats); missing values are asked for before sending; the API's `errors[]` show next to their fields; a `409 version-conflict` offers Reload. The business rules themselves are the API's and are tested there.
 - Role-gated UI: a Viewer sees no "Edit", "Record change" or "Import" actions and sees masked salary cells. (The backend still enforces this; the UI only hides.)
 - Import preview: renders row errors grouped by row; the "Commit" button is disabled while errors exist.
 - Ask page: shows the spinner while a request is pending; renders the "How I got this" panel from `tool_calls`; shows the friendly message on 429.

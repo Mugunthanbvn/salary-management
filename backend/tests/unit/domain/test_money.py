@@ -10,6 +10,7 @@ from hypothesis import given
 
 from salary_api.domain.currency import UnknownCurrencyError
 from salary_api.domain.money import (
+    AmountTooLargeError,
     CurrencyMismatchError,
     InvalidAmountError,
     Money,
@@ -237,3 +238,10 @@ def test_to_major_of_from_major_round_trips_every_valid_major_amount(
     major, currency = amount_and_currency
 
     assert Money.from_major(major, currency).to_major() == major
+
+
+def test_an_amount_over_the_cap_is_its_own_kind_of_invalid_amount() -> None:
+    with pytest.raises(AmountTooLargeError) as raised:
+        Money.from_major("10000000000000", "EUR")
+
+    assert isinstance(raised.value, InvalidAmountError)

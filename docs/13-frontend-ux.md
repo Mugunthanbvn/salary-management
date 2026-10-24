@@ -149,6 +149,8 @@ Every screen defines:
 
 Rules: when a group mixes currencies, the section header shows a **"USD"** badge with the FX tooltip. Local-currency sections show the currency code in the header.
 
+**As built (v1):** the URL holds one `country` at a time (job titles and top earners need exactly one), `department_id`, `comp`, `period`, `employment_type`, `status`, plus `split_by_level` (job titles) and `direction` (top earners). Job role and level filters are left out of the header for now. The summary sentence gives headcount, countries and the USD payroll (highlighted) with the FX date; the median is in the country table instead. Min and max ("Lowest to highest") appear only when the API sends them (HR/Admin). The country table is not sortable; a country's name links to the dashboard filtered to it. Each section shows its own problem (title, detail, request ID), so one failed insight does not blank the page. Without a country, job titles and top earners ask the reader to choose one and make no call. The currency is stated in a margin note under each section rather than a header badge.
+
 ### 4.3 Pay equity (`/insights/pay-equity`)
 
 **Question it answers:** "Are we paying people fairly against the pay band for their job, and is any team systematically below band?"
@@ -156,12 +158,14 @@ Rules: when a group mixes currencies, the section header shows a **"USD"** badge
 | Area | Content |
 |---|---|
 | Explainer (collapsible) | "Compa-ratio = base pay ÷ the midpoint of the pay band for the same role, level and country. Below 0.8 is under the band minimum (may be underpaid); above 1.2 is over the band maximum." |
-| Filters | Country (recommended), department, job role, level. The Base/Total toggle is disabled here (tooltip: "Pay bands are defined on base salary") |
-| Summary tiles | Employees evaluated · Employees below band · Employees above band · Departments below threshold |
+| Filters | Country (required: bands are per country), department. The Base/Total and Annual/Monthly toggles are not shown here: the explainer says pay bands are defined on base salary, and amounts are annual |
+| Summary sentence | Employees evaluated · below band · above band · not full-time (left out) · without a band, as one sentence under the title (DESIGN.md: no KPI tiles) |
 | **Cohort table** | Role · Level · Country · Headcount · P25 · Median · P75 · Band min/mid/max (local currency) · Median compa-ratio · # underpaid · # overpaid. Sort by most flagged. A spread bar shows P25–P75 and the median tick drawn over the band (min–max shaded, mid marked) |
 | **Department rollup** (shown first) | Bar chart + table: median compa-ratio per department in the selected country, with a reference line at 1.00 and a threshold line at 0.95. Departments below 0.95 get a "Systematically below band" badge ([09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8) |
 | **Drill-down** (HR/Admin) | Click a cohort → flagged employees: name, code, pay, band, compa-ratio badge (red < 0.8, amber > 1.2), link to the employee |
 | Viewer | Department rollup + cohort table (no drill-down); groups with < 5 people suppressed; band values visible |
+
+**As built (v1):** without a country the page asks for one (a link per country) and calls nothing. The department rollup is a table with each team's median compa-ratio drawn on the API's `low`–`high` scale (1.00 and the `rollup` threshold marked); teams with `below_threshold` read "Below band as a team" in red pen. Cohorts are a list (one layout from 360 px up), most below-band first, the first 12 with "Show all"; flags are words ("3 below band" red pen, "1 above band" blue, "All in band"). The drill-down lists every member of the cohort, as the API returns them, not only the flagged ones, in a side sheet (full screen on phones), with "Below band" / "Above band" / "In band".
 
 ### 4.4 Employee directory (`/employees`)
 
@@ -169,12 +173,12 @@ Rules: when a group mixes currencies, the section header shows a **"USD"** badge
 
 | Area | Content |
 |---|---|
-| Toolbar | Search box (name, employee code, email; debounced 300 ms; **case- and accent-insensitive**: `muller` finds `Müller` and `jose` finds `José`, via the backend's lowercased, accent-stripped `search_text`); filter chips: country, department, job role, level, status, employment type, currency, salary range (enabled only once a currency is chosen, or with "compare in USD"). **For Viewers, the salary-range filter and sorting by salary are not shown** (the API rejects them with `403`) |
-| Actions (HR/Admin) | **+ New employee** · **Import** · **Export ▾** (CSV / XLSX) |
-| Table (TanStack Table, server-side paging + sort) | Code · Name · Job role · Level · Department · Country · Type · Status · **Base salary** · **Total comp** (salary columns need `SALARY_READ`) · Hire date |
-| Row | Click → detail. Terminated rows are greyed, with a "Terminated" badge |
-| Footer | "Showing 26–50 of 9,700" · page size 25/50/100 · pagination |
-| Empty | "No employees match these filters" + Clear filters |
+| Toolbar | Search box (name, employee code, email; debounced 300 ms; searches from 2 characters, the API's minimum; **case- and accent-insensitive**: `muller` finds `Müller` and `jose` finds `José`, via the backend's lowercased, accent-stripped `search_text`); filters: country, department, job role, level, employment type, status, currency (popover buttons on a desktop, a "Filters (n)" sheet with removable chips on a phone); "Sort by" (name, employee code, hire date, country, level and, with `SALARY_READ`, base or total pay). **Pay range and pay sorts** (`SALARY_READ` only) are enabled only when the API can compare pay: one country, one currency, or "Compare pay in: US dollars" (`salary_basis=usd`); otherwise they are disabled with a short hint and never sent. **For Viewers, the pay range, pay sorts and pay toggles are not shown** (the API rejects them with `403`) |
+| Actions | **Add employee** (`EMPLOYEE_WRITE` + `SALARY_WRITE`) · **Import from Excel** (`IMPORT`) · **Export** (`EXPORT`): a menu with CSV and Excel (.xlsx), labelled "Export (no salary data)" without `SALARY_READ`; it downloads `GET /employees/export` with the list's query minus `page`/`page_size`, and shows the API's problem in a toast on a non-2xx |
+| Table (server-side paging and sort; a plain table, nothing is sorted or paged in the browser) | Name (employee code below) · Job role and level · Department (from 768 px) · Country · Type (from 1024 px) · **one pay column** (`SALARY_READ` only): base or total, a year or a month, following the Base/Total and Annual/Monthly toggles · Hired (from 1024 px). Below 640 px the rows become a card list |
+| Row | Click the name → detail. Terminated rows are greyed and say "Terminated" in words |
+| Footer | "Showing 26–50 of 9,700" · rows per page 25/50/100 (desktop only) · Previous / Next |
+| Empty | "No employees match these filters" + Clear filters; a page past the end offers "Go to the first page" |
 
 Export uses the **current URL filters**: what you see is what you export ([11-import-export.md](11-import-export.md) §6).
 
@@ -182,33 +186,38 @@ Export uses the **current URL filters**: what you see is what you export ([11-im
 
 | Section | Content | Permission |
 |---|---|---|
-| Header | Name, code, status badge, job role · level · department · country · type, hire date; actions: **Edit**, **Terminate / Reactivate** (confirmation dialog), **Record salary change** | actions need `EMPLOYEE_WRITE` / `SALARY_WRITE` |
-| **Current compensation** card | Base, each allowance, bonus target, **total comp**; Annual/Monthly toggle; USD equivalent with FX date; compa-ratio badge vs pay band (band min/mid/max shown on hover) | `SALARY_READ` |
-| **Salary timeline** | Vertical timeline, newest first: date, reason badge (Hire / Promotion / Merit / Market adjustment / Correction), old → new base, **% change**, level/role change ("L2 → L3"), changed by. Small line chart of base over time | `SALARY_READ` |
+| Header | Name; one sentence with job role, level, department, country, type, hire date and code; "Terminated on …" in words; actions: **Edit details**, **Terminate / Reactivate** (confirmation dialog), **Record salary change** (hidden for a terminated employee: reactivate first). On a phone, Record salary change sits in a bar fixed above the bottom navigation | actions need `EMPLOYEE_WRITE` / `SALARY_WRITE` |
+| **What is … paid?** | **Total pay** highlighted, then base and each allowance or bonus target; Annual/Monthly toggle (`period`, display only); the reason and date of the current record. Viewers see "Compensation details are restricted for your role." instead | `SALARY_READ` |
+| **How did …'s pay get here?** | Every record, newest first: date, reason in words (Hired / Promotion / Merit raise / Market adjustment / Correction), role or level change ("L2 to L3"), changed by, old → new base, **% change** (`base_change_pct` from the API) and the note. Not fetched at all without `SALARY_READ` | `SALARY_READ` |
+| **Who is …?** | Email, code, job role, level, department, country, employment type, status, hire and termination dates | all |
+| Not in v1 | A USD equivalent, the compa-ratio against the pay band and a line chart of base over time: `GET /employees/{id}` does not return a USD figure or the band, and the UI never converts or compares money itself | |
 | Activity (proposed) | Recent audit events for this employee | `AUDIT_READ` |
 
-**Record salary change** (dialog / side sheet):
-- Fields: effective date (default today; future dates not allowed, with an explanatory hint), reason (enum), new base, components editor (add/remove allowance rows; bonus target), optional new job role and level. **A Promotion must change the level or the job role**, and the form enforces this, mirroring the backend rule.
-- A live preview shows "+8.5% vs current, new total comp €61,200 · ≈ US$66,100".
-- Validation mirrors the backend (zod schemas built from the OpenAPI types).
+**Record salary change** (a dialog; full screen on a phone with a sticky title and buttons):
+- Fields: effective date (default today in UTC, the API's "today"; the date picker stops at today), reason (no "Hired"), optional new job role, level and country (a move shows the new currency and empties the amounts typed in the old one; the currency is sent so the API confirms it), new base and the components (pre-filled from the current record; add, change or remove rows; the list replaces the current one), note.
+- Amounts are typed in **major units** (`inputmode="decimal"`, commas allowed) and turned into minor units with string maths, using the currency's exponent from `GET /reference`. More decimals than the currency has are refused with the API's message ("12.345 has more decimals than EUR allows").
+- **The API checks every rule** (no future dates, not before the latest record, a promotion must change the level or the role, the currency follows the country); its `errors[]` show next to their fields. The form itself only asks for missing values and reads amounts. There is no live "+8.5%" preview: the change in percent and the totals come from the API, which the UI shows after saving.
+- A `409 version-conflict` shows "This employee was changed by someone else. Reload to see their changes." with a Reload button.
 
 **Edit employee**: profile fields only (name, email, employment type). **Salary, job role, level and country can't be edited here.** They change only through "Record salary change", so every change is captured in history with a reason. Department is derived from the job role and is not edited separately. The optimistic-lock `version` is sent in the request body.
 
 ### 4.6 Create employee (`/employees/new`)
 
-Profile fields + initial compensation (base, components, currency defaulting from country). Creates the employee and the HIRE salary record in one request. On success, redirects to the detail page.
+Needs `EMPLOYEE_WRITE` **and** `SALARY_WRITE` (like `POST /employees`), otherwise "You don't have access to this". Three questions: "Who are they?" (names, email, optional employee code), "What is their job?" (job role, level, employment type, country, hire date) and "What will they be paid?" (the currency is shown from the country and can't be chosen, base in major units, components, note). Creates the employee and the HIRE salary record in one request. On success, opens the detail page with a "… was added." toast.
 
 ### 4.7 Import (`/employees/import`)
 
-A three-step flow ([11-import-export.md](11-import-export.md)):
+A three-step flow ([11-import-export.md](11-import-export.md)), shown as "1. Upload · 2. Check · 3. Import" above the title. Everything after the server's `IMPORT` check runs in the browser: the upload and the commit are client `fetch` calls through the `/api` rewrite. The dry-run's id stays in the URL (`?job=31`), so a refresh or a shared link reopens it with `GET /imports/{id}`.
 
-1. **Upload**: drag-and-drop or file picker (CSV/XLSX, ≤ 4 MB); "Download template (CSV | XLSX)"; short instructions ("Use 'CSV UTF-8' when saving from Excel").
-2. **Review (dry-run)**:
-   - Summary: rows, valid, errors; counts by country; total base by currency.
-   - With errors: an errors table (row · column · problem · value, with "did you mean" suggestions), filterable by error type, plus a **"Download error report"** button. The commit button is disabled and the user is prompted to fix the file and re-upload.
-   - With no errors: a preview table of the first 50 rows, and a "Ready to import 248 employees" call-to-action.
-   - An expiry note: "This preview expires in 24 hours".
-3. **Done**: "248 employees imported", with a link to the employee list filtered to the new codes **(proposed)**, or the failure message with nothing written ("No changes were made").
+1. **Upload** ("What should the file look like?" · "Which file do you want to check?"): CSV and Excel template links; short instructions ("CSV UTF-8 (Comma delimited)", 4 MB, 10,000 rows); a file picker that is also a drop zone on a desktop. Choosing a file checks it at once. Refusals are said in plain words: a header mismatch lists the `expected_headers`; an unreadable file repeats the API's detail; 413, 415 and `too_many_rows` say what to do.
+2. **Check (dry-run)**:
+   - Title and summary sentence: "3 rows need fixing" / "Ready to import 3 employees"; "q4-new-hires.csv has 248 rows. **245 are ready to import.**" Counts come from the API (`row_count`, `valid_count`, `error_count`). Counts by country and total base by currency are **not** shown: the API doesn't return them and the UI does no money arithmetic.
+   - **What needs fixing?**: the problems grouped by spreadsheet row, the refused value ringed in red pen and the API's message (with its "did you mean") as an italic margin note; a table from 640 px, one card per row below it. **Download the list of problems** saves a CSV made in the browser from the JSON. When the API sends only the first 500 (`errors_truncated`), the section says "Showing the first 500 of 1,234 errors." (Filtering by error type is not built.)
+   - **What can these columns hold?** (only when a cell had an unknown value): each such column with the values it accepts, from `allowed_values`.
+   - **Who will be added?**: the preview rows (the API's first 50), base and total pay a year, formatted with `lib/money.ts`.
+   - Footer: "Import 245 employees" (disabled while `error_count > 0`), "Upload the fixed file", and "This check is kept until 25 Oct 2026, 10:45 UTC."
+   - A refused commit is shown above the footer: `409 duplicate` lists the `conflicts` rows the same way; `409 invalid-state` and `500 import-failed` repeat the API's detail (with the request ID). Each disables Import and offers "Upload the file again".
+3. **Import**: an "Imported 248 employees" toast, "248 employees imported" and a link to the employee list (a list filtered to the new codes stays **proposed**: the list API has no code filter). A `?job=` of a check that has ended says so: "This file was imported" (with the time), "This check has expired" or "This import failed" (nothing saved).
 
 ### 4.8 Ask about pay (`/ask`)
 
