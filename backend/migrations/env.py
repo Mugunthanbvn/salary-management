@@ -5,19 +5,29 @@ Tests and scripts may pass an open connection, not in a transaction, in
 """
 
 from logging.config import fileConfig
+from typing import Any, Literal
 
 from alembic import context
+from alembic.autogenerate.api import AutogenContext
 from sqlalchemy import Connection
 
+from salary_api import all_models  # noqa: F401  (registers every table on Base.metadata)
 from salary_api.core.config import load_settings
 from salary_api.core.db import create_db_engine, foreign_keys_off_for_migrations
-from salary_api.core.models import Base
+from salary_api.core.models import Base, UtcDateTime
 
 config = context.config
 target_metadata = Base.metadata
 
 if config.config_file_name is not None and "connection" not in config.attributes:
     fileConfig(config.config_file_name, disable_existing_loggers=False)
+
+
+def render_item(type_: str, obj: Any, _autogen_context: AutogenContext) -> str | Literal[False]:
+    """Write app column types as plain SQLAlchemy types, so revisions never import app code."""
+    if type_ == "type" and isinstance(obj, UtcDateTime):
+        return "sa.DateTime(timezone=True)"
+    return False  # Alembic's default rendering
 
 
 def run_migrations_offline() -> None:
@@ -46,7 +56,12 @@ def run_migrations_online() -> None:
 
 def _run_migrations(connection: Connection) -> None:
     # Batch mode rebuilds tables for ALTERs that SQLite cannot do in place.
-    context.configure(connection=connection, target_metadata=target_metadata, render_as_batch=True)
+    context.configure(
+        connection=connection,
+        target_metadata=target_metadata,
+        render_as_batch=True,
+        render_item=render_item,
+    )
     # Foreign keys off before the migration transaction starts: batch mode may rebuild
     # a table that others reference. They are back on for every app connection.
     with foreign_keys_off_for_migrations(connection), context.begin_transaction():

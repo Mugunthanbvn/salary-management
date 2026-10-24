@@ -148,8 +148,9 @@ Known limitation: **differencing attacks** (comparing "all of Engineering DE" wi
 | Storage | Encoded hash only; never logged, never returned by the API |
 | Policy | Minimum 12 characters **(proposed)**; no composition rules (NIST SP 800-63B guidance) |
 | Seed users | Passwords from env (`SEED_*_PASSWORD`). Production refuses to start or seed with dev defaults |
-| Verification | Constant-time via the library; the same error message for unknown email and wrong password |
+| Verification | Constant-time via the library; the same error message for unknown email, wrong password and inactive user. An unknown email is checked against a dummy hash made with the same parameters, so it costs the same time. The dummy hash is made when the hasher is built (app start-up), so a cold instance's first unknown-email login is not slower |
 | Rehash | If pwdlib reports outdated parameters on successful login, the hash is upgraded transparently |
+| Tests | The test app overrides the `get_password_hasher` dependency with argon2id `time_cost=1, memory_cost=8 KiB, parallelism=1` (`tests/factories.py`), so hashing takes well under a millisecond. Production uses pwdlib's defaults, and a test pins that |
 
 ### 5.2 Session token (JWT)
 
@@ -161,7 +162,7 @@ Known limitation: **differencing attacks** (comparing "all of Engineering DE" wi
 | Lifetime | 8 hours **(proposed)**, a working day. No refresh token (keeps scope small); the user logs in again |
 | Revocation | No denylist (stateless). Instead, every request loads the user and rejects `is_active=false`, and a role change takes effect on the next request because permissions come from the **DB role**, not the token claim. The `role` claim is informational only |
 | Transport (browser) | Cookie `session`: `HttpOnly; Secure; SameSite=Lax; Path=/; Max-Age=28800`. Set by FastAPI, passed through the Next.js rewrite, first-party on the web origin ([ADR 0008](adr/0008-fastapi-auth-same-origin-rewrite.md)) |
-| Transport (server-side) | Next.js Server Components read the cookie and send `Authorization: Bearer <JWT>` to `API_ORIGIN` |
+| Transport (server-side) | Next.js Server Components read the cookie and send `Authorization: Bearer <JWT>` to `API_ORIGIN`. When a request carries both, the Bearer header is used |
 | JS access | None. `HttpOnly`, so an XSS bug cannot read the token |
 
 ### 5.3 Why `SameSite=Lax` is enough against CSRF
@@ -186,7 +187,7 @@ Written by services in the **same transaction** as the change ([ADR 0011](adr/00
 | Action | Entity | `diff` / payload |
 |---|---|---|
 | `auth.login` | user | `{ "result": "success" }` |
-| `auth.login_failed` | `auth` (entity id = user id if the email is known) | `{ "email_hash": "..." }` (hash, not the raw email) |
+| `auth.login_failed` | `auth` (entity id = user id if the email is known; no actor) | `{ "email_hash": "..." }`: SHA-256 (hex) of the normalised email (trimmed, lowercased), never the raw email. Unsalted, so someone with `AUDIT_READ` could confirm a guessed email; acceptable, since admins see users anyway |
 | `auth.logout` | user | — |
 | `employee.create` | employee | Created fields (salary included only as record id) |
 | `employee.update` | employee | `{ field: [old, new] }` |
@@ -253,7 +254,7 @@ Full design: [10-ai-ask-design.md](10-ai-ask-design.md), [ADR 0015](adr/0015-ai-
 | Surface | Limit | Mechanism |
 |---|---|---|
 | `POST /ask` | 20 requests / user / hour | Count of `ask.query` events in `audit_events` over the last hour (serverless functions have no shared memory) |
-| `POST /auth/login` | 5 failures / email / 15 min → 429 for 15 min **(proposed)** | Count of `auth.login_failed` events (by email hash) |
+| `POST /auth/login` | 5 failures / email / 15 min → 429 for 15 min | Counted from `auth.login_failed` events with the email's hash. A failure **reaches the limit** when it is the 5th within 15 minutes; the email is then blocked for 15 minutes from that failure, even after older failures leave the window. `Retry-After` = seconds until that failure is 15 minutes old. The block is checked before the password, so the right password is refused too, and again after it from the failures committed by then: in a parallel burst every attempt passes the first check before any failure is committed, so a failed attempt counts only the failures recorded before its own, and a right password is refused if the email became blocked meanwhile. A burst therefore gets at most 5 real answers (on a local SQLite file, `BEGIN IMMEDIATE` also runs the logins one at a time). A refused attempt is not recorded as another failure; a burst attempt refused after its password check stays recorded and can lengthen the block by the burst's own duration. Unknown emails are limited the same way. The events (last 30 minutes) are filtered in Python (no JSON SQL) |
 | Everything else | None at the app level (internal tool, small user base) | Vercel platform protections; noted as a gap for a real deployment |
 
 ---
@@ -322,9 +323,9 @@ Covered by automated tests ([14-testing-strategy.md](14-testing-strategy.md)) un
 - [ ] Authorization matrix: every route × every role → expected status code.
 - [ ] Viewer masking on list/detail/export; 403 on salary filters, history, top earners, cohort members.
 - [ ] Small-group suppression for n = 1–4 (suppressed) and n = 5 (shown).
-- [ ] Inactive user's token rejected; role change takes effect on the next request.
-- [ ] Login: same error for unknown email and wrong password; failure limit triggers 429.
-- [ ] Cookie flags in production mode (`HttpOnly`, `Secure`, `SameSite=Lax`).
+- [x] Inactive user's token rejected; role change takes effect on the next request.
+- [x] Login: same error for unknown email and wrong password; failure limit triggers 429.
+- [x] Cookie flags in production mode (`HttpOnly`, `Secure`, `SameSite=Lax`).
 - [ ] No GET endpoint mutates state (route introspection test).
 - [ ] Export formula escaping for `= + - @ \t \r` prefixes.
 - [ ] XLSX with formulas → values read, formulas ignored; `.xlsm` rejected; oversize rejected.

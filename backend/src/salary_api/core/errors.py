@@ -46,6 +46,7 @@ class ProblemError(Exception):
         self.title = title
         self.detail = detail
         self.extra = extra
+        self.headers: dict[str, str] = {}
 
 
 class Unauthenticated(ProblemError):
@@ -108,6 +109,14 @@ class ValidationFailed(ProblemError):
         )
 
 
+class RateLimited(ProblemError):
+    """429: too many attempts. Always sends `Retry-After` (seconds)."""
+
+    def __init__(self, detail: str, *, retry_after_seconds: int) -> None:
+        super().__init__(429, "rate-limited", "Too many requests", detail)
+        self.headers["Retry-After"] = str(retry_after_seconds)
+
+
 class ServiceUnavailable(ProblemError):
     """503 with no glossary slug (`about:blank`): a dependency such as the database is down."""
 
@@ -141,6 +150,31 @@ PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
     "4XX": {"model": Problem, "description": "Client error"},
     "5XX": {"model": Problem, "description": "Server error"},
 }
+
+
+# Route-level error responses, more specific than the app-wide 4XX.
+_ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
+    401: {
+        "model": Problem,
+        "description": "Not authenticated: no valid session, or the user is inactive",
+    },
+    403: {"model": Problem, "description": "Forbidden: a required permission is missing"},
+    429: {
+        "model": Problem,
+        "description": "Too many requests",
+        "headers": {
+            "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {"type": "integer"},
+            }
+        },
+    },
+}
+
+
+def problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI `responses` for the problems a route can send: `problem_responses(401, 403)`."""
+    return {status: _ROUTE_PROBLEMS[status] for status in statuses}
 
 
 def use_problem_json_in_openapi(app: FastAPI) -> None:
@@ -204,7 +238,7 @@ def _from_request_validation_error(exc: RequestValidationError) -> ValidationFai
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProblemError)
     async def handle_problem_error(request: Request, exc: ProblemError) -> JSONResponse:
-        return problem_response(request, exc)
+        return problem_response(request, exc, exc.headers)
 
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:

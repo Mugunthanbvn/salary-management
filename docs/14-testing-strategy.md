@@ -135,8 +135,9 @@ backend/tests/
 - **`engine`**: SQLite `:memory:` with `StaticPool`, so every connection shares the same in-memory database. `PRAGMA foreign_keys=ON` is set on connect, same as production ([adr/0002-sqlite-everywhere-turso.md](adr/0002-sqlite-everywhere-turso.md)).
 - **Schema**: created once per test session from the Alembic migrations (`alembic upgrade head`), not `metadata.create_all()`. That way the migrations themselves are tested. A dedicated test also runs `alembic upgrade head` on an empty file database and compares it with the models.
 - **`db_session`**: each test runs inside a transaction that is rolled back at the end (nested transaction / SAVEPOINT pattern). Tests are isolated and nothing needs cleaning up.
+- **`app`**: built by `create_test_app(settings)`, which overrides `get_password_hasher` with `FAST_PASSWORD_HASHER` (argon2id with the cheapest parameters), so login tests stay fast. Production keeps pwdlib's defaults.
 - **`client`**: a FastAPI `TestClient` with the `get_session` dependency overridden to use `db_session`.
-- **`as_role(role)`**: a helper that logs in a seeded user of that role and returns a client carrying the auth cookie. Tests read like `as_role("VIEWER").get("/api/v1/employees")`.
+- **`as_role(role)`**: creates a user of that role (`make_user`) and returns a client carrying a session cookie for it. The cookie is minted with `core.security` instead of calling login, so no `auth.login` event is written. Tests read like `as_role("VIEWER").get("/api/v1/employees")`. `signed_in_client(app, user, settings)` does the same for a user the test already has.
 - **`frozen_time`**: a `time-machine` fixture pinned to `2026-10-01T09:00:00Z` by default.
 - **`fake_llm`**: a scripted `FakeLLM` implementing the `LLMClient` protocol ([10-ai-ask-design.md](10-ai-ask-design.md)).
 
@@ -150,6 +151,8 @@ def make_employee(session, *, country="DE", level="L3", base_minor=6_000_000,
 ```
 
 Each builder sets sensible defaults, so a test only states the fields that matter to it. That keeps the intent visible: a test about Germany says `country="DE"` and nothing else.
+
+`make_user(session, role=..., email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`. `role` defaults to `VIEWER`, the least privilege, so a test that needs more says so. The email is unique per call unless given.
 
 ---
 
@@ -217,7 +220,7 @@ These are the behaviours we intend to cover. The list grows during TDD, and name
 - Unknown body fields are rejected (`extra="forbid"`).
 
 **Authz matrix (`test_authz_matrix.py`)**
-One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). Adding an endpoint without adding it to the matrix fails a guard test that introspects the FastAPI routes. So no endpoint can ship without a declared permission.
+One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table (`MATRIX`, one `Endpoint(method, path, (anon, viewer, hr, admin))` row per route) lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). A row whose request needs a body, a query or a database row (an id in the path) gets a `prepare(session)` function that returns the request's keyword arguments and an optional concrete `url`. Adding an endpoint without adding it to the matrix fails a guard test that introspects every route of the app, under `/api/v1` or not (`fastapi.routing.iter_route_contexts`, which also sees inside included routers); a row without a route fails too. Only health, `openapi.json` and the docs page are exempt (an explicit list). The Swagger OAuth2 redirect page is turned off, because FastAPI served it outside `/api/v1`. So no endpoint can ship without a declared permission.
 
 | Endpoint (sample) | Anonymous | VIEWER | HR_MANAGER | ADMIN |
 |---|---|---|---|---|
