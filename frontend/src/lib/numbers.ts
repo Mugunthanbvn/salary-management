@@ -28,7 +28,9 @@ export function formatPercent(
   }).format(ratio as Intl.StringNumericLiteral);
 }
 
+const COUNT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
+
+/** A headcount or row count: `9012` → `"9,012"`. */
 export function formatCount(count: number): string {
-  void count;
-  throw new Error("formatCount is not implemented yet");
+  return COUNT.format(count);
 }
