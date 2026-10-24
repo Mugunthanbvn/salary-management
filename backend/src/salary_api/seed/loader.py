@@ -1,15 +1,22 @@
 """Write the seed into a database (docs/12-seed-data.md section 13).
 
-SQLAlchemy Core `insert()` executemany in chunks, with every ID already set by the generator.
-Everything runs in the caller's transaction, so a failed seed leaves nothing behind.
+Schema first (Alembic `upgrade head`), then SQLAlchemy Core `insert()` executemany in chunks,
+with every ID already set by the generator. Everything runs in the caller's transaction, so a
+failed seed leaves nothing behind.
 """
 
+import sqlite3
 from collections.abc import Sequence
 from dataclasses import fields
 from functools import cache
+from pathlib import Path
 from typing import TYPE_CHECKING, Final
 
-from sqlalchemy import Connection, bindparam, delete, insert, select, update
+from alembic import command
+from alembic.config import Config
+from sqlalchemy import Connection, Engine, bindparam, delete, insert, select, update
+
+import salary_api
 
 # Importing the models registers every table on Base.metadata, which clear() relies on.
 from salary_api.all_models import (
@@ -32,6 +39,15 @@ if TYPE_CHECKING:
     from _typeshed import DataclassInstance
 
 CHUNK_SIZE: Final = 1000
+ALEMBIC_INI: Final = Path(salary_api.__file__).resolve().parents[2] / "alembic.ini"
+
+
+def migrate(engine: Engine) -> None:
+    """Bring the schema to the latest Alembic revision (`alembic upgrade head`)."""
+    config = Config(ALEMBIC_INI)
+    with engine.connect() as connection:  # not begin(): env.py manages the transaction
+        config.attributes["connection"] = connection
+        command.upgrade(config, "head")
 
 
 def load(
@@ -95,6 +111,19 @@ def clear(connection: Connection) -> None:
     connection.execute(update(Employee).values(current_salary_record_id=None))
     for table in reversed(Base.metadata.sorted_tables):
         connection.execute(delete(table))
+
+
+def checkpoint(engine: Engine) -> None:
+    """Fold the WAL into the main file of a local SQLite database, so it is one file.
+
+    Run after the seed's transaction has committed. Other databases need nothing.
+    """
+    with engine.connect() as connection:
+        dbapi_connection = connection.connection.dbapi_connection
+        if isinstance(dbapi_connection, sqlite3.Connection):
+            # Straight to the driver: inside the BEGIN IMMEDIATE that SQLAlchemy would open,
+            # the checkpoint could not complete.
+            dbapi_connection.execute("PRAGMA wal_checkpoint(TRUNCATE)")
 
 
 def _has_data(connection: Connection) -> bool:
