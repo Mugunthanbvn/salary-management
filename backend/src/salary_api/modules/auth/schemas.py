@@ -30,3 +30,13 @@ class LoginResponse(BaseModel):
 
     user: SessionUser
     permissions: list[Permission]
+
+
+class Features(BaseModel):
+    """Optional features. `ask` is false when no LLM_API_KEY is configured."""
+
+    ask: bool
+
+
+class MeResponse(LoginResponse):
+    features: Features

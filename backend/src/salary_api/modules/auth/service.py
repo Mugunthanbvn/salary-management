@@ -16,7 +16,13 @@ from salary_api.core.security import (
     decode_access_token,
 )
 from salary_api.modules.audit.service import AuditAction, events_since, record_event
-from salary_api.modules.auth.schemas import LoginRequest, LoginResponse, SessionUser
+from salary_api.modules.auth.schemas import (
+    Features,
+    LoginRequest,
+    LoginResponse,
+    MeResponse,
+    SessionUser,
+)
 from salary_api.modules.users import repository as users
 from salary_api.modules.users.models import User
 
@@ -67,6 +73,27 @@ def login(
     session.commit()
     token = create_access_token(user_id=user.id, role=user.role, settings=settings)
     return SignedIn(body=_login_response(_principal(user)), token=token)
+
+
+def logout(session: Session, principal: Principal) -> None:
+    """Audit the sign-out. The token itself stays valid until it expires (no denylist)."""
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.AUTH_LOGOUT,
+        entity="user",
+        entity_id=principal.user_id,
+    )
+    session.commit()
+
+
+def me(principal: Principal, *, settings: Settings) -> MeResponse:
+    body = _login_response(principal)
+    return MeResponse(
+        user=body.user,
+        permissions=body.permissions,
+        features=Features(ask=bool(settings.llm_api_key.get_secret_value())),
+    )
 
 
 def authenticate(session: Session, token: str | None, *, settings: Settings) -> Principal:
