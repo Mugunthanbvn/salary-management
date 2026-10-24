@@ -1,0 +1,38 @@
+import path from "node:path";
+
+import react from "@vitejs/plugin-react";
+import { defineConfig } from "vitest/config";
+
+export default defineConfig({
+  plugins: [react()],
+  resolve: {
+    alias: {
+      "@": path.resolve(import.meta.dirname, "src"),
+      // `import "server-only"` throws outside React's server build; tests of server
+      // modules (lib/api/server.ts) load its empty variant, as Next does on the server.
+      "server-only": path.resolve(
+        import.meta.dirname,
+        "node_modules/server-only/empty.js",
+      ),
+    },
+  },
+  test: {
+    environment: "jsdom",
+    include: ["src/**/*.test.{ts,tsx}", "next.config.test.ts"],
+    setupFiles: ["./src/test/setup.ts"],
+    clearMocks: true,
+    restoreMocks: true,
+    unstubEnvs: true,
+    coverage: {
+      // Reported only; there is no gate yet (docs/14-testing-strategy.md §7).
+      provider: "v8",
+      include: ["src/**/*.{ts,tsx}"],
+      exclude: [
+        "src/**/*.test.{ts,tsx}",
+        "src/test/**",
+        "src/lib/api/schema.d.ts",
+      ],
+      reporter: ["text", "html"],
+    },
+  },
+});

@@ -71,7 +71,8 @@ Dotted, lowercase, `<entity>.<verb>`. The rate limiters count these exact string
 | `import.fail` | commit rolled back | ✅ |
 | `export.download` | export generated | ✅ |
 | `insights.individuals_view` | top earners or pay-equity cohort drill-down viewed | ✅ |
-| `ask.query` | Ask question answered or failed | ✅ (if Ask is built) |
+| `ask.query` | Ask question received, recorded before the model is called (the per-user limit counts these) | ✅ (if Ask is built) |
+| `ask.answer` | the outcome of that question (`entity_id` = its `ask.query` id): tools, steps, latency, outcome | ✅ (if Ask is built) |
 | `fx.update`, `reference.country.update`, `user.create`, `user.update` | admin actions | cut from v1 |
 
 ## 5. Errors (RFC 9457 problem+json)
@@ -112,10 +113,10 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | Insight response extras | `population` (filters applied), `fx_as_of` when USD appears |
 | Job-title split | `split_by_level=true` |
 | Pay-equity views | `view=cohorts\|departments` |
-| Import job | `id` (int), `status`, `format`, `filename`, `row_count`, `valid_count`, `error_count`, `errors[]`, `preview[]`, `expires_at` |
-| Import row error | `{ row, column, code, message, value }`; codes include `duplicate_in_file`, `duplicate_in_db`, `unknown_value`, `too_many_decimals`, `required`, `invalid_format` |
+| Import job | `id` (int), `status`, `format`, `filename`, `row_count`, `valid_count`, `error_count`, `errors[]` (the first 500), `errors_truncated`, `allowed_values` (`{column: [values]}` for columns with an `unknown_value` error), `preview[]`, `created_at`, `expires_at`, `committed_at` |
+| Import row error | `{ row, column, code, message, value }`; codes `required`, `invalid_format`, `unknown_value` (the report's `allowed_values` lists the valid values once per column), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, plus `future_date`, `before_hire_date` and `currency_mismatch`, as `POST /employees` names the same rules |
 | Import commit response | `{ id, status: "COMMITTED", inserted }` |
-| Import commit allowed for | the job's creator or an `ADMIN` |
+| Import job visible to (read and commit) | the job's creator, or a user with `USER_ADMIN` (the administrator's permission; checked by permission, never by role). Anyone else gets `404` |
 | Import headers | case-insensitive, trimmed, any order; unknown columns are an error |
 | Formula escaping (export) | prefix `'` when a text cell starts with `=`, `+`, `-`, `@`, tab or CR |
 | Feature flags | `GET /auth/me` → `features: { ask: bool }` (no separate status endpoint) |
@@ -137,6 +138,7 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | `ASK_RATE_LIMIT_PER_HOUR`, `ASK_MAX_STEPS` | api | `20` · `4` |
 | `SEED_ADMIN_PASSWORD`, `SEED_HR_PASSWORD`, `SEED_VIEWER_PASSWORD` | seed | Production refuses defaults |
 | `API_ORIGIN` | web | API base URL for the rewrite and server-side fetches; never exposed to the browser |
+| `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | web | `true` on the demo deployment only: `/login` lists the three demo accounts (names, emails, roles, never passwords). Inlined at build time |
 
 ## 8. Commands, files and resources
 

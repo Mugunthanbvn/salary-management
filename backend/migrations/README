@@ -1,0 +1,2 @@
+Alembic migrations. One revision per schema change, named NNNN_<verb>_<object>.py.
+They never run inside a request: `make migrate` locally, a manual step for Turso.

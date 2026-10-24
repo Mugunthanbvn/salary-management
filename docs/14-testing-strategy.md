@@ -133,10 +133,11 @@ backend/tests/
 ### 4.1 Fixtures
 
 - **`engine`**: SQLite `:memory:` with `StaticPool`, so every connection shares the same in-memory database. `PRAGMA foreign_keys=ON` is set on connect, same as production ([adr/0002-sqlite-everywhere-turso.md](adr/0002-sqlite-everywhere-turso.md)).
-- **Schema**: created once per test session from the Alembic migrations (`alembic upgrade head`), not `metadata.create_all()`. That way the migrations themselves are tested. **(proposed)** If this turns out slow, fall back to `create_all` in unit runs and keep a dedicated migration test.
+- **Schema**: created once per test session from the Alembic migrations (`alembic upgrade head`), not `metadata.create_all()`. That way the migrations themselves are tested. A dedicated test also runs `alembic upgrade head` on an empty file database and compares it with the models.
 - **`db_session`**: each test runs inside a transaction that is rolled back at the end (nested transaction / SAVEPOINT pattern). Tests are isolated and nothing needs cleaning up.
-- **`client`**: a FastAPI `TestClient` with the `get_db` dependency overridden to use `db_session`.
-- **`as_role(role)`**: a helper that logs in a seeded user of that role and returns a client carrying the auth cookie. Tests read like `as_role("VIEWER").get("/api/v1/employees")`.
+- **`app`**: built by `create_test_app(settings)`, which overrides `get_password_hasher` with `FAST_PASSWORD_HASHER` (argon2id with the cheapest parameters), so login tests stay fast. Production keeps pwdlib's defaults.
+- **`client`**: a FastAPI `TestClient` with the `get_session` dependency overridden to use `db_session`.
+- **`as_role(role)`**: creates a user of that role (`make_user`) and returns a client carrying a session cookie for it. The cookie is minted with `core.security` instead of calling login, so no `auth.login` event is written. Tests read like `as_role("VIEWER").get("/api/v1/employees")`. `signed_in_client(app, user, settings)` does the same for a user the test already has.
 - **`frozen_time`**: a `time-machine` fixture pinned to `2026-10-01T09:00:00Z` by default.
 - **`fake_llm`**: a scripted `FakeLLM` implementing the `LLMClient` protocol ([10-ai-ask-design.md](10-ai-ask-design.md)).
 
@@ -150,6 +151,8 @@ def make_employee(session, *, country="DE", level="L3", base_minor=6_000_000,
 ```
 
 Each builder sets sensible defaults, so a test only states the fields that matter to it. That keeps the intent visible: a test about Germany says `country="DE"` and nothing else.
+
+`make_user(session, role=..., email=..., password=..., is_active=...)` saves a user whose password (default `DEFAULT_PASSWORD`) is hashed with `FAST_PASSWORD_HASHER`. `role` defaults to `VIEWER`, the least privilege, so a test that needs more says so. The email is unique per call unless given.
 
 ---
 
@@ -217,7 +220,7 @@ These are the behaviours we intend to cover. The list grows during TDD, and name
 - Unknown body fields are rejected (`extra="forbid"`).
 
 **Authz matrix (`test_authz_matrix.py`)**
-One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). Adding an endpoint without adding it to the matrix fails a guard test that introspects the FastAPI routes. So no endpoint can ship without a declared permission.
+One parametrized test enumerates **every endpoint × every role (+ anonymous)** and asserts the expected status (200/201/204 vs 401 vs 403). The expectation table (`MATRIX`, one `Endpoint(method, path, (anon, viewer, hr, admin))` row per route) lives next to the test, mirroring [08-security-rbac.md](08-security-rbac.md). A row whose request needs a body, a query or a database row (an id in the path) gets a `prepare(session)` function that returns the request's keyword arguments and an optional concrete `url`. Adding an endpoint without adding it to the matrix fails a guard test that introspects every route of the app, under `/api/v1` or not (`fastapi.routing.iter_route_contexts`, which also sees inside included routers); a row without a route fails too. Only health, `openapi.json` and the docs page are exempt (an explicit list). The Swagger OAuth2 redirect page is turned off, because FastAPI served it outside `/api/v1`. So no endpoint can ship without a declared permission.
 
 | Endpoint (sample) | Anonymous | VIEWER | HR_MANAGER | ADMIN |
 |---|---|---|---|---|
@@ -248,7 +251,7 @@ One parametrized test enumerates **every endpoint × every role (+ anonymous)** 
 ### 5.4 Import / export ([11-import-export.md](11-import-export.md))
 
 - The CSV parser and the XLSX parser produce **identical row dicts** for the same template content (a golden-file test with `tests/fixtures/import_sample.csv` and `.xlsx`).
-- XLSX: formulas are read as their stored values (`data_only=True`); macros are ignored; a non-xlsx file renamed to `.xlsx` → 422.
+- XLSX: formulas are read as their stored values (`data_only=True`); macros are ignored; a non-xlsx file renamed to `.xlsx` → 400 `bad-request` (an unreadable upload, [glossary](glossary.md) §5).
 - Size cap: > 4 MB → 413. Row cap exceeded → 422.
 - The validator reports **every** row error with a row number and a field, not just the first.
 - Duplicates are detected within the file (employee_code, email; case-insensitive) and against the database.
@@ -280,13 +283,13 @@ All of these use `FakeLLM`. No network in CI.
 - Counts per country are exact (largest-remainder allocation).
 - Every employee has ≥ 1 salary record; the latest record matches the denormalized current salary.
 - The demo story is present: Customer Success in DE has a median compa-ratio ≈ 0.92 vs its pay bands, and is the only DE department with `below_threshold: true`.
-- A small seed (e.g. 200 employees) is used in tests for speed. The 10k run is a separate, marked slow test (`-m slow`) **(proposed)**.
+- A small seed (200 employees) is used in most seed tests for speed. The full 10k run also stays in the default suite (`tests/integration/test_seed_full.py`): it takes about 2.5 s in memory, and its tests share one xdist group (`--dist loadgroup`), so a run builds it once. No `slow` mark is needed, so `make test` and CI always run it.
 
 ### 5.7 Frontend unit (Vitest + React Testing Library + MSW)
 
-- `formatMoney(minor, currency, locale)` formats JPY with no decimals and INR with grouping; the monthly toggle divides correctly. No float maths on totals: it formats from a minor-unit string or bigint **(proposed)**.
+- `formatMoney(minor, currency, options)` formats JPY with no decimals, INR with lakh grouping, `US$`/`CA$`/`A$`/`S$`, compact mode and huge amounts; monthly is annual ÷ 12 rounded half-even (ties tested). No float maths: it takes a `bigint`, a digit string or a safe-integer `number`, and refuses anything else.
 - Filter state ↔ URL (nuqs): changing a filter updates the query string, and loading a URL restores the filters.
-- Employee form validation messages (zod) match the backend rules (required fields, positive salary, decimals allowed for the currency).
+- Employee forms: typed amounts become minor units by string maths (JPY 0 decimals, EUR 2; `12.345` EUR refused with the API's message, no floats); missing values are asked for before sending; the API's `errors[]` show next to their fields; a `409 version-conflict` offers Reload. The business rules themselves are the API's and are tested there.
 - Role-gated UI: a Viewer sees no "Edit", "Record change" or "Import" actions and sees masked salary cells. (The backend still enforces this; the UI only hides.)
 - Import preview: renders row errors grouped by row; the "Commit" button is disabled while errors exist.
 - Ask page: shows the spinner while a request is pending; renders the "How I got this" panel from `tool_calls`; shows the friendly message on 429.
@@ -296,9 +299,9 @@ Vitest can't render async Server Components; those are covered by Playwright.
 
 ### 5.8 End-to-end smoke (Playwright)
 
-> **v1 scope:** only flow 1 (HR login → search → record raise) is built, if time allows. The other flows are future work ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)).
+> **v1 scope:** flow 1 (HR login → search → record raise) and a short form of flow 3 (Viewer: salary masked, no "Record salary change") are built, in `frontend/e2e/smoke.spec.ts`. The other flows are future work ([v1 scope](README.md#v1-scope-decided-2026-10-24-read-this-first)).
 
-Runs against a local stack: the FastAPI dev server on a fresh seeded SQLite file (small seed) + `next start`.
+`make e2e` runs against a real local stack that Playwright starts and stops: `frontend/e2e/start-api.sh` seeds a fresh temp SQLite file (`--seed 42 --employees 300`) and serves the API on :8100; the web app is built with `API_ORIGIN` pointing at it and served by `next start` on :3100. The 300-employee seed has no Müller, so the desktop run searches "gonçalves" and the phone run "jähn": different employees, so the two viewports run in parallel on one database.
 
 | # | Flow | Asserts |
 |---|---|---|
@@ -319,11 +322,11 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 |---|---|
 | Wall clock (`now()`, "today") | `time-machine` fixture, frozen per test. Production code takes time from an injectable `Clock` **(proposed)** or `datetime.now(UTC)`, which time-machine patches |
 | Randomness in code (seed) | `random.Random(seed)` instances passed explicitly; never the global `random` |
-| Faker | `Faker.seed(seed)` + per-locale instances created from the seed |
+| Faker | One `Faker(locale)` instance per country, each `seed_instance(seed + country_index)` (never the shared `Faker.seed`); Singapore's curated names use `random.Random(seed + country_index)` |
 | Hypothesis | `derandomize=True` profile in CI (`HYPOTHESIS_PROFILE=ci`), with a fixed `max_examples`. Locally the default profile explores more |
 | Test order | **pytest-randomly** shuffles test order on every run and prints the seed, which exposes hidden coupling between tests. A failing order can be reproduced with `-p randomly -p "randomly_seed=<seed>"` |
 | Parallelism | **pytest-xdist** (`-n auto`). Each worker has its own in-memory DB, so nothing is shared |
-| Network | none in tests. The LLM goes through `FakeLLM`; outbound HTTP is blocked by a fixture that fails the test if a socket opens **(proposed: pytest-socket or a custom guard)** |
+| Network | none in tests. The LLM goes through `FakeLLM`; outbound HTTP is blocked by pytest-socket (`--disable-socket --allow-unix-socket` in the pytest options), which fails any test that opens a network socket |
 | Locale / TZ | `TZ=UTC` and `LC_ALL=C.UTF-8` in CI and in the Makefile test targets |
 | Floating point | money is integers end to end; rates and ratios use `Decimal` |
 
@@ -331,7 +334,7 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 
 ## 7. Coverage gates
 
-- **Backend:** `pytest --cov=salary_api --cov-branch --cov-fail-under=90`. The gate is measured on `domain/` and the `modules/*/service.py` files, and we report overall coverage too. Line coverage alone is not the goal; branch coverage on the domain is.
+- **Backend:** `pytest --cov` (branch coverage on, measured on `salary_api`), then `scripts/coverage_gate.py` fails below 90 %. The gate is measured on `domain/` and the `modules/*/service.py` files (it passes while none exist yet), and pytest-cov reports overall coverage too. Line coverage alone is not the goal; branch coverage on the domain is.
 - **Excluded from coverage:** `seed/cli.py` argument parsing, `main.py` wiring, Alembic env, generated code.
 - **Frontend:** Vitest coverage (v8) is reported, with no hard gate initially. **(proposed: 70% on `lib/` utilities)**.
 - Coverage is a smoke alarm, not a target. Reviewers should judge tests by the behaviours they pin down (section 5).
@@ -369,10 +372,10 @@ The eval set checks the real LLM behaviour, which unit tests with `FakeLLM` can'
 | Command | What it does |
 |---|---|
 | `make test` | backend unit + integration (SQLite, parallel, coverage) and frontend Vitest |
-| `make test-backend` **(proposed)** | `cd backend && uv run pytest -n auto --cov` |
-| `make test-frontend` **(proposed)** | `cd frontend && pnpm vitest run` |
+| `make test-backend` | `cd backend && uv run pytest --cov` (`-n auto` is in the pytest options) + the coverage gate |
+| `make test-frontend` | `cd frontend && pnpm test` (`vitest run`) |
 | `make test-pg` | backend integration suite against Postgres (compose) |
-| `make e2e` | builds the frontend, starts API + web on a seeded temp DB, runs Playwright |
+| `make e2e` | builds the frontend, starts API (:8100) + web (:3100) on a seeded temp DB, runs Playwright, stops both. Local only (not in CI or `make verify`) |
 | `make eval-ask PROVIDER=gemini` | runs the AI eval set (needs `LLM_API_KEY`) |
 | `make verify` | everything CI runs, except e2e and pg: lint, typecheck, tests, knip |
 | `uv run pytest tests/unit/domain -q` | domain tests only (fastest loop during TDD) |

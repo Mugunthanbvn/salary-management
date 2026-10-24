@@ -46,7 +46,7 @@ flowchart LR
 
 1. Import the GitHub repo into Vercel; set **Root Directory = `backend`**.
 2. Framework preset: FastAPI (zero-config). Vercel detects the FastAPI `app` from the entrypoint, declared in `pyproject.toml` under `[tool.vercel]` **(exact key per Vercel docs at setup; TBD)**. The whole app becomes a single Vercel Function on Fluid compute.
-3. Python version from `.python-version` / pyproject (3.14, or the newest version Vercel supports; **TBD** at the spike).
+3. Python version from `.python-version` / pyproject: 3.13, a version Vercel supports. Check at deploy time that Vercel reads it from the repo root, or add `backend/.python-version`.
 4. Function region aligned with Turso (section 5).
 5. Set the env vars (section 4).
 6. Verify: `GET https://salary-api.vercel.app/api/v1/health` → `{"status":"ok","db":"ok"}`.
@@ -55,7 +55,8 @@ flowchart LR
 
 1. Import the same repo as a second project; **Root Directory = `frontend`**; framework Next.js; install command `pnpm install --frozen-lockfile`.
 2. Set `API_ORIGIN` to the API project's production URL (previews: the matching preview URL, see section 4).
-3. Verify login end to end in Chrome **and Safari**.
+3. Set `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true` so `/login` lists the demo accounts (names, emails, roles; never passwords). Like the rewrite's `API_ORIGIN`, it is inlined by `next build`, so set both before the first build and redeploy after changing them.
+4. Verify login end to end in Chrome **and Safari**.
 
 ### 3.4 Rewrite configuration
 
@@ -94,10 +95,11 @@ export default nextConfig;
 | `ASK_RATE_LIMIT_PER_HOUR` | api | `20` | — | — | `20` | no |
 | `SEED_ADMIN_PASSWORD`, `SEED_HR_PASSWORD`, `SEED_VIEWER_PASSWORD` | seed script | dev values | test values | demo values | demo values | **yes** |
 | `API_ORIGIN` | web | `http://localhost:8000` | `http://localhost:8000` | API preview URL | API prod URL | no |
+| `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | web | `false` | — | — | `true` (the demo lists the demo accounts on `/login`, never passwords) | no |
 
 Rules:
 - `.env.example` in each app lists every variable with safe placeholders and comments. Real `.env` files are git-ignored and **denied to Claude Code** ([16-claude-code-setup.md](16-claude-code-setup.md#71-permissions-outline)).
-- **Production refuses to start** if `JWT_SECRET` is a known placeholder or shorter than 32 bytes, if `COOKIE_SECURE` isn't true, or if `DATABASE_URL` points to a local file (pydantic-settings validation).
+- **Production refuses to start** if `JWT_SECRET` is a known placeholder or shorter than 32 bytes, if `COOKIE_SECURE` isn't true, if `DATABASE_URL` points to a local file or memory, or if `CORS_ORIGINS` is set (pydantic-settings validation). `APP_ENV` is required, and the start-up error never shows the secret values it was given.
 - Preview columns above are unused in v1: **preview deployments are cut**. (They would also hit Vercel Deployment Protection, which by default blocks unauthenticated requests to preview URLs, including the web → API rewrite.)
 - Secrets are rotated by updating the Vercel env var and redeploying. A JWT secret rotation logs everyone out, which is acceptable.
 
@@ -114,17 +116,20 @@ Migrations and seeding **never run inside a serverless function**: they are one-
 
 ### 6.1 Initial load (fast path)
 
-Inserting ~10k employees + ~30k salary records + ~40k components row-by-row over the network is slow. Instead:
+Inserting ~10k employees + ~24k salary records + ~40k components row-by-row over the network is slow. Instead:
 
 ```bash
-make seed-turso
-#   1. DATABASE_URL=sqlite:///./build/seed.db  alembic upgrade head
-#   2. python -m salary_api.seed --seed 42 --employees 10000 --reset   (into build/seed.db)
-#   3. prints the next command:
-turso db create salary-prod --from-file ./build/seed.db --location <region>
+SEED_ADMIN_PASSWORD=... SEED_HR_PASSWORD=... SEED_VIEWER_PASSWORD=... make seed-turso
+#   1. deletes any old build/seed.db
+#   2. APP_ENV=production python -m salary_api.seed --seed 42 --employees 10000 \
+#        --db-url sqlite:///../build/seed.db
+#      (runs alembic upgrade head on the new file, seeds it, folds the WAL into the file;
+#       refuses default or missing demo passwords)
+#   3. prints the next command, and never runs it:
+turso db create salary-prod --from-file build/seed.db
 ```
 
-The production database is then **byte-for-byte the deterministic seed**, already at the latest Alembic revision.
+Add `--location <region>` if the deploy spike showed it is needed. The production database is then **the deterministic seed** (only the demo users' password hashes differ between builds), already at the latest Alembic revision.
 
 ### 6.2 Subsequent schema changes
 
