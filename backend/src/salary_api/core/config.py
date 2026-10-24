@@ -1,6 +1,6 @@
 """API configuration from environment variables (docs/glossary.md section 7)."""
 
-from typing import Annotated, Literal, Self
+from typing import Annotated, Any, Literal, Self
 
 from pydantic import Field, SecretStr, field_validator, model_validator
 from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
@@ -21,7 +21,8 @@ class Settings(BaseSettings):
 
     model_config = SettingsConfigDict(env_file=".env", extra="ignore", frozen=True)
 
-    app_env: AppEnv = "development"
+    # Required, so production checks can never be skipped by a missing variable.
+    app_env: AppEnv
     database_url: str = "sqlite:///./dev.db"
     database_auth_token: SecretStr | None = None
     jwt_secret: SecretStr = SecretStr(DEV_PLACEHOLDER)
@@ -48,6 +49,12 @@ class Settings(BaseSettings):
         if self.app_env == "production" and (problems := _production_problems(self)):
             raise ValueError("Unsafe settings for APP_ENV=production: " + "; ".join(problems))
         return self
+
+
+def load_settings() -> Settings:
+    """Settings from the environment and `.env`. Fails if APP_ENV is missing."""
+    from_environment_only: dict[str, Any] = {}  # no values passed in
+    return Settings(**from_environment_only)
 
 
 def _production_problems(settings: Settings) -> list[str]:

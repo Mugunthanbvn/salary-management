@@ -7,7 +7,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from salary_api import __version__
-from salary_api.core.config import Settings
+from salary_api.core.config import Settings, load_settings
 from salary_api.core.db import create_db_engine, create_session_factory
 from salary_api.core.errors import install_problem_handlers
 from salary_api.core.logging import configure_logging
@@ -18,7 +18,7 @@ API_PREFIX = "/api/v1"
 
 
 def create_app(settings: Settings | None = None) -> FastAPI:
-    settings = settings or Settings()
+    settings = settings or load_settings()
     configure_logging(settings.log_level)
     engine = create_db_engine(settings)
 

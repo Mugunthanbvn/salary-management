@@ -8,7 +8,7 @@ from logging.config import fileConfig
 from alembic import context
 from sqlalchemy import Connection
 
-from salary_api.core.config import Settings
+from salary_api.core.config import load_settings
 from salary_api.core.db import create_db_engine
 from salary_api.core.models import Base
 
@@ -22,7 +22,7 @@ if config.config_file_name is not None and "connection" not in config.attributes
 def run_migrations_offline() -> None:
     """Print the SQL instead of running it (`alembic upgrade head --sql`)."""
     context.configure(
-        url=Settings().database_url,
+        url=load_settings().database_url,
         target_metadata=target_metadata,
         literal_binds=True,
         render_as_batch=True,
@@ -37,7 +37,7 @@ def run_migrations_online() -> None:
         _run_migrations(connection)
         return
 
-    engine = create_db_engine(Settings())
+    engine = create_db_engine(load_settings())
     with engine.connect() as new_connection:
         _run_migrations(new_connection)
     engine.dispose()

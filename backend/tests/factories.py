@@ -32,4 +32,5 @@ def make_settings(**overrides: Any) -> Settings:
 
 def settings_from_environment() -> Settings:
     """Settings read only from environment variables (use with monkeypatch.setenv)."""
-    return _SettingsWithoutEnvFile()
+    from_environment_only: dict[str, Any] = {}
+    return _SettingsWithoutEnvFile(**from_environment_only)

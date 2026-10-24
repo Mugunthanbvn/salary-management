@@ -315,7 +315,7 @@ All configuration comes from environment variables, validated at startup by `pyd
 
 | Variable | Example (dev) | Prod | Notes |
 |---|---|---|---|
-| `APP_ENV` | `development` (`test` in CI) | `production` | Switches strict checks (secure cookies, no defaults). Values per the [glossary](glossary.md) §7 |
+| `APP_ENV` | `development` (`test` in CI) | `production` | **Required** (no default), so the production checks can't be skipped by accident. Switches strict checks (secure cookies, no defaults). Values per the [glossary](glossary.md) §7 |
 | `DATABASE_URL` | `sqlite:///./dev.db` | `sqlite+libsql://<db>.turso.io?secure=true` (no token in the URL) | The only thing that changes to switch DB; Postgres fallback `postgresql+psycopg://...` |
 | `DATABASE_AUTH_TOKEN` | — | Turso token (secret) | Passed via connect args, never logged |
 | `JWT_SECRET` | `dev-change-me` | random ≥32 bytes (secret) | Prod rejects placeholders and anything shorter than 32 bytes |
