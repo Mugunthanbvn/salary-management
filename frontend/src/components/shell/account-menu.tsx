@@ -11,9 +11,17 @@ import {
   DropdownMenuSeparator,
   DropdownMenuTrigger,
 } from "@/components/ui/dropdown-menu";
+import { api } from "@/lib/api/client";
+import { hardNavigate } from "@/lib/hard-navigate";
 import { ROLE_LABELS } from "@/lib/roles";
 
 import { useMe } from "./me-context";
+
+/** Ends the session through the API (it clears the httpOnly cookie), then reloads at /login. */
+async function signOut() {
+  await api.POST("/api/v1/auth/logout");
+  hardNavigate("/login");
+}
 
 /** The signed-in person's menu in the top bar, on every screen size. */
 export function AccountMenu() {
@@ -39,7 +47,9 @@ export function AccountMenu() {
             </Link>
           </DropdownMenuItem>
         ) : null}
-        <DropdownMenuItem>Sign out</DropdownMenuItem>
+        <DropdownMenuItem onSelect={() => void signOut()}>
+          Sign out
+        </DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
   );
