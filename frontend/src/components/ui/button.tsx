@@ -16,13 +16,15 @@ const buttonVariants = cva(
         destructive:
           "border-transparent bg-transparent text-red-pen underline-offset-4 hover:underline",
         ghost: "border-transparent bg-transparent text-ink hover:bg-rule",
-        link: "border-transparent bg-transparent px-0 font-normal text-blue-pen underline underline-offset-4 hover:text-blue-pen-hover",
+        link: "border-transparent bg-transparent font-normal text-blue-pen underline underline-offset-4 hover:text-blue-pen-hover",
       },
       size: {
         default: "min-h-11 px-4",
         icon: "size-11",
       },
     },
+    // After the size classes, so it wins over px-4: a link lines up with the text around it.
+    compoundVariants: [{ variant: "link", className: "px-0" }],
     defaultVariants: {
       variant: "primary",
       size: "default",
