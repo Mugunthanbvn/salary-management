@@ -10,6 +10,7 @@ row in the database (an employee id in the path), give the row a `prepare` funct
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import pytest
@@ -79,6 +80,17 @@ def _terminated_employee(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{employee.id}/reactivate", "json": {"version": 1}}
 
 
+def _salary_change(session: Session) -> dict[str, Any]:
+    employee = make_employee(session, hire_date=date(2024, 1, 15))
+    body = {
+        "version": 1,
+        "effective_date": "2024-06-01",
+        "reason": "MERIT",
+        "base_minor": 7_000_000,
+    }
+    return {"url": f"/api/v1/employees/{employee.id}/salary-changes", "json": body}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -92,6 +104,7 @@ MATRIX = [
     Endpoint("PATCH", EMPLOYEE, (401, 403, 200, 200), _profile_change),
     Endpoint("POST", f"{EMPLOYEE}/terminate", (401, 403, 200, 200), _active_employee),
     Endpoint("POST", f"{EMPLOYEE}/reactivate", (401, 403, 200, 200), _terminated_employee),
+    Endpoint("POST", f"{EMPLOYEE}/salary-changes", (401, 403, 201, 201), _salary_change),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

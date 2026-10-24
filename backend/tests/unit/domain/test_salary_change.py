@@ -1,6 +1,5 @@
 """Rules for salary changes (docs/07-api-spec.md 6.6-6.7, docs/06-data-model.md 6.1)."""
 
-
 import pytest
 
 from salary_api.domain.enums import Level
