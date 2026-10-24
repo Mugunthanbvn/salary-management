@@ -40,6 +40,7 @@ if TYPE_CHECKING:
 
 CHUNK_SIZE: Final = 1000
 ALEMBIC_INI: Final = Path(salary_api.__file__).resolve().parents[2] / "alembic.ini"
+_TABLES: Final = Base.metadata.tables
 
 
 def migrate(engine: Engine) -> None:
@@ -108,8 +109,19 @@ def clear(connection: Connection) -> None:
     The one place rows of the append-only tables are deleted: a reset wipes the whole demo
     database, and production refuses it unless explicitly forced (docs/12 section 14).
     """
-    connection.execute(update(Employee).values(current_salary_record_id=None))
-    for table in reversed(Base.metadata.sorted_tables):
+    tables = list(reversed(Base.metadata.sorted_tables))
+    if connection.dialect.name == "sqlite":
+        # Check foreign keys at commit instead of row by row (until this transaction ends),
+        # and delete employees before their salary records. Otherwise deleting each record
+        # scans every employee for a current_salary_record_id pointing at it (that column has
+        # no index): 24k records x 10k employees took about 30 s.
+        connection.exec_driver_sql("PRAGMA defer_foreign_keys = ON")
+        employees, records = _TABLES["employees"], _TABLES["salary_records"]
+        tables.remove(employees)
+        tables.insert(tables.index(records), employees)
+    else:
+        connection.execute(update(Employee).values(current_salary_record_id=None))
+    for table in tables:
         connection.execute(delete(table))
 
 
