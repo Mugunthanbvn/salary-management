@@ -6,7 +6,7 @@ from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstra
 from salary_api.core.schemas import Money
 from salary_api.domain.constants import MAX_AMOUNT_MINOR
 from salary_api.domain.enums import ComponentType, Level, SalaryReason
-from salary_api.modules.reference.schemas import JobRoleRef
+from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, JobRoleRef
 
 # Amounts arrive as JSON integers of minor units: strict, so 5400000.0 and "5400000" are refused
 # rather than converted (docs/06-data-model.md section 5.1).
@@ -55,6 +55,8 @@ class SalaryChangeRequest(BaseModel):
     reason: SalaryReason
     job_role_id: int | None = None  # a new role; PROMOTION needs a new role or a higher level
     level: Level | None = None
+    country_code: CountryCode | None = None  # a relocation; the salary currency follows it
+    currency: CurrencyCode | None = None  # must be the (new) country's currency
     base_minor: BaseMinor
     # Replaces the component set; nothing is inherited from the current record.
     components: Components = []

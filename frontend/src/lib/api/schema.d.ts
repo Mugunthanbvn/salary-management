@@ -606,6 +606,10 @@ export interface components {
              * @default []
              */
             components: components["schemas"]["ComponentIn"][];
+            /** Country Code */
+            country_code?: string | null;
+            /** Currency */
+            currency?: string | null;
             /**
              * Effective Date
              * Format: date

@@ -23,7 +23,7 @@ from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees import locking
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference import repository as reference
-from salary_api.modules.reference.models import JobRole
+from salary_api.modules.reference.models import Country, JobRole
 from salary_api.modules.reference.schemas import JobRoleRef
 from salary_api.modules.salaries import repository
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
@@ -82,10 +82,12 @@ def record_salary_change(
     previous = repository.latest_record(session, employee_id)
     role = _job_role(session, employee, request.job_role_id)
     level = request.level or employee.level
-    errors = _broken_rules(request, employee, previous, role=role, level=level)
-    if errors or role is None:
+    country = reference.get_country(session, request.country_code or employee.country_code)
+    errors = _broken_rules(request, employee, previous, _Target(role, level, country))
+    if errors or role is None or country is None:
         raise ValidationFailed(errors)
-    pay = Pay(DomainMoney(request.base_minor, employee.currency), request.components)
+    # Every salary is in its country's currency (docs/README.md v1 scope).
+    pay = Pay(DomainMoney(request.base_minor, country.default_currency), request.components)
     record = _new_record(
         employee.id,
         pay,
@@ -105,9 +107,14 @@ def record_salary_change(
         diff["job_role_id"] = [employee.job_role_id, role.id]
     if level != employee.level:
         diff["level"] = [employee.level, level]
+    if country.code != employee.country_code:
+        diff["country_code"] = [employee.country_code, country.code]
+    if record.currency != employee.currency:
+        diff["currency"] = [employee.currency, record.currency]
     repository.add_record(session, record)
     employee.job_role = role
     employee.level = level
+    employee.country_code = country.code
     _make_current(employee, record)
     employee.version += 1
     record_event(
@@ -122,6 +129,15 @@ def record_salary_change(
     return SalaryChange(record=_history_record(record, previous), employee_version=employee.version)
 
 
+@dataclass(frozen=True, slots=True)
+class _Target:
+    """The employee's role, level and country after the change (None: unknown id or code)."""
+
+    role: JobRole | None
+    level: Level
+    country: Country | None
+
+
 def _job_role(session: Session, employee: Employee, job_role_id: int | None) -> JobRole | None:
     """The role after the change: the current one unless another is asked for."""
     if job_role_id is None or job_role_id == employee.job_role_id:
@@ -133,14 +149,15 @@ def _broken_rules(
     request: SalaryChangeRequest,
     employee: Employee,
     latest: SalaryRecord | None,
-    *,
-    role: JobRole | None,
-    level: Level,
+    target: "_Target",
 ) -> list[FieldError]:
     """Every rule of docs/07 section 6.7 the change breaks, as field errors."""
     errors: list[FieldError] = []
     if (date_error := _effective_date_error(request.effective_date, employee, latest)) is not None:
         errors.append(date_error)
+    if (country_error := _country_error(request, employee, target.country)) is not None:
+        errors.append(country_error)
+    role, level = target.role, target.level
     if role is None:
         message = f"Unknown job role {request.job_role_id}."
         errors.append({"loc": ["body", "job_role_id"], "code": "not_found", "message": message})
@@ -153,6 +170,22 @@ def _broken_rules(
         message = "A promotion needs a higher level or a different job role."
         errors.append({"loc": ["body", "reason"], "code": "not_a_promotion", "message": message})
     return errors
+
+
+def _country_error(
+    request: SalaryChangeRequest, employee: Employee, country: Country | None
+) -> FieldError | None:
+    """A relocation goes to a known, active country; the currency is always the country's."""
+    if country is None:
+        message = f"Unknown country {request.country_code}."
+        return {"loc": ["body", "country_code"], "code": "not_found", "message": message}
+    if country.code != employee.country_code and not country.is_active:
+        message = f"{country.name} is not an active country."
+        return {"loc": ["body", "country_code"], "code": "inactive", "message": message}
+    if request.currency not in (None, country.default_currency):
+        message = f"Salaries in {country.name} are paid in {country.default_currency}."
+        return {"loc": ["body", "currency"], "code": "currency_mismatch", "message": message}
+    return None
 
 
 def _effective_date_error(
