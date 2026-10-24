@@ -10,7 +10,7 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
-from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW
+from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW, ROLLUP_THRESHOLD
 from salary_api.domain.enums import EmploymentType, Level, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
 from salary_api.domain.stats import median
@@ -95,6 +95,11 @@ class DepartmentRollup:
     country_code: str
     count: int
     median_compa_ratio: Decimal
+
+    @property
+    def below_threshold(self) -> bool:
+        """Systematically below band: the unrounded median is under 0.95 (0.95 itself is not)."""
+        return self.median_compa_ratio < ROLLUP_THRESHOLD
 
 
 def department_rollup(employees: Iterable[EmployeePay]) -> list[DepartmentRollup]:
