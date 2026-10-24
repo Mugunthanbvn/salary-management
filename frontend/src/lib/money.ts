@@ -11,15 +11,15 @@ export type FormatMoneyOptions = {
 export function formatMoney(
   amountMinor: number | bigint | string,
   currency: string,
-  options: FormatMoneyOptions = {},
+  { minorUnits = "auto" }: FormatMoneyOptions = {},
 ): string {
-  void options;
   const { major, fraction } = splitMinor(
     BigInt(amountMinor),
     minorDigits(currency),
   );
   // Whole amounts read like the printout ("€54,000"); any minor part shows every digit.
-  const fractionDigits = /^0*$/.test(fraction) ? 0 : fraction.length;
+  const fractionDigits =
+    minorUnits === "auto" && /^0*$/.test(fraction) ? 0 : fraction.length;
   const formatter = new Intl.NumberFormat("en-US", {
     style: "currency",
     currency,
