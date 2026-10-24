@@ -1,4 +1,4 @@
-"""Group statistics over integer minor amounts, in exact arithmetic (docs/09 §2.7, ADR 0007).
+"""Group statistics over integer minor amounts, never in float (docs/09 §2.7, ADR 0007).
 
 The repository fetches the amounts for one group in one currency; these functions do the maths.
 """
@@ -57,7 +57,7 @@ def summarize(amounts: Iterable[int]) -> Summary | InsufficientData:
 
 
 def median(values: Iterable[Decimal]) -> Decimal:
-    """The exact, unrounded median of `values`, such as compa-ratios. Needs at least one value."""
+    """The unrounded Decimal median of `values`, such as compa-ratios. Needs at least one."""
     ordered = sorted(values)
     if not ordered:
         raise ValueError("median of no values")
@@ -67,7 +67,7 @@ def median(values: Iterable[Decimal]) -> Decimal:
 def _percentile[N: (int, Decimal)](ordered: Sequence[N], p: Decimal) -> Decimal:
     """Linear interpolation between closest ranks (NumPy "linear", SQL PERCENTILE_CONT).
 
-    `ordered` is sorted and not empty. The result is exact, not rounded.
+    `ordered` is sorted and not empty. The Decimal result is not rounded; callers round it.
     """
     h = (len(ordered) - 1) * p
     lo, hi = math.floor(h), math.ceil(h)
