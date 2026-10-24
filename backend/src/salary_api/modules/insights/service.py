@@ -19,7 +19,7 @@ from sqlalchemy.orm import Session
 
 from salary_api.core.errors import ValidationFailed
 from salary_api.core.permissions import Principal
-from salary_api.core.schemas import Money
+from salary_api.core.schemas import Comp, Money
 from salary_api.domain.constants import MIN_GROUP_SIZE
 from salary_api.domain.currency import USD
 from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
@@ -29,20 +29,24 @@ from salary_api.modules.employees.service import can_see_salaries
 from salary_api.modules.insights import repository
 from salary_api.modules.insights.schemas import (
     ByDepartment,
+    ByJobTitle,
     CountryStats,
     DepartmentStats,
+    InsightFilters,
     InsightQuery,
+    JobTitleQuery,
+    JobTitleStats,
     Overview,
     Population,
     Stats,
 )
-from salary_api.modules.reference.schemas import Department
+from salary_api.modules.reference.schemas import Department, JobRoleRef
 
 
 def overview(session: Session, principal: Principal, query: InsightQuery) -> Overview:
     """Headcount, payroll in USD and pay by country (docs/09 section 3.1)."""
     scope = _scope(session, principal, query.country)
-    rows = repository.amounts_by_country(session, _where(query), query.comp)
+    rows = repository.amounts_by_country(session, _where(query, query.country), query.comp)
     countries = _groups(rows)
     hidden = scope.audience.hidden_groups([country.count for country in countries])
     by_country = [
@@ -57,7 +61,7 @@ def overview(session: Session, principal: Principal, query: InsightQuery) -> Ove
     total_hidden = scope.audience.hides(len(everyone))
     payroll = summarize(scope.convert.all(USD, everyone))
     return Overview(
-        population=_population(query),
+        population=_population(query, query.country, query.comp),
         currency=scope.currency,
         fx_as_of=scope.convert.fx_as_of,
         headcount=None if total_hidden else len(everyone),
@@ -72,7 +76,7 @@ def overview(session: Session, principal: Principal, query: InsightQuery) -> Ove
 def by_department(session: Session, principal: Principal, query: InsightQuery) -> ByDepartment:
     """Pay statistics per department (docs/09 section 3.2)."""
     scope = _scope(session, principal, query.country)
-    rows = repository.amounts_by_department(session, _where(query), query.comp)
+    rows = repository.amounts_by_department(session, _where(query, query.country), query.comp)
     departments = _groups(((id_, name), currency, amount) for id_, name, currency, amount in rows)
     hidden = scope.audience.hidden_groups([department.count for department in departments])
     groups = [
@@ -83,10 +87,39 @@ def by_department(session: Session, principal: Principal, query: InsightQuery) -
         for index, department in enumerate(departments)
     ]
     return ByDepartment(
-        population=_population(query),
+        population=_population(query, query.country, query.comp),
         currency=scope.currency,
         fx_as_of=scope.convert.fx_as_of,
         groups=groups,
+    )
+
+
+def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -> ByJobTitle:
+    """Pay statistics per job role in one country, optionally per level (docs/09 3.3)."""
+    countries = [query.country]
+    scope = _scope(session, principal, countries)
+    rows = repository.amounts_by_job_role(session, _where(query, countries), query.comp)
+    split = query.split_by_level
+    roles = _groups(
+        ((role_id, title, level if split else None), currency, amount)
+        for role_id, title, level, currency, amount in rows
+    )
+    # Each role's total is a breakdown of its own: it is visible without the split.
+    hidden = scope.audience.hidden_groups(
+        [role.count for role in roles], within=_partitions([role.key[0] for role in roles])
+    )
+    return ByJobTitle(
+        population=_population(query, countries, query.comp),
+        currency=scope.currency,
+        split_by_level=split,
+        groups=[
+            JobTitleStats(
+                job_role=JobRoleRef(id=role.key[0], title=role.key[1]),
+                level=role.key[2],
+                stats=scope.stats(role.members, hidden=index in hidden),
+            )
+            for index, role in enumerate(roles)
+        ],
     )
 
 
@@ -104,19 +137,38 @@ class _Audience:
         """The small-group rule: without SALARY_READ, fewer than MIN_GROUP_SIZE is hidden."""
         return not self.salary_visible and count < MIN_GROUP_SIZE
 
-    def hidden_groups(self, counts: Sequence[int]) -> set[int]:
-        """The indexes of the groups of one breakdown that this caller may not see.
+    def hidden_groups(
+        self, counts: Sequence[int], *, within: Iterable[Sequence[int]] = ()
+    ) -> set[int]:
+        """The indexes of the groups of a breakdown that this caller may not see.
 
-        The small-group rule hides groups under MIN_GROUP_SIZE. If that hides exactly one,
-        the smallest visible group is hidden too (complementary suppression, docs/09 2.8):
-        otherwise the total minus the visible groups would give the hidden one away.
-        Ties go to the group listed first.
+        The small-group rule hides groups under MIN_GROUP_SIZE. Then complementary
+        suppression (docs/09 section 2.8): in any breakdown with a visible total (the whole
+        list, and each list of indexes in `within`, such as the levels of one job role) where
+        exactly one group is hidden, the smallest visible group is hidden too, so the total
+        minus the visible groups never gives one hidden group away. Ties go to the group
+        listed first. Hiding a group can leave another breakdown with one hidden group, so
+        this repeats until nothing changes.
         """
         hidden = {index for index, count in enumerate(counts) if self.hides(count)}
-        visible = [index for index in range(len(counts)) if index not in hidden]
-        if len(hidden) == 1 and visible:
-            hidden.add(min(visible, key=lambda index: (counts[index], index)))
+        breakdowns = [range(len(counts)), *within]
+        changed = bool(hidden)
+        while changed:
+            changed = False
+            for breakdown in breakdowns:
+                visible = [index for index in breakdown if index not in hidden]
+                if len(breakdown) - len(visible) == 1 and visible:
+                    hidden.add(min(visible, key=lambda index: (counts[index], index)))
+                    changed = True
         return hidden
+
+
+def _partitions[K](parents: Sequence[K]) -> list[list[int]]:
+    """The indexes of the groups that share a parent (e.g. one job role's levels)."""
+    indexes: dict[K, list[int]] = {}
+    for index, parent in enumerate(parents):
+        indexes.setdefault(parent, []).append(index)
+    return list(indexes.values())
 
 
 @dataclass(frozen=True, slots=True)
@@ -284,9 +336,9 @@ def _money(amount_minor: int, currency: str) -> Money:
     return Money(amount_minor=amount_minor, currency=currency)
 
 
-def _where(query: InsightQuery) -> repository.PopulationFilter:
+def _where(query: InsightFilters, countries: Sequence[str]) -> repository.PopulationFilter:
     return repository.PopulationFilter(
-        countries=query.country,
+        countries=countries,
         department_ids=query.department_id,
         job_role_ids=query.job_role_id,
         levels=query.level,
@@ -295,13 +347,14 @@ def _where(query: InsightQuery) -> repository.PopulationFilter:
     )
 
 
-def _population(query: InsightQuery) -> Population:
+def _population(query: InsightFilters, countries: Sequence[str], comp: Comp) -> Population:
+    """The filters actually applied, as the response echoes them."""
     return Population(
-        country=query.country,
+        country=list(countries),
         department_id=query.department_id,
         job_role_id=query.job_role_id,
         level=query.level,
         employment_type=query.employment_type,
         status=query.status,
-        comp=query.comp,
+        comp=comp,
     )

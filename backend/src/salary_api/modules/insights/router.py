@@ -6,7 +6,13 @@ from salary_api.core.deps import SessionDep, require_permission
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
 from salary_api.modules.insights import service
-from salary_api.modules.insights.schemas import ByDepartment, InsightQuery, Overview
+from salary_api.modules.insights.schemas import (
+    ByDepartment,
+    ByJobTitle,
+    InsightQuery,
+    JobTitleQuery,
+    Overview,
+)
 
 router = APIRouter(prefix="/insights", tags=["insights"])
 
@@ -35,3 +41,15 @@ def by_department(
     query: Annotated[InsightQuery, Query()], principal: CanReadInsights, session: SessionDep
 ) -> ByDepartment:
     return service.by_department(session, principal, query)
+
+
+@router.get(
+    "/by-job-title",
+    response_model=ByJobTitle,
+    responses=problem_responses(401, 403),
+    summary="Pay statistics per job title within one country",
+)
+def by_job_title(
+    query: Annotated[JobTitleQuery, Query()], principal: CanReadInsights, session: SessionDep
+) -> ByJobTitle:
+    return service.by_job_title(session, principal, query)

@@ -6,7 +6,7 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from salary_api.core.schemas import Comp, Id, Money
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
-from salary_api.modules.reference.schemas import CountryCode, Department
+from salary_api.modules.reference.schemas import CountryCode, Department, JobRoleRef
 
 
 class InsightFilters(BaseModel):
@@ -33,6 +33,14 @@ class InsightQuery(InsightFilters):
 
     country: list[CountryCode] = Field(default_factory=list[CountryCode])
     comp: Comp = Comp.BASE  # base, or total = base + allowances + bonus target
+
+
+class JobTitleQuery(InsightFilters):
+    """The query of by-job-title: one country, since titles compare within one market."""
+
+    country: CountryCode
+    comp: Comp = Comp.BASE
+    split_by_level: bool = False
 
 
 class Population(BaseModel):
@@ -96,3 +104,18 @@ class ByDepartment(BaseModel):
     currency: str
     fx_as_of: date | None
     groups: list[DepartmentStats]  # by department name
+
+
+class JobTitleStats(BaseModel):
+    job_role: JobRoleRef
+    level: Level | None  # only with split_by_level
+    stats: Stats
+
+
+class ByJobTitle(BaseModel):
+    """docs/09 section 3.3: always in the country's currency."""
+
+    population: Population
+    currency: str
+    split_by_level: bool
+    groups: list[JobTitleStats]  # by title, then level

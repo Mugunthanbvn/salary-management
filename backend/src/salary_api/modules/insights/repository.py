@@ -74,6 +74,17 @@ def amounts_by_department(
     return session.execute(query).all()
 
 
+def amounts_by_job_role(
+    session: Session, where: PopulationFilter, comp: Comp
+) -> Sequence[Row[int, str, Level, str, int]]:
+    """(job role id, title, level, currency, amount) per employee, by title, level, amount."""
+    amount = AMOUNT_COLUMNS[comp]
+    query = _matching(
+        select(JobRole.id, JobRole.title, Employee.level, Employee.currency, amount), where
+    ).order_by(JobRole.title, JobRole.id, Employee.level, amount)
+    return session.execute(query).all()
+
+
 def _matching[*Row](query: Select[*Row], where: PopulationFilter) -> Select[*Row]:
     return query.select_from(Employee).join(Employee.job_role).where(*_conditions(where))
 

@@ -40,6 +40,37 @@
         "title": "ByDepartment",
         "type": "object"
       },
+      "ByJobTitle": {
+        "description": "docs/09 section 3.3: always in the country's currency.",
+        "properties": {
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "groups": {
+            "items": {
+              "$ref": "#/components/schemas/JobTitleStats"
+            },
+            "title": "Groups",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "split_by_level": {
+            "title": "Split By Level",
+            "type": "boolean"
+          }
+        },
+        "required": [
+          "population",
+          "currency",
+          "split_by_level",
+          "groups"
+        ],
+        "title": "ByJobTitle",
+        "type": "object"
+      },
       "ChangedBy": {
         "properties": {
           "full_name": {
@@ -833,6 +864,33 @@
           "title"
         ],
         "title": "JobRoleRef",
+        "type": "object"
+      },
+      "JobTitleStats": {
+        "properties": {
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Level"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "stats": {
+            "$ref": "#/components/schemas/Stats"
+          }
+        },
+        "required": [
+          "job_role",
+          "level",
+          "stats"
+        ],
+        "title": "JobTitleStats",
         "type": "object"
       },
       "Level": {
@@ -3336,6 +3394,180 @@
           }
         ],
         "summary": "Pay statistics per department",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/by-job-title": {
+      "get": {
+        "operationId": "by_job_title_api_v1_insights_by_job_title_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "department_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Department Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": false,
+            "schema": {
+              "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
+                "type": "integer"
+              },
+              "title": "Job Role Id",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/Level"
+              },
+              "title": "Level",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "comp",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/Comp",
+              "default": "base"
+            }
+          },
+          {
+            "in": "query",
+            "name": "split_by_level",
+            "required": false,
+            "schema": {
+              "default": false,
+              "title": "Split By Level",
+              "type": "boolean"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ByJobTitle"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Pay statistics per job title within one country",
         "tags": [
           "insights"
         ]
