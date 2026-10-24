@@ -35,6 +35,9 @@ class Money:
         Too many decimals are rejected, never rounded: `"1000.5"` JPY raises
         TooManyDecimalsError. Trailing zeros lose nothing, so `"1000.0"` JPY is ¥1000.
         """
+        if type(amount) not in (str, Decimal):
+            kind = type(amount).__name__
+            raise TypeError(f"a major-unit amount must be a str or Decimal, not {kind}")
         numerator, denominator = Decimal(amount).as_integer_ratio()
         amount_minor, remainder = divmod(
             numerator * 10 ** minor_unit_exponent(currency), denominator
