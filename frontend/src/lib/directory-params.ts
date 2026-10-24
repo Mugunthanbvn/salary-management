@@ -59,6 +59,43 @@ export const loadDirectoryParams = createLoader(directoryParsers);
 /** The query string ("?country=DE&page=2") for a state; defaults are left out. */
 export const serializeDirectory = createSerializer(directoryParsers);
 
+/** The URL keys "Clear filters" resets; sort, page size and the pay toggles stay. */
+export const CLEARED_FILTERS = {
+  q: null,
+  country: null,
+  department_id: null,
+  job_role_id: null,
+  level: null,
+  employment_type: null,
+  status: null,
+  currency: null,
+  salary_min: null,
+  salary_max: null,
+  salary_basis: null,
+  page: null,
+} as const;
+
+/** True when anything narrows the list beyond the default (active employees). */
+export function hasFilters(state: DirectoryState): boolean {
+  return (
+    state.q.trim() !== "" ||
+    state.country.length > 0 ||
+    state.department_id.length > 0 ||
+    state.job_role_id.length > 0 ||
+    state.level.length > 0 ||
+    state.employment_type.length > 0 ||
+    state.currency.length > 0 ||
+    !isDefaultStatus(state.status) ||
+    state.salary_min !== null ||
+    state.salary_max !== null
+  );
+}
+
+/** Just "ACTIVE": the list the API gives when no status is asked for. */
+export function isDefaultStatus(status: DirectoryState["status"]): boolean {
+  return status.length === 1 && status[0] === "ACTIVE";
+}
+
 /** Fields GET /employees can sort by (docs/07-api-spec.md §6.1). */
 export const SORT_FIELDS = [
   "last_name",

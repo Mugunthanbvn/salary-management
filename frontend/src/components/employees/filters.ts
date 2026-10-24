@@ -1,14 +1,12 @@
 import type { Nullable } from "nuqs";
 
 import type { components } from "@/lib/api/schema";
-import type { DirectoryState } from "@/lib/directory-params";
+import { isDefaultStatus, type DirectoryState } from "@/lib/directory-params";
 import {
   EMPLOYEE_STATUSES,
   EMPLOYMENT_TYPE_LABELS,
   STATUS_LABELS,
 } from "@/lib/labels";
-
-import { isDefaultStatus } from "./directory-state";
 
 type ReferenceData = components["schemas"]["ReferenceData"];
 

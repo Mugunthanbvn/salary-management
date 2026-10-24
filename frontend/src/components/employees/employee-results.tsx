@@ -16,17 +16,14 @@ import {
   serializeDirectory,
   sortTokens,
   type DirectoryState,
+  CLEARED_FILTERS,
+  hasFilters,
 } from "@/lib/directory-params";
 import { formatDate } from "@/lib/dates";
 import { EMPLOYMENT_TYPE_LABELS } from "@/lib/labels";
 import { formatCount } from "@/lib/numbers";
 
-import {
-  CLEARED_FILTERS,
-  hasFilters,
-  useDirectoryPending,
-  useDirectoryState,
-} from "./directory-state";
+import { useDirectoryPending, useDirectoryState } from "./directory-state";
 import { countryName, fullName, roleAndLevel } from "./format";
 
 type EmployeePage = components["schemas"]["EmployeePage"];

@@ -23,14 +23,14 @@ import {
   SheetTrigger,
 } from "@/components/ui/sheet";
 import type { components } from "@/lib/api/schema";
-import type { DirectoryState } from "@/lib/directory-params";
-import { formatCount } from "@/lib/numbers";
-
 import {
   CLEARED_FILTERS,
   hasFilters,
-  useDirectoryState,
-} from "./directory-state";
+  type DirectoryState,
+} from "@/lib/directory-params";
+import { formatCount } from "@/lib/numbers";
+
+import { useDirectoryState } from "./directory-state";
 import { FilterOptions } from "./filter-options";
 import {
   filterDefs,
