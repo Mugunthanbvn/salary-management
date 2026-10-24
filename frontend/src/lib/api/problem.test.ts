@@ -82,4 +82,21 @@ describe("toProblem", () => {
       requestId: "req-789",
     });
   });
+
+  it("uses a body that openapi-fetch has already read", async () => {
+    const response = problemResponse({
+      type: "https://acme.example/problems/version-conflict",
+      title: "Version conflict",
+      status: 409,
+      instance: "/api/v1/employees/42",
+      request_id: "req-321",
+      current_version: 8,
+    });
+    const error: unknown = await response.json();
+
+    const problem = await toProblem(response, error);
+
+    expect(problem.slug).toBe("version-conflict");
+    expect(problem.body.current_version).toBe(8);
+  });
 });

@@ -46,7 +46,11 @@ export class ProblemError extends Error {
  * example an HTML 502 from a proxy) becomes an "about:blank" problem with the status text,
  * keeping the X-Request-ID header when there is one.
  */
-export async function toProblem(response: Response): Promise<ProblemError> {
+export async function toProblem(
+  response: Response,
+  parsedBody?: unknown,
+): Promise<ProblemError> {
+  void parsedBody;
   const body = await readJson(response);
   const requestId = response.headers.get("X-Request-ID");
   if (isProblem(body)) {
