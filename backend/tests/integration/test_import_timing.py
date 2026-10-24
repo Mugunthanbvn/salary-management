@@ -20,7 +20,7 @@ from salary_api.modules.exports import service as exports
 from salary_api.modules.exports.schemas import EmployeeExportQuery
 from salary_api.modules.imports import service as imports
 from tests.factories import make_fx_rates, make_user
-from tests.spreadsheets import hire, import_csv, make_import_reference
+from tests.spreadsheets import hire, import_csv, import_xlsx, make_import_reference
 
 pytestmark = [
     pytest.mark.slow,
@@ -36,37 +36,43 @@ def _timed[T](label: str, work: Callable[[], T]) -> tuple[T, float]:
     return result, seconds
 
 
-def test_a_10000_row_csv_dry_runs_in_5_s_commits_in_10_s_and_exports_in_3_s(
+def test_10000_rows_dry_run_in_5_s_commit_in_10_s_and_export_in_3_s_csv_5_s_xlsx(
     db_session: Session, frozen_time: time_machine.Traveller
 ) -> None:
     make_import_reference(db_session)
     make_fx_rates(db_session)
     user = make_user(db_session, role="HR_MANAGER")
     hr = Principal(user_id=user.id, email=user.email, full_name=user.full_name, role=user.role)
-    content = import_csv(
-        *(
-            hire(n, bonus_target="4160.50", allowance_1_name="Transport", allowance_1_amount="1200")
-            for n in range(1, MAX_IMPORT_ROWS + 1)
-        )
+    rows = [
+        hire(n, bonus_target="4160.50", allowance_1_name="Transport", allowance_1_amount="1200")
+        for n in range(1, MAX_IMPORT_ROWS + 1)
+    ]
+    csv_file, xlsx_file = import_csv(*rows), import_xlsx(*rows)
+    print(
+        f"\n{len(rows)} rows: {len(csv_file) / 1e6:.2f} MB CSV, {len(xlsx_file) / 1e6:.2f} MB XLSX"
     )
-    print(f"\n{MAX_IMPORT_ROWS} rows, {len(content) / 1e6:.2f} MB CSV")
 
+    _, xlsx_dry_run_s = _timed(
+        "dry-run xlsx",
+        lambda: imports.dry_run(db_session, hr, filename="all.xlsx", upload=io.BytesIO(xlsx_file)),
+    )
     report, dry_run_s = _timed(
-        "dry-run",
-        lambda: imports.dry_run(db_session, hr, filename="all.csv", upload=io.BytesIO(content)),
+        "dry-run csv",
+        lambda: imports.dry_run(db_session, hr, filename="all.csv", upload=io.BytesIO(csv_file)),
     )
     result, commit_s = _timed("commit", lambda: imports.commit(db_session, hr, report.id))
-    exports_s = [
+    csv_export_s, xlsx_export_s = (
         _timed(
             f"export {file_format}",
             lambda file_format=file_format: exports.export_employees(
                 db_session, hr, EmployeeExportQuery(format=file_format)
             ),
         )[1]
-        for file_format in FileFormat
-    ]
+        for file_format in (FileFormat.CSV, FileFormat.XLSX)
+    )
 
     assert (report.valid_count, result.inserted) == (MAX_IMPORT_ROWS, MAX_IMPORT_ROWS)
-    assert dry_run_s < 5
+    assert max(dry_run_s, xlsx_dry_run_s) < 5
     assert commit_s < 10
-    assert max(exports_s) < 3
+    assert csv_export_s < 3
+    assert xlsx_export_s < 5

@@ -265,7 +265,7 @@ Rule (follows OWASP CSV Injection guidance): any **string** cell whose first cha
 
 - Applied to **all user-controlled text fields** (names, email, job role, allowance names) in both CSV and XLSX.
 - Numeric columns are written as numbers (XLSX) or plain numeric strings (CSV), so negative numbers aren't affected. Salaries are positive anyway.
-- XLSX: cells are written with an explicit string type, so openpyxl never interprets a leading `=` as a formula. Amounts are number cells and dates date cells.
+- XLSX: openpyxl writes text as a formula only when it starts with `=`, which the escaping never leaves, so every text cell is a string cell (`t="s"`); a test reads the cell types back. Amounts are number cells and dates date cells. (A `WriteOnlyCell` with an explicit type per text cell cost 1.3 s per 10,000 rows, for no extra safety.)
 - One function, `modules/exports/csv_safety.py` `escape_formula`, does it for both formats and is unit-tested on its own.
 - Tested with a fixture employee named `=1+1` and `@SUM(A1)` in both formats ([14-testing-strategy.md](14-testing-strategy.md)).
 
