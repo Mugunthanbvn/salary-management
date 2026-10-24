@@ -283,7 +283,7 @@ All of these use `FakeLLM`. No network in CI.
 - Counts per country are exact (largest-remainder allocation).
 - Every employee has ≥ 1 salary record; the latest record matches the denormalized current salary.
 - The demo story is present: Customer Success in DE has a median compa-ratio ≈ 0.92 vs its pay bands, and is the only DE department with `below_threshold: true`.
-- A small seed (e.g. 200 employees) is used in tests for speed. The 10k run is a separate, marked slow test (`-m slow`) **(proposed)**.
+- A small seed (200 employees) is used in most seed tests for speed. The full 10k run also stays in the default suite (`tests/integration/test_seed_full.py`): it takes about 2.5 s in memory, and its tests share one xdist group (`--dist loadgroup`), so a run builds it once. No `slow` mark is needed, so `make test` and CI always run it.
 
 ### 5.7 Frontend unit (Vitest + React Testing Library + MSW)
 
@@ -322,7 +322,7 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 |---|---|
 | Wall clock (`now()`, "today") | `time-machine` fixture, frozen per test. Production code takes time from an injectable `Clock` **(proposed)** or `datetime.now(UTC)`, which time-machine patches |
 | Randomness in code (seed) | `random.Random(seed)` instances passed explicitly; never the global `random` |
-| Faker | `Faker.seed(seed)` + per-locale instances created from the seed |
+| Faker | One `Faker(locale)` instance per country, each `seed_instance(seed + country_index)` (never the shared `Faker.seed`); Singapore's curated names use `random.Random(seed + country_index)` |
 | Hypothesis | `derandomize=True` profile in CI (`HYPOTHESIS_PROFILE=ci`), with a fixed `max_examples`. Locally the default profile explores more |
 | Test order | **pytest-randomly** shuffles test order on every run and prints the seed, which exposes hidden coupling between tests. A failing order can be reproduced with `-p randomly -p "randomly_seed=<seed>"` |
 | Parallelism | **pytest-xdist** (`-n auto`). Each worker has its own in-memory DB, so nothing is shared |

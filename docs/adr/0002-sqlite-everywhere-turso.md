@@ -6,7 +6,7 @@
 
 ## Context
 
-The brief asks for "a relational database of your choice, like SQLite" and a seed of **10,000 employees**. With roughly 30k salary records and 40k components, the whole dataset is about **5–10 MB**. Usage is low-concurrency: a handful of HR editors, not thousands of writers.
+The brief asks for "a relational database of your choice, like SQLite" and a seed of **10,000 employees**. With roughly 24k salary records and 40k components, the whole dataset is about **5–10 MB** (the seeded file is 10.5 MB). Usage is low-concurrency: a handful of HR editors, not thousands of writers.
 
 Production must be **free** and must keep data while reviewers look at it, possibly for weeks. Free serverless hosts (Vercel) have **no persistent disk**, so a plain SQLite file cannot live in production there.
 
