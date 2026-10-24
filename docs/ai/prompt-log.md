@@ -233,3 +233,26 @@ Tool: Claude Code (VS Code extension), model Claude Opus 5.5, plan mode (read-on
   - "Squash merges would erase the incremental history" (18).
 
 Implementation-phase prompts will be appended below via `/log-prompt`, using the same format.
+
+---
+
+# Build session (2026-10-24): orchestrator + subagents
+
+> **Curated.** One Claude Code session (cloud, auto mode) acted as the lead engineer and orchestrator described in [prompts/build-orchestrator.md](prompts/build-orchestrator.md). It planned the work, gave each build block to a subagent with a self-contained brief, had a fresh reviewer subagent check every block, fixed the findings test-first, and merged each block with a merge commit. Decisions the orchestrator took on its own (the user delegated them) are listed per block below.
+
+### 24. Kick-off: build the whole app with subagents
+- **Prompt:** "Read docs/ai/prompts/build-orchestrator.md and follow everything below the divider line exactly. You are the lead engineer and orchestrator described there: build the whole app with subagents, decide any open questions yourself, and leave only deployment pending."
+- **Decisions taken by the orchestrator (no user available, precedence rule applied):**
+  - **Integration branch.** The cloud session may push only to its designated branch `claude/build-app-subagents-hxxp6x`. That branch plays the role of `main` in the orchestrator prompt: each block branch (`bNN-slug`) is created from it and merged back with `git merge --no-ff`; only the integration branch is pushed. Merging it into `main` is left to the user (a normal PR merge with a merge commit keeps the history).
+  - **Runtimes.** Python **3.13** (the orchestrator prompt prefers it; Vercel supports 3.12–3.14; it is the version installed in the build container). Node **22** (installed in the build container; Next.js 16 supports it; Vercel supports it). Docs that said 3.14 / Node 24 are updated.
+  - **`git push` allowed** in `.claude/settings.json` (force pushes stay denied, `vercel`/`turso` stay in "ask"), because an autonomous session cannot answer a permission prompt after every block.
+  - **Playwright pinned to 1.63.0**, the version whose browsers are pre-installed in the build container.
+  - **Ask page built in B9**, together with `POST /ask`, because the page's types are generated from the endpoint's OpenAPI schema.
+  - **No LLM key in the build environment**, so `make eval-ask` is not run; the eval set is written and the run is listed as pending.
+
+### 25. B0: Claude Code project setup, and what the independent review caught
+- **Brief (orchestrator → subagent):** build the files in [16-claude-code-setup.md](../16-claude-code-setup.md) trimmed to the v1 scope: CLAUDE.md files, rules, skills (`/tdd`, `/commit`, …), the reviewer agent, settings with permissions and hooks, `.mcp.json`.
+- **Subagent decisions:** lockfiles are blocked by file name anywhere in the repo; the format hook uses only the project's own ruff/prettier; `design.md` is light theme only (DESIGN.md has no dark palette); Playwright MCP runs headless.
+- **⚠ correction (independent reviewer subagent):** the first version had real holes. Broad `Bash(uv:*)`/`pnpm`/`npx` allow rules let `uv run cat backend/.env` or `npx vercel` through; `git push origin main --force` passed because the deny rules only match a prefix; edits to generated files inside a git worktree were not blocked; the `/new-module` skill committed production code under a `test:` commit; the commit trailer hard-coded this session's link for every future session.
+- **Fix:** a hook test harness was written first (`.claude/hooks/test-hooks.sh`, 145 checks), then each hole was reproduced by a failing check and fixed: a new `guard-bash.sh` PreToolUse hook (blocks `.env` reads, curl/wget and force/mirror/delete pushes wherever the flag appears; asks before `vercel`/`turso`), path-suffix matching for generated files, `.env*` blocked for Read too, destructive git commands denied, MCP servers pinned.
+- **Known limit:** the hooks guard against accidents, not a determined agent (e.g. a Python one-liner reading `.env`).
