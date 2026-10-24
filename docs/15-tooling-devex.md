@@ -31,13 +31,13 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 | Tool | What it is | Why we use it |
 |---|---|---|
 | **Python 3.13** | The language runtime | A current version that Vercel's Python runtime supports. SQLAlchemy 2.1 needs ≥ 3.11, and 3.10 reaches end of life in Oct 2026 |
-| **uv** | Package manager, virtualenv manager, lockfile tool and command runner (`uv sync`, `uv add`, `uv run`) | Replaces pip + venv + pip-tools + pyenv with one very fast tool. `uv sync --locked` in CI guarantees the exact locked dependency set. Dependency groups: `dev`, `test`, `seed` |
+| **uv** | Package manager, virtualenv manager, lockfile tool and command runner (`uv sync`, `uv add`, `uv run`) | Replaces pip + venv + pip-tools + pyenv with one very fast tool. `uv sync --locked` in CI guarantees the exact locked dependency set. Dependency groups: `dev` (tools and tests) and `seed` (Faker); `uv sync` installs both |
 | **FastAPI** | Web framework that turns typed Python functions into HTTP endpoints and generates an OpenAPI spec | The required stack. The OpenAPI output drives our typed frontend client ([adr/0014-contract-first-openapi-client.md](adr/0014-contract-first-openapi-client.md)) |
 | **Pydantic v2** | Data validation and serialization | Validates every request body and query (`extra="forbid"`), and defines response schemas |
 | **pydantic-settings** | Typed configuration from environment variables | The app refuses to start with missing or invalid config; prod refuses default secrets |
 | **SQLAlchemy 2.x** | ORM / SQL toolkit | Typed `Mapped[...]` models. Switching between SQLite, Turso and Postgres is only a `DATABASE_URL` change ([adr/0002-sqlite-everywhere-turso.md](adr/0002-sqlite-everywhere-turso.md)) |
 | **Alembic** | Schema migrations | Versioned, reviewable schema changes: git history for the database |
-| **Turso libSQL SQLAlchemy dialect** | Driver for the hosted SQLite (Turso) in prod | Same SQLite dialect locally and in prod. Validated in the day-1 deploy spike ([17-deployment.md](17-deployment.md)) |
+| **Turso libSQL SQLAlchemy dialect** | Driver for the hosted SQLite (Turso) in prod | Same SQLite dialect locally and in prod. Added with the deployment (the deploy spike is deferred), not in the scaffold ([17-deployment.md](17-deployment.md)) |
 | **psycopg 3** (test group) | Postgres driver | Only for the portability CI job |
 | **pwdlib[argon2]** | Password hashing with Argon2 | The current recommendation in the FastAPI docs, which dropped passlib |
 | **PyJWT** | JWT encode and verify | The current recommendation in the FastAPI docs, which dropped python-jose |
@@ -54,6 +54,7 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 | **pytest-randomly** | Randomizes test order (seed printed) | Exposes hidden coupling between tests |
 | **pytest-xdist** | Parallel test execution | Keeps the suite fast as it grows |
 | **time-machine** | Freezes the clock in tests | Deterministic dates (effective dates, raises, audit timestamps) |
+| **pytest-socket** | Blocks network access in tests (`--disable-socket --allow-unix-socket`) | A test that opens a TCP socket fails, so the suite never depends on the network |
 | **pip-audit** | Checks dependencies against vulnerability databases | Run in the CI `security` job |
 
 ## 4. Frontend tools
@@ -120,25 +121,25 @@ salary-management/
 
 ## 6. Makefile targets
 
-`make help` prints this table (generated from `## comments` in the Makefile).
+`make help` prints the targets (generated from `## comments` in the Makefile). Each stack can be checked on its own: `lint`, `typecheck`, `test` and `fmt` are split into `-backend` and `-frontend` halves (`make lint-backend`, `make test-frontend`, ...), and `make verify-backend` runs the backend half of `verify`. Frontend targets call the `package.json` scripts with `pnpm --dir frontend <script>`.
 
 | Target | What it runs | When |
 |---|---|---|
 | `help` | Lists targets with descriptions | anytime |
-| `setup` | `uv sync` (backend), `corepack enable && pnpm install` (frontend), `lefthook install`, copy `.env.example` → `.env` if missing | once after clone |
-| `dev` | Runs `uvicorn salary_api.main:app --reload` (port 8000) and `pnpm dev` (port 3000) in parallel; local SQLite file `backend/dev.db` | daily |
+| `setup` | `uv sync` (backend), `corepack enable` (best effort) + `pnpm install` (frontend), `uv run lefthook install` (lefthook comes from the backend `dev` group), copy `.env.example` → `.env` if missing | once after clone |
+| `dev` | Runs `migrate`, then `uvicorn salary_api.main:app --reload` (port 8000) and `pnpm dev` (port 3000) in parallel; Ctrl-C stops both; local SQLite file `backend/dev.db` | daily |
 | `migrate` | `uv run alembic upgrade head` against `DATABASE_URL` | after pulling schema changes |
 | `seed` | `uv run python -m salary_api.seed --seed 42 --employees 10000 --reset` (prints timing) | fresh data |
 | `fmt` | `ruff format` + `ruff check --fix` (backend), `prettier --write` (frontend) | before committing (hooks do it for staged files) |
 | `lint` | `ruff check`, `ruff format --check` (backend); `eslint .`, `prettier --check .` (frontend) | CI + locally |
 | `typecheck` | `pyright` (backend); `tsc --noEmit` (frontend) | CI + locally |
-| `test` | Backend `pytest -n auto --cov` (SQLite) + frontend `vitest run` | TDD loop / CI |
+| `test` | Backend `pytest -n auto --cov` (SQLite) + the coverage gate (`backend/scripts/coverage_gate.py`) + frontend `vitest run` | TDD loop / CI |
 | `test-pg` | `docker compose up -d postgres`, migrations, backend integration tests with a Postgres `DATABASE_URL`, then compose down | portability check |
 | `e2e` | Builds the frontend, starts API + web on a temp seeded DB, runs `playwright test` | before merging UI work / CI |
 | `api-sync` | Exports `openapi.json` from the FastAPI app (no server needed), regenerates `frontend/src/lib/api/schema.d.ts` with openapi-typescript, runs `tsc` | after any API change |
 | `knip` | `pnpm knip` | CI + locally |
 | `audit` **(proposed)** | `uvx pip-audit`, `pnpm audit --prod` | CI security job |
-| `verify` | `lint` + `typecheck` + `test` + `knip` + an api-sync drift check | before pushing; mirrors CI |
+| `verify` | `lint` + `typecheck` + `test` + `next build` + `api-drift` (runs `api-sync`, then fails if `frontend/openapi.json` or `schema.d.ts` differ from git). knip is cut from v1 | before pushing; mirrors CI |
 | `eval-ask` | Runs the AI eval set: `PROVIDER=gemini\|groq` | manual ([14-testing-strategy.md](14-testing-strategy.md#9-ai-evaluation-not-in-ci)) |
 | `seed-turso` | Builds a seeded local SQLite file and prints the `turso db create --from-file` command ([17-deployment.md](17-deployment.md#6-migrations-and-seed-against-turso)) | deploy setup |
 | `clean` | Removes `.venv`, `node_modules`, `.next`, coverage, local DB files | troubleshooting |
@@ -151,36 +152,42 @@ Environment defaults inside the Makefile: `TZ=UTC`, `LC_ALL=C.UTF-8`, `PYTHONHAS
 
 Lefthook was chosen over pre-commit and husky: it is a single Go binary with native **monorepo support** (`root:` per command, so a command runs only when files in its folder are staged), and it runs commands in parallel. pre-commit handles subdirectory projects and uv poorly, and husky is Node-centric.
 
-Outline of `lefthook.yml` **(proposed)**:
+`lefthook.yml` (installed by `make setup`):
 
 ```yaml
+# Git hooks (docs/15-tooling-devex.md section 7), installed by `make setup`.
+# They format and lint staged files and check the commit message. They never run the
+# test suite, so red TDD commits stay possible; CI is the gate.
+
 pre-commit:
   parallel: true
   commands:
-    ruff-format:
+    ruff:
       root: "backend/"
       glob: "*.py"
-      run: uv run ruff format {staged_files} && uv run ruff check --fix {staged_files}
+      run: uv run --no-sync ruff format {staged_files} && uv run --no-sync ruff check --fix {staged_files}
       stage_fixed: true
     prettier:
       root: "frontend/"
-      glob: "*.{ts,tsx,js,json,css,md}"
-      run: pnpm prettier --write {staged_files}
+      glob: "*.{ts,tsx,js,mjs,cjs,json,css,md}"
+      # Skipped until `make setup` has installed the frontend dependencies.
+      run: if [ -d node_modules ]; then pnpm exec prettier --write {staged_files}; fi
       stage_fixed: true
     eslint:
       root: "frontend/"
-      glob: "*.{ts,tsx}"
-      run: pnpm eslint {staged_files}
+      glob: "*.{ts,tsx,js,mjs}"
+      run: if [ -d node_modules ]; then pnpm exec eslint {staged_files}; fi
     gitleaks:
-      run: gitleaks protect --staged --redact   # if gitleaks is installed locally; CI always runs it
+      # Optional locally (CI always scans the full history).
+      run: if command -v gitleaks >/dev/null 2>&1; then gitleaks protect --staged --redact; fi
 
 commit-msg:
   commands:
-    conventional:
-      run: ./scripts/check-commit-msg.sh {1}
+    conventional-commit:
+      run: scripts/check-commit-msg.sh {1}
 ```
 
-`scripts/check-commit-msg.sh` validates the subject against this regex:
+`scripts/check-commit-msg.sh` validates the subject against this regex (subjects git writes itself, `Merge ...` and `Revert "..."`, are let through):
 
 ```
 ^(feat|fix|test|refactor|docs|chore|ci|build|perf|style|revert)(\([a-z0-9-]+\))?!?: .{1,72}$
@@ -205,7 +212,7 @@ flowchart LR
 
 | Job | Steps | Required |
 |---|---|---|
-| **backend** | checkout → `astral-sh/setup-uv` (cache) → `uv sync --locked` → `ruff check` → `ruff format --check` → `pyright` → `pytest -n auto --cov --cov-fail-under=90` → upload coverage | ✅ |
+| **backend** | checkout → `astral-sh/setup-uv` (cache) → `uv sync --locked` → `ruff check` → `ruff format --check` → `pyright` → `pytest -n auto --cov` → coverage gate (90 % on domain + services) | ✅ |
 | **backend-pg** | Postgres service container → `uv sync --locked --group test` → `alembic upgrade head` → `pytest tests/integration -m "not sqlite_only"` with a Postgres `DATABASE_URL` | ✅ |
 | **frontend** | checkout → `pnpm/action-setup` + `actions/setup-node` (pnpm cache, Node from `.nvmrc`) → `pnpm install --frozen-lockfile` → `eslint` → `prettier --check` → `tsc --noEmit` → `vitest run --coverage` → `next build` → `knip` | ✅ |
 | **contract** | setup both stacks → export `openapi.json` from the app → regenerate TS types → `git diff --exit-code` on the generated client. Fails if the API changed without `make api-sync` | ✅ |

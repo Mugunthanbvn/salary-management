@@ -133,9 +133,9 @@ backend/tests/
 ### 4.1 Fixtures
 
 - **`engine`**: SQLite `:memory:` with `StaticPool`, so every connection shares the same in-memory database. `PRAGMA foreign_keys=ON` is set on connect, same as production ([adr/0002-sqlite-everywhere-turso.md](adr/0002-sqlite-everywhere-turso.md)).
-- **Schema**: created once per test session from the Alembic migrations (`alembic upgrade head`), not `metadata.create_all()`. That way the migrations themselves are tested. **(proposed)** If this turns out slow, fall back to `create_all` in unit runs and keep a dedicated migration test.
+- **Schema**: created once per test session from the Alembic migrations (`alembic upgrade head`), not `metadata.create_all()`. That way the migrations themselves are tested. A dedicated test also runs `alembic upgrade head` on an empty file database and compares it with the models.
 - **`db_session`**: each test runs inside a transaction that is rolled back at the end (nested transaction / SAVEPOINT pattern). Tests are isolated and nothing needs cleaning up.
-- **`client`**: a FastAPI `TestClient` with the `get_db` dependency overridden to use `db_session`.
+- **`client`**: a FastAPI `TestClient` with the `get_session` dependency overridden to use `db_session`.
 - **`as_role(role)`**: a helper that logs in a seeded user of that role and returns a client carrying the auth cookie. Tests read like `as_role("VIEWER").get("/api/v1/employees")`.
 - **`frozen_time`**: a `time-machine` fixture pinned to `2026-10-01T09:00:00Z` by default.
 - **`fake_llm`**: a scripted `FakeLLM` implementing the `LLMClient` protocol ([10-ai-ask-design.md](10-ai-ask-design.md)).
@@ -323,7 +323,7 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 | Hypothesis | `derandomize=True` profile in CI (`HYPOTHESIS_PROFILE=ci`), with a fixed `max_examples`. Locally the default profile explores more |
 | Test order | **pytest-randomly** shuffles test order on every run and prints the seed, which exposes hidden coupling between tests. A failing order can be reproduced with `-p randomly -p "randomly_seed=<seed>"` |
 | Parallelism | **pytest-xdist** (`-n auto`). Each worker has its own in-memory DB, so nothing is shared |
-| Network | none in tests. The LLM goes through `FakeLLM`; outbound HTTP is blocked by a fixture that fails the test if a socket opens **(proposed: pytest-socket or a custom guard)** |
+| Network | none in tests. The LLM goes through `FakeLLM`; outbound HTTP is blocked by pytest-socket (`--disable-socket --allow-unix-socket` in the pytest options), which fails any test that opens a network socket |
 | Locale / TZ | `TZ=UTC` and `LC_ALL=C.UTF-8` in CI and in the Makefile test targets |
 | Floating point | money is integers end to end; rates and ratios use `Decimal` |
 
@@ -331,7 +331,7 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 
 ## 7. Coverage gates
 
-- **Backend:** `pytest --cov=salary_api --cov-branch --cov-fail-under=90`. The gate is measured on `domain/` and the `modules/*/service.py` files, and we report overall coverage too. Line coverage alone is not the goal; branch coverage on the domain is.
+- **Backend:** `pytest --cov` (branch coverage on, measured on `salary_api`), then `scripts/coverage_gate.py` fails below 90 %. The gate is measured on `domain/` and the `modules/*/service.py` files (it passes while none exist yet), and pytest-cov reports overall coverage too. Line coverage alone is not the goal; branch coverage on the domain is.
 - **Excluded from coverage:** `seed/cli.py` argument parsing, `main.py` wiring, Alembic env, generated code.
 - **Frontend:** Vitest coverage (v8) is reported, with no hard gate initially. **(proposed: 70% on `lib/` utilities)**.
 - Coverage is a smoke alarm, not a target. Reviewers should judge tests by the behaviours they pin down (section 5).
@@ -369,8 +369,8 @@ The eval set checks the real LLM behaviour, which unit tests with `FakeLLM` can'
 | Command | What it does |
 |---|---|
 | `make test` | backend unit + integration (SQLite, parallel, coverage) and frontend Vitest |
-| `make test-backend` **(proposed)** | `cd backend && uv run pytest -n auto --cov` |
-| `make test-frontend` **(proposed)** | `cd frontend && pnpm vitest run` |
+| `make test-backend` | `cd backend && uv run pytest --cov` (`-n auto` is in the pytest options) + the coverage gate |
+| `make test-frontend` | `pnpm --dir frontend test` (`vitest run`) |
 | `make test-pg` | backend integration suite against Postgres (compose) |
 | `make e2e` | builds the frontend, starts API + web on a seeded temp DB, runs Playwright |
 | `make eval-ask PROVIDER=gemini` | runs the AI eval set (needs `LLM_API_KEY`) |

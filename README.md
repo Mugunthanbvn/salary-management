@@ -16,8 +16,7 @@ make setup   # uv sync, pnpm install, git hooks, .env files from .env.example
 make dev     # migrations, then the API on :8000 and the web app on :3000 (Ctrl-C stops both)
 ```
 
-Open http://localhost:3000. API docs: http://localhost:8000/api/v1/docs.
-The local database is the SQLite file `backend/dev.db`: no Docker, no cloud account.
+Open http://localhost:3000 (API docs: http://localhost:8000/api/v1/docs). Data lives in `backend/dev.db` (SQLite).
 
 ## Checks
 
@@ -28,5 +27,4 @@ make help    # every target
 
 ## Documentation
 
-Start at [docs/README.md](docs/README.md) (v1 scope, design, decisions).
-Canonical names and values are in [docs/glossary.md](docs/glossary.md).
+Start at [docs/README.md](docs/README.md) (v1 scope, design, decisions); names and values: [docs/glossary.md](docs/glossary.md).

@@ -112,6 +112,8 @@ Validation errors add an `errors` array:
 
 This table mirrors the [glossary](glossary.md) §5, which wins if the two ever differ.
 
+A status with no glossary slug (for example `405 Method Not Allowed`, the `503` from `/health`, or an unexpected `500`) uses `"type": "about:blank"` with the HTTP status phrase as `title`. An unexpected `500` never includes the error message.
+
 ### 1.6 Permission notation
 
 Each endpoint lists the permission it requires (see [08-security-rbac.md](08-security-rbac.md) for the role → permission matrix). **Public** means no authentication. Field-level masking for users without `SALARY_READ` is described per endpoint.
