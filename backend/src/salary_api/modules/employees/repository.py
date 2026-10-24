@@ -49,9 +49,15 @@ def code_in_use(session: Session, employee_code: str) -> bool:
     )
 
 
-def email_in_use(session: Session, email: str) -> bool:
-    """`email` must already be normalised (trimmed, lowercased), as stored."""
-    return session.scalar(select(Employee.id).where(Employee.email == email)) is not None
+def email_in_use(session: Session, email: str, *, other_than: int | None = None) -> bool:
+    """Whether an employee (other than `other_than`) has this email.
+
+    `email` must already be normalised (trimmed, lowercased), as stored.
+    """
+    query = select(Employee.id).where(Employee.email == email)
+    if other_than is not None:
+        query = query.where(Employee.id != other_than)
+    return session.scalar(query) is not None
 
 
 # The only columns a list can be sorted by: sort fields never become SQL text.

@@ -130,6 +130,10 @@ def update_employee(
 ) -> EmployeeDetail:
     """Change profile fields of the version the client read; the version goes up by one."""
     employee = _get_version(session, employee_id, request.version)
+    if request.email is not None and repository.email_in_use(
+        session, request.email, other_than=employee_id
+    ):
+        raise Duplicate(f"The email {request.email} is already in use by another employee.")
     for field, value in request.model_dump(exclude_unset=True, exclude={"version"}).items():
         setattr(employee, field, value)
     employee.search_text = employee_search_text(
