@@ -70,13 +70,17 @@ function toBigInt(amountMinor: number | bigint | string): bigint {
 
 const MONTHS_PER_YEAR = BigInt(12);
 
-/** Integer division of non-negative minor units, rounding half to even. */
+/** Integer division of minor units, rounding half to even (the sign rounds symmetrically). */
 function divideHalfEven(dividend: bigint, divisor: bigint): bigint {
-  const quotient = dividend / divisor;
-  const twiceRemainder = (dividend % divisor) * BigInt(2);
-  if (twiceRemainder > divisor) return quotient + BigInt(1);
-  if (twiceRemainder < divisor) return quotient;
-  return quotient % BigInt(2) === BigInt(0) ? quotient : quotient + BigInt(1);
+  const negative = dividend < BigInt(0);
+  const magnitude = negative ? -dividend : dividend;
+  let quotient = magnitude / divisor;
+  const twiceRemainder = (magnitude % divisor) * BigInt(2);
+  const odd = quotient % BigInt(2) === BigInt(1);
+  if (twiceRemainder > divisor || (twiceRemainder === divisor && odd)) {
+    quotient += BigInt(1);
+  }
+  return negative ? -quotient : quotient;
 }
 
 /**
@@ -101,7 +105,8 @@ function splitMinor(
   minor: bigint,
   exponent: number,
 ): { major: string; fraction: string } {
-  const digits = minor.toString().padStart(exponent + 1, "0");
+  const sign = minor < BigInt(0) ? "-" : "";
+  const digits = (sign ? -minor : minor).toString().padStart(exponent + 1, "0");
   const cut = digits.length - exponent;
-  return { major: digits.slice(0, cut), fraction: digits.slice(cut) };
+  return { major: sign + digits.slice(0, cut), fraction: digits.slice(cut) };
 }
