@@ -38,7 +38,7 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 | **SQLAlchemy 2.x** | ORM / SQL toolkit | Typed `Mapped[...]` models. Switching between SQLite, Turso and Postgres is only a `DATABASE_URL` change ([adr/0002-sqlite-everywhere-turso.md](adr/0002-sqlite-everywhere-turso.md)) |
 | **Alembic** | Schema migrations | Versioned, reviewable schema changes: git history for the database |
 | **sqlalchemy-libsql** (Turso dialect) | Driver for the hosted SQLite (Turso) in prod: `sqlite+libsql://<db>.turso.io?secure=true` | Same SQLite dialect locally and in prod. Installed; a real Turso round trip is checked at deploy time ([17-deployment.md](17-deployment.md)) |
-| **psycopg 3** (test group) | Postgres driver | Only for the portability CI job |
+| **psycopg 3** (`dev` group, when the job is added) | Postgres driver | Only for the portability CI job |
 | **pwdlib[argon2]** | Password hashing with Argon2 | The current recommendation in the FastAPI docs, which dropped passlib |
 | **PyJWT** | JWT encode and verify | The current recommendation in the FastAPI docs, which dropped python-jose |
 | **openai SDK** | HTTP client for OpenAI-compatible LLM APIs | Gemini and Groq both expose OpenAI-compatible endpoints, so one adapter covers both ([adr/0015-ai-ask-tool-calling.md](adr/0015-ai-ask-tool-calling.md)) |
@@ -121,7 +121,7 @@ salary-management/
 
 ## 6. Makefile targets
 
-`make help` prints the targets (generated from `## comments` in the Makefile). Each stack can be checked on its own: `lint`, `typecheck`, `test` and `fmt` are split into `-backend` and `-frontend` halves (`make lint-backend`, `make test-frontend`, ...), and `make verify-backend` runs the backend half of `verify`. Frontend targets call the `package.json` scripts with `pnpm --dir frontend <script>`.
+`make help` prints the targets (generated from `## comments` in the Makefile). Each stack can be checked on its own: `lint`, `typecheck`, `test` and `fmt` are split into `-backend` and `-frontend` halves (`make lint-backend`, `make test-frontend`, ...), and `make verify-backend` runs the backend half of `verify`. Frontend targets call the `package.json` scripts with `cd frontend && pnpm <script>`, so corepack reads the `packageManager` pin (it ignores it with `pnpm --dir` from the root).
 
 | Target | What it runs | When |
 |---|---|---|
@@ -218,7 +218,7 @@ flowchart LR
 | Job | Steps | Required |
 |---|---|---|
 | **backend** | checkout → `astral-sh/setup-uv` (cache) → `uv sync --locked` → `ruff check` → `ruff format --check` → `pyright` → `pytest -n auto --cov` → coverage gate (90 % on domain + services) | ✅ |
-| **backend-pg** | Postgres service container → `uv sync --locked --group test` → `alembic upgrade head` → `pytest tests/integration -m "not sqlite_only"` with a Postgres `DATABASE_URL` | ✅ |
+| **backend-pg** | Postgres service container → `uv sync --locked` → `alembic upgrade head` → `pytest tests/integration -m "not sqlite_only"` with a Postgres `DATABASE_URL` | ✅ |
 | **frontend** | checkout → `pnpm/action-setup` + `actions/setup-node` (pnpm cache, Node from `.nvmrc`) → `pnpm install --frozen-lockfile` → `eslint` → `prettier --check` → `tsc --noEmit` → `vitest run --coverage` → `next build` → `knip` | ✅ |
 | **contract** | setup both stacks → export `openapi.json` from the app → regenerate TS types → `git diff --exit-code` on the generated client. Fails if the API changed without `make api-sync` | ✅ |
 | **e2e** | needs backend + frontend → install Playwright browsers (cached) → seed a small temp DB → start API + `next start` → `playwright test` → upload report/trace on failure | ✅ on PRs touching `frontend/**` or API routers **(proposed path filter)**; always on `main` |

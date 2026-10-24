@@ -370,7 +370,7 @@ The eval set checks the real LLM behaviour, which unit tests with `FakeLLM` can'
 |---|---|
 | `make test` | backend unit + integration (SQLite, parallel, coverage) and frontend Vitest |
 | `make test-backend` | `cd backend && uv run pytest --cov` (`-n auto` is in the pytest options) + the coverage gate |
-| `make test-frontend` | `pnpm --dir frontend test` (`vitest run`) |
+| `make test-frontend` | `cd frontend && pnpm test` (`vitest run`) |
 | `make test-pg` | backend integration suite against Postgres (compose) |
 | `make e2e` | builds the frontend, starts API + web on a seeded temp DB, runs Playwright |
 | `make eval-ask PROVIDER=gemini` | runs the AI eval set (needs `LLM_API_KEY`) |

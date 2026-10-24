@@ -72,7 +72,7 @@ frontend/CLAUDE.md             # loaded when working under frontend/
 
 - Stack: Python 3.13, uv, FastAPI, Pydantic v2, SQLAlchemy 2.x (sync), Alembic, Pyright strict, ruff.
 - Module slice convention: `modules/<feature>/{router,schemas,service,repository,models}.py`; use `/new-module`.
-- Dependencies via `uv add` / `uv add --group test` only.
+- Dependencies via `uv add` / `uv add --dev` (tools and tests: the `dev` group) only.
 - DB: never use raw SQL strings with interpolation. Use SQLAlchemy expressions. Sort columns come from an allow-list.
 - Errors: raise domain exceptions; the handlers map them to RFC 9457 problem+json.
 - Tests: `tests/unit` (no DB), `tests/integration` (TestClient). Factories in `tests/factories.py`. Freeze time with `time-machine`. No network.
