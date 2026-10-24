@@ -22,4 +22,20 @@ describe("loginRedirectFor", () => {
 
     expect(target).toBeNull();
   });
+
+  // The API answers for itself (401), the login page must stay reachable, and Next's
+  // assets and public files carry no data.
+  it.each([
+    "/login",
+    "/api/v1/auth/login",
+    "/api/v1/employees",
+    "/_next/static/chunks/app.js",
+    "/_next/image",
+    "/favicon.ico",
+    "/acme-logo.svg",
+  ])("lets %s through without a session", (pathname) => {
+    expect(
+      loginRedirectFor({ pathname, search: "", hasSession: false }),
+    ).toBeNull();
+  });
 });
