@@ -10,16 +10,13 @@ from datetime import date
 from typing import Any
 
 from sqlalchemy.orm import Session
-from sqlalchemy.orm.exc import StaleDataError
 
 from salary_api.core.errors import (
     Duplicate,
     FieldError,
     Forbidden,
     InvalidState,
-    NotFound,
     ValidationFailed,
-    VersionConflict,
 )
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
@@ -36,7 +33,7 @@ from salary_api.domain.money import (
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.search import employee_search_text, fold
 from salary_api.modules.audit.service import AuditAction, record_event
-from salary_api.modules.employees import repository
+from salary_api.modules.employees import locking, repository
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.employees.schemas import (
     CurrentSalary,
@@ -133,7 +130,7 @@ def update_employee(
     session: Session, principal: Principal, employee_id: int, request: EmployeeUpdate
 ) -> EmployeeDetail:
     """Change profile fields of the version the client read; the version goes up by one."""
-    employee = _get_version(session, employee_id, request.version)
+    employee = locking.get_version(session, employee_id, request.version)
     if request.email is not None and repository.email_in_use(
         session, request.email, other_than=employee_id
     ):
@@ -158,7 +155,7 @@ def terminate_employee(
     session: Session, principal: Principal, employee_id: int, request: TerminateRequest
 ) -> EmployeeDetail:
     """Soft delete: the employee and their salary history stay (ADR 0013)."""
-    employee = _get_version(session, employee_id, request.version)
+    employee = locking.get_version(session, employee_id, request.version)
     _require_status(employee, EmployeeStatus.ACTIVE)
     termination_date = request.termination_date or _today()
     if termination_date < employee.hire_date:
@@ -178,7 +175,7 @@ def terminate_employee(
 def reactivate_employee(
     session: Session, principal: Principal, employee_id: int, request: ReactivateRequest
 ) -> EmployeeDetail:
-    employee = _get_version(session, employee_id, request.version)
+    employee = locking.get_version(session, employee_id, request.version)
     _require_status(employee, EmployeeStatus.TERMINATED)
     termination_date = employee.termination_date
     diff = {
@@ -207,7 +204,7 @@ def _commit_change(
         entity_id=employee.id,
         diff=diff,
     )
-    _commit_versioned(session, employee.id)
+    locking.commit_versioned(session, employee.id)
     return get_employee(session, principal, employee.id)
 
 
@@ -216,38 +213,8 @@ def _require_status(employee: Employee, status: EmployeeStatus) -> None:
         raise InvalidState(f"Employee {employee.id} is {employee.status.lower()}.")
 
 
-def _get_version(session: Session, employee_id: int, version: int) -> Employee:
-    """The employee, if `version` is still the current one (VersionConflict otherwise)."""
-    employee = _get(session, employee_id)
-    if employee.version != version:
-        raise _version_conflict(employee_id, employee.version)
-    return employee
-
-
-def _commit_versioned(session: Session, employee_id: int) -> None:
-    """Commit; the UPDATE says WHERE version = <read version>, so a change committed by
-    someone else since the read matches no row and becomes a VersionConflict."""
-    try:
-        session.commit()
-    except StaleDataError:
-        session.rollback()
-        raise _version_conflict(
-            employee_id, repository.current_version(session, employee_id) or 0
-        ) from None
-
-
-def _version_conflict(employee_id: int, current_version: int) -> VersionConflict:
-    return VersionConflict(
-        f"Employee {employee_id} was changed by someone else. Reload and try again.",
-        current_version=current_version,
-    )
-
-
 def _get(session: Session, employee_id: int) -> Employee:
-    employee = repository.get_detail(session, employee_id)
-    if employee is None:
-        raise NotFound(f"Employee {employee_id} was not found.")
-    return employee
+    return locking.get(session, employee_id)
 
 
 def list_employees(
