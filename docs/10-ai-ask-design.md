@@ -134,7 +134,7 @@ Common filter object (`Filters`), reused across tools:
 |---|---|---|---|---|
 | `get_pay_overview` | Headcount + summary stats for a population | `filters: Filters` | `InsightService.overview` | `ASK` + `INSIGHTS_READ` |
 | `get_pay_by_group` | Stats per group | `group_by: enum[country, department, job_role, level]`, `filters: Filters` | `by_department` / `by_job_title` / generic group-by | `ASK` + `INSIGHTS_READ` |
-| `compare_groups` | Compare a metric between two populations; **returns the difference and % difference itself** | `a: Filters`, `b: Filters`, `metric: enum[median, mean, p25, p75, total_cost, headcount]` | `InsightService.compare` | `ASK` + `INSIGHTS_READ` |
+| `compare_groups` | Compare a metric between two populations; **returns the difference and % difference itself**, computed from the values after suppression (`null` if either side is hidden) | `a: Filters`, `b: Filters`, `metric: enum[median, mean, p25, p75, total_cost, headcount]` | `insights.service.compare_groups` (built in B6) | `ASK` + `INSIGHTS_READ` |
 | `get_salary_distribution` | Histogram bins + quartiles | `filters: Filters` | `InsightService.distribution` | `ASK` + `INSIGHTS_READ` |
 | `get_pay_equity_outliers` | Cohorts with compa-ratio flags; department rollup | `filters: Filters`, `include_employees: boolean` (default false) | `InsightService.pay_equity` | `ASK` + `INSIGHTS_READ`; **`include_employees=true` requires `SALARY_READ`** |
 | `get_raise_stats` | Raise % and counts by reason over a date range | `from: date`, `to: date`, `group_by: enum[department, country, reason]?`, `filters: Filters` | `InsightService.raises` | `ASK` + `INSIGHTS_READ` |

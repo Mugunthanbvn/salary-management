@@ -318,3 +318,32 @@ class CohortMembers(BaseModel):
     band: Band | None  # None when the cohort has no band
     thresholds: Thresholds
     members: list[CohortMember]  # lowest compa-ratio first, then those without one
+
+
+class CompareMetric(StrEnum):
+    """What compare_groups compares (the Ask tool's `metric`, docs/10 section 4)."""
+
+    MEDIAN = "median"
+    MEAN = "mean"
+    P25 = "p25"
+    P75 = "p75"
+    TOTAL_COST = "total_cost"
+    HEADCOUNT = "headcount"
+
+
+class Comparison(BaseModel):
+    """Population a against population b. Not an HTTP response: the Ask tool returns it.
+
+    Each side is what the caller may see (null when suppressed); the difference is computed
+    from those values, so it is null whenever either side is.
+    """
+
+    metric: CompareMetric
+    currency: str | None  # both sides' one currency, else USD; None for headcount
+    fx_as_of: date | None
+    a: int | None
+    b: int | None
+    difference: int | None  # a - b
+    pct_difference: str | None  # (a - b) / b, 4 decimals (0.2000 is 20 %)
+    a_suppressed: bool
+    b_suppressed: bool

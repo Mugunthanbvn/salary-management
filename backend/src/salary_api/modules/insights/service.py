@@ -57,6 +57,8 @@ from salary_api.modules.insights.schemas import (
     CohortMember,
     CohortMembers,
     CohortQuery,
+    CompareMetric,
+    Comparison,
     CountryStats,
     DepartmentCost,
     DepartmentCosts,
@@ -176,7 +178,8 @@ def department_cost(session: Session, principal: Principal, query: InsightQuery)
 
 
 def _share(part: int | None, whole: int | None) -> str | None:
-    """`part / whole` to four decimals, from values already suppressed for the caller.
+    """`part / whole` to four decimals (a share, or a difference over its base), from
+    values already suppressed for the caller.
 
     If either side is hidden (None), so is the share: it would give the hidden value away.
     """
@@ -513,6 +516,63 @@ def _audit_individuals_view(
         diff={"endpoint": endpoint, "filters": dict(filters)},
     )
     session.commit()
+
+
+def compare_groups(
+    session: Session,
+    principal: Principal,
+    a: InsightQuery,
+    b: InsightQuery,
+    metric: CompareMetric,
+) -> Comparison:
+    """One metric of population `a` against population `b`, with the difference computed
+    here so the Ask model never does arithmetic (docs/10 section 4).
+
+    Both sides are in their shared currency, else in USD. Each side is suppressed for the
+    caller first; the difference uses only what is left (privacy rule b, docs/09 2.8).
+    """
+    audience = _Audience.of(principal)
+    markets = _markets(session, [*a.country, *b.country])
+    currencies = {markets.currency_of_population(query.country) for query in (a, b)}
+    scope = _Scope(
+        audience=audience,
+        currency=currencies.pop() if len(currencies) == 1 else USD,
+        convert=_Converter(markets.rates),
+    )
+    value_a, a_hidden = _visible_metric(session, scope, a, metric)
+    value_b, b_hidden = _visible_metric(session, scope, b, metric)
+    difference = None if value_a is None or value_b is None else value_a - value_b
+    return Comparison(
+        metric=metric,
+        currency=None if metric == CompareMetric.HEADCOUNT else scope.currency,
+        fx_as_of=scope.convert.fx_as_of,
+        a=value_a,
+        b=value_b,
+        difference=difference,
+        pct_difference=_share(difference, value_b),
+        a_suppressed=a_hidden,
+        b_suppressed=b_hidden,
+    )
+
+
+def _visible_metric(
+    session: Session, scope: "_Scope", query: InsightQuery, metric: CompareMetric
+) -> tuple[int | None, bool]:
+    """The metric of one population as the caller may see it, and whether it is hidden."""
+    rows = repository.amounts_by_country(session, _where(query, query.country), query.comp)
+    members = [(currency, amount) for _country, currency, amount in rows]
+    hidden = scope.audience.hides(len(members))
+    stats = scope.stats(members, hidden=hidden)  # already suppressed for this caller
+    total = None if hidden or not members else sum(scope.convert.all(scope.currency, members))
+    visible = {
+        CompareMetric.MEDIAN: stats.median,
+        CompareMetric.MEAN: stats.mean,
+        CompareMetric.P25: stats.p25,
+        CompareMetric.P75: stats.p75,
+        CompareMetric.TOTAL_COST: total,
+        CompareMetric.HEADCOUNT: stats.count,
+    }
+    return visible[metric], hidden
 
 
 def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -> ByJobTitle:
