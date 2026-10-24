@@ -52,9 +52,18 @@ function renderForm() {
   return screen.getByRole("form", { name: "New employee" });
 }
 
+/**
+ * Enters text the way a paste does: one input event, not one re-render of the whole form
+ * per key (typing ~70 keys took past the 5 s timeout on a loaded machine).
+ */
+async function enter(field: HTMLElement, text: string) {
+  await userEvent.click(field);
+  await userEvent.paste(text);
+}
+
 async function fillRequired(form: HTMLElement) {
   const type = (name: string, text: string) =>
-    userEvent.type(within(form).getByRole("textbox", { name }), text);
+    enter(within(form).getByRole("textbox", { name }), text);
   await type("First name", "Lena");
   await type("Last name", "Müller");
   await type("Email", "lena.mueller@acme.example");
@@ -133,11 +142,11 @@ describe("NewEmployeeForm", () => {
       within(form).getByRole("button", { name: "Add a component" }),
     );
     const row = within(form).getByRole("group", { name: "Component 1" });
-    await userEvent.type(
+    await enter(
       within(row).getByRole("textbox", { name: "Name" }),
       "Transport",
     );
-    await userEvent.type(
+    await enter(
       within(row).getByRole("textbox", { name: "Amount (EUR a year)" }),
       "600",
     );
