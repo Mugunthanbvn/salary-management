@@ -10,6 +10,7 @@ row in the database (an employee id in the path), give the row a `prepare` funct
 
 from collections.abc import Callable
 from dataclasses import dataclass
+from datetime import date
 from typing import Any
 
 import pytest
@@ -18,9 +19,17 @@ from fastapi.routing import iter_route_contexts
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.factories import DEFAULT_PASSWORD, make_user
+from tests.factories import (
+    DEFAULT_PASSWORD,
+    employee_request,
+    make_country,
+    make_employee,
+    make_job_role,
+    make_user,
+)
 
 ANON = "ANON"
+EMPLOYEE = "/api/v1/employees/{employee_id:int}"  # int only, so /employees/export is not an id
 CALLERS = (ANON, "VIEWER", "HR_MANAGER", "ADMIN")
 
 # Builds one call: TestClient.request keyword arguments (json, params, files, ...) plus an
@@ -45,11 +54,62 @@ def _valid_credentials(session: Session) -> dict[str, Any]:
     return {"json": {"email": user.email, "password": DEFAULT_PASSWORD}}
 
 
+def _new_employee(session: Session) -> dict[str, Any]:
+    make_country(session, "DE")
+    return {"json": employee_request(make_job_role(session).id, hire_date="2024-01-15")}
+
+
+def _an_employee(session: Session) -> dict[str, Any]:
+    return {"url": f"/api/v1/employees/{make_employee(session).id}"}
+
+
+def _profile_change(session: Session) -> dict[str, Any]:
+    employee = make_employee(session)
+    return {"url": f"/api/v1/employees/{employee.id}", "json": {"version": 1, "first_name": "X"}}
+
+
+def _active_employee(session: Session) -> dict[str, Any]:
+    return {
+        "url": f"/api/v1/employees/{make_employee(session).id}/terminate",
+        "json": {"version": 1},
+    }
+
+
+def _terminated_employee(session: Session) -> dict[str, Any]:
+    employee = make_employee(session, status="TERMINATED")
+    return {"url": f"/api/v1/employees/{employee.id}/reactivate", "json": {"version": 1}}
+
+
+def _salary_change(session: Session) -> dict[str, Any]:
+    employee = make_employee(session, hire_date=date(2024, 1, 15))
+    body = {
+        "version": 1,
+        "effective_date": "2024-06-01",
+        "reason": "MERIT",
+        "base_minor": 7_000_000,
+    }
+    return {"url": f"/api/v1/employees/{employee.id}/salary-changes", "json": body}
+
+
+def _salary_history(session: Session) -> dict[str, Any]:
+    return {"url": f"/api/v1/employees/{make_employee(session).id}/salary-history"}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
     Endpoint("POST", "/api/v1/auth/logout", (401, 204, 204, 204)),
     Endpoint("GET", "/api/v1/auth/me", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/reference", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/countries", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/employees", (401, 200, 200, 200)),
+    Endpoint("POST", "/api/v1/employees", (401, 403, 201, 201), _new_employee),
+    Endpoint("GET", EMPLOYEE, (401, 200, 200, 200), _an_employee),
+    Endpoint("PATCH", EMPLOYEE, (401, 403, 200, 200), _profile_change),
+    Endpoint("POST", f"{EMPLOYEE}/terminate", (401, 403, 200, 200), _active_employee),
+    Endpoint("POST", f"{EMPLOYEE}/reactivate", (401, 403, 200, 200), _terminated_employee),
+    Endpoint("POST", f"{EMPLOYEE}/salary-changes", (401, 403, 201, 201), _salary_change),
+    Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

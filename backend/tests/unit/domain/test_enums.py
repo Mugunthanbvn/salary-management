@@ -31,3 +31,14 @@ def test_domain_enums_use_the_glossary_values(enum: type[StrEnum], values: list[
 
 def test_enum_members_compare_equal_to_their_stored_strings() -> None:
     assert (Level.L3, EmploymentType.FULL_TIME) == ("L3", "FULL_TIME")
+
+
+def test_each_level_has_its_glossary_label() -> None:
+    assert [(level.value, level.label) for level in Level] == [
+        ("L1", "Associate"),
+        ("L2", "Mid"),
+        ("L3", "Senior"),
+        ("L4", "Lead/Staff"),
+        ("L5", "Principal"),
+        ("L6", "Director"),
+    ]

@@ -13,6 +13,21 @@ class Level(StrEnum):
     L5 = "L5"
     L6 = "L6"
 
+    @property
+    def label(self) -> str:
+        """The display name from docs/glossary.md §2, e.g. `Lead/Staff` for L4."""
+        return _LEVEL_LABELS[self]
+
+
+_LEVEL_LABELS = {
+    Level.L1: "Associate",
+    Level.L2: "Mid",
+    Level.L3: "Senior",
+    Level.L4: "Lead/Staff",
+    Level.L5: "Principal",
+    Level.L6: "Director",
+}
+
 
 class EmploymentType(StrEnum):
     FULL_TIME = "FULL_TIME"

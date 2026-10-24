@@ -120,9 +120,10 @@ A parametrized **authorization matrix test** calls every endpoint as each role a
 
 For a caller without `SALARY_READ`:
 
-- Salary fields in employee payloads are `null`, with `"salary_masked": true` ([07-api-spec.md](07-api-spec.md) §1.7).
+- Salary fields in employee payloads are `null`, with `"salary_masked": true` ([07-api-spec.md](07-api-spec.md) §1.7). In the detail, the whole `current_salary` (record id, date, reason, components) is `null`. So is `version`: it goes up with every salary change, so polling it would tell when someone's pay changed (such callers have no write permission, so they never need it).
 - Salary-history, top-earners and cohort-member endpoints return **403**.
-- `salary_min`/`salary_max` filters and salary sorts return **403**. Otherwise a Viewer could narrow a range filter (binary search) until one known person is isolated, and so learn their pay.
+- `salary_min`/`salary_max` filters, `salary_basis` and `comp` (when given) and salary sorts return **403**. Otherwise a Viewer could narrow a range filter (binary search) until one known person is isolated, and so learn their pay.
+- These checks run in the services (`modules/employees/service.py`, `can_see_salaries(principal)`; `modules/salaries/service.py` for the history), so a caller of the service, not only of the route, gets them. A test replays every employee route of the authz matrix as a Viewer and fails on any non-null `*_minor` or `version` member in the response.
 - Exports omit salary columns entirely.
 
 ### 4.2 The small-group rule (n < 5)
@@ -321,7 +322,7 @@ Full design: [10-ai-ask-design.md](10-ai-ask-design.md), [ADR 0015](adr/0015-ai-
 Covered by automated tests ([14-testing-strategy.md](14-testing-strategy.md)) unless marked manual:
 
 - [ ] Authorization matrix: every route × every role → expected status code.
-- [ ] Viewer masking on list/detail/export; 403 on salary filters, history, top earners, cohort members.
+- [ ] Viewer masking on list/detail/export; 403 on salary filters, history, top earners, cohort members. (List, detail, salary filters/sorts and history done in B4; export, top earners and cohort members follow in B6/B7.)
 - [ ] Small-group suppression for n = 1–4 (suppressed) and n = 5 (shown).
 - [x] Inactive user's token rejected; role change takes effect on the next request.
 - [x] Login: same error for unknown email and wrong password; failure limit triggers 429.
@@ -329,7 +330,7 @@ Covered by automated tests ([14-testing-strategy.md](14-testing-strategy.md)) un
 - [ ] No GET endpoint mutates state (route introspection test).
 - [ ] Export formula escaping for `= + - @ \t \r` prefixes.
 - [ ] XLSX with formulas → values read, formulas ignored; `.xlsm` rejected; oversize rejected.
-- [ ] Audit event written for every mutating action, and rolled back with a failed transaction.
+- [ ] Audit event written for every mutating action, and rolled back with a failed transaction. (Employee and salary mutations done in B4; import, export and insights follow.)
 - [ ] Ask: Viewer's tool list excludes individual tools; the executor rejects a forged individual tool call; injection text in a name doesn't change tool behaviour.
 - [ ] Production config refuses default secrets.
 - [ ] Manual: login works in Safari on the deployed URL (first-party cookie via the rewrite).
