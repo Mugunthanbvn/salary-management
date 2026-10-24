@@ -7,6 +7,7 @@ database for keys, and the same seed always gives the same IDs.
 from dataclasses import dataclass
 from datetime import date, datetime
 
+from salary_api.core.permissions import Role
 from salary_api.domain.enums import (
     ComponentType,
     EmployeeStatus,
@@ -110,3 +111,16 @@ class SalaryComponentRow:
     type: ComponentType
     name: str
     amount_minor: int
+
+
+@dataclass(frozen=True, slots=True)
+class UserRow:
+    id: int
+    email: str
+    full_name: str
+    password_hash: str  # argon2; the password itself is never stored
+    role: Role
+    created_at: datetime
+    updated_at: datetime
+    is_active: bool = True
+    last_login_at: datetime | None = None

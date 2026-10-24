@@ -4,6 +4,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 import pytest
+from pydantic_settings import SettingsConfigDict
 
 from salary_api.core.permissions import Role
 from salary_api.seed.errors import SeedRefused
@@ -20,11 +21,13 @@ REAL = {
 
 
 class _SettingsWithoutEnvFile(SeedSettings):
-    model_config = SeedSettings.model_config | {"env_file": None}
+    model_config = SettingsConfigDict(env_file=None)
 
 
-def _settings(app_env: str, **values: Any) -> SeedSettings:
-    return _SettingsWithoutEnvFile(app_env=app_env, **values)
+def _settings(app_env: str, **passwords: Any) -> SeedSettings:
+    """Seed settings with only these passwords, whatever the shell's environment holds."""
+    values: dict[str, Any] = {"app_env": app_env, **dict.fromkeys(REAL), **passwords}
+    return _SettingsWithoutEnvFile(**values)
 
 
 def _passwords_verify(settings: SeedSettings, passwords: list[str]) -> bool:
