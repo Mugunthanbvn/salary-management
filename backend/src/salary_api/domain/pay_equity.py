@@ -172,6 +172,36 @@ def cohort_rollup(employees: Iterable[EmployeePay]) -> list[CohortRollup]:
     return [_cohort_rollup(cohort, group) for cohort, group in sorted(members.items())]
 
 
+@dataclass(frozen=True, slots=True)
+class PayEquitySummary:
+    """Totals for the response `summary` (docs/07 §8.10), with who was left out and why."""
+
+    employees_evaluated: int
+    employees_without_band: int
+    employees_not_full_time: int
+    employees_flagged_underpaid: int
+    employees_flagged_overpaid: int
+
+
+def pay_equity_summary(employees: Iterable[EmployeePay]) -> PayEquitySummary:
+    """Count who got a compa-ratio, who was left out (by reason), and who was flagged."""
+    reasons: Counter[NoCompaRatioReason | None] = Counter()
+    flags: Counter[PayEquityFlag] = Counter()
+    for pay in employees:
+        result = compa_ratio(pay.base, pay.band_mid, pay.employment_type)
+        if result.value is None:
+            reasons[result.reason] += 1
+        else:
+            flags[flag(result.value)] += 1
+    return PayEquitySummary(
+        employees_evaluated=flags.total(),
+        employees_without_band=reasons[NoCompaRatioReason.NO_BAND],
+        employees_not_full_time=reasons[NoCompaRatioReason.NOT_FULL_TIME],
+        employees_flagged_underpaid=flags[PayEquityFlag.UNDERPAID],
+        employees_flagged_overpaid=flags[PayEquityFlag.OVERPAID],
+    )
+
+
 def _evaluated(employees: Iterable[EmployeePay]) -> Iterator[tuple[EmployeePay, Decimal]]:
     """Each employee who has a compa-ratio, with that ratio. The others are skipped."""
     for pay in employees:
