@@ -20,7 +20,7 @@ from sqlalchemy import Engine
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
-from salary_api.core.db import create_db_engine
+from salary_api.core.db import create_db_engine, create_session_factory
 from salary_api.core.deps import get_session
 from salary_api.main import create_app
 from tests.factories import make_settings
@@ -48,10 +48,13 @@ def rolled_back_session(engine: Engine) -> Iterator[Session]:
 
     The outer transaction is never committed. The session joins it with a SAVEPOINT,
     so code under test may call commit() and the test still leaves nothing behind.
+    It comes from the app's own session factory, so it has the same options.
     """
     with engine.connect() as connection:
         transaction = connection.begin()
-        session = Session(bind=connection, join_transaction_mode="create_savepoint")
+        session = create_session_factory(engine)(
+            bind=connection, join_transaction_mode="create_savepoint"
+        )
         try:
             yield session
         finally:
