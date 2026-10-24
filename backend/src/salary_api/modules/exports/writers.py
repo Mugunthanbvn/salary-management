@@ -28,24 +28,20 @@ def csv_bytes(header: Sequence[str], rows: Iterable[Sequence[CellValue]]) -> byt
 
 
 def xlsx_bytes(title: str, header: Sequence[str], rows: Iterable[Sequence[CellValue]]) -> bytes:
-    """A one-sheet workbook, written in openpyxl's streaming (write-only) mode."""
+    """A one-sheet workbook, written in openpyxl's streaming (write-only) mode.
+
+    openpyxl writes text as a formula only when it starts with `=`, which escape_formula
+    never leaves, so every text cell is a string cell (`t="s"`); numbers stay numbers and
+    dates get a date format.
+    """
     # Imported here, not at the top: openpyxl is slow to import (docs/19 section 6.3).
     from openpyxl import Workbook  # noqa: PLC0415
-    from openpyxl.cell import WriteOnlyCell  # noqa: PLC0415
 
     workbook = Workbook(write_only=True)
     sheet = workbook.create_sheet(title)
-
-    def cell(value: CellValue) -> object:
-        if not isinstance(value, str):
-            return value  # numbers stay numbers; a date gets a date format
-        text = WriteOnlyCell(sheet, value=escape_formula(value))
-        text.data_type = "s"  # always a string, never a formula
-        return text
-
-    sheet.append([cell(name) for name in header])
+    sheet.append([escape_formula(name) for name in header])
     for row in rows:
-        sheet.append([cell(value) for value in row])
+        sheet.append([escape_formula(cell) if isinstance(cell, str) else cell for cell in row])
     buffer = io.BytesIO()
     workbook.save(buffer)
     return buffer.getvalue()
