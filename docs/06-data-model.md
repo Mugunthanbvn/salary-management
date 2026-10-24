@@ -491,7 +491,7 @@ The same models and migrations run on Postgres (the fallback, [ADR 0002](adr/000
 | Percentiles / median | Computed in Python over sorted integer lists using **linear interpolation**, which matches Postgres `PERCENTILE_CONT` exactly, so a later move into SQL changes no numbers ([ADR 0007](adr/0007-pure-python-stats.md)). Not computed in SQL today, because SQLite has no `percentile_cont` |
 | Search | Folded `search_text` + `LIKE`; no `ILIKE` |
 | Upserts | Not used (import inserts new rows only); no dialect-specific `ON CONFLICT` |
-| Auto-increment | SQLAlchemy `Identity`/autoincrement works on both |
+| Auto-increment | SQLAlchemy `Identity`/autoincrement works on both. **Exception, SQLite/Turso only:** the import commit (and the seed) insert employees and salary records with ids allocated in Python (`max(id) + 1`, [11](11-import-export.md) §5.6). SQLite's rowid simply continues after them; a Postgres sequence would not advance, so a move to Postgres must add a `setval` after those inserts (Postgres is cut from v1) |
 
 Switching is a `DATABASE_URL` change plus `alembic upgrade head` on the new database.
 
