@@ -8,7 +8,7 @@ from sqlalchemy.orm import Session
 from salary_api.core.config import Settings
 from salary_api.core.errors import RateLimited, Unauthenticated
 from salary_api.core.models import utc_now
-from salary_api.core.permissions import Permission, Principal, permissions_for
+from salary_api.core.permissions import Permission, Principal
 from salary_api.core.security import (
     InvalidToken,
     PasswordHasher,
@@ -66,7 +66,7 @@ def login(
     )
     session.commit()
     token = create_access_token(user_id=user.id, role=user.role, settings=settings)
-    return SignedIn(body=_login_response(user), token=token)
+    return SignedIn(body=_login_response(_principal(user)), token=token)
 
 
 def authenticate(session: Session, token: str | None, *, settings: Settings) -> Principal:
@@ -81,7 +81,7 @@ def authenticate(session: Session, token: str | None, *, settings: Settings) -> 
     user = users.get_by_id(session, claims.user_id)
     if user is None or not user.is_active:
         raise Unauthenticated(SESSION_NOT_VALID)
-    return Principal(user_id=user.id, email=user.email, full_name=user.full_name, role=user.role)
+    return _principal(user)
 
 
 def email_hash(email: str) -> str:
@@ -120,9 +120,18 @@ def _record_failed_login(session: Session, *, email: str, user: User | None) -> 
     )
 
 
-def _login_response(user: User) -> LoginResponse:
-    granted = permissions_for(user.role)
+def _principal(user: User) -> Principal:
+    return Principal(user_id=user.id, email=user.email, full_name=user.full_name, role=user.role)
+
+
+def _login_response(principal: Principal) -> LoginResponse:
     return LoginResponse(
-        user=SessionUser(id=user.id, email=user.email, full_name=user.full_name, role=user.role),
-        permissions=[permission for permission in Permission if permission in granted],
+        user=SessionUser(
+            id=principal.user_id,
+            email=principal.email,
+            full_name=principal.full_name,
+            role=principal.role,
+        ),
+        # In glossary order, so the response is stable.
+        permissions=[permission for permission in Permission if principal.has(permission)],
     )
