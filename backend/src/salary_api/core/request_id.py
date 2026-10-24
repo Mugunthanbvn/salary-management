@@ -1,8 +1,9 @@
-"""Request ID middleware: every response carries an X-Request-ID header."""
+"""Request ID middleware: an X-Request-ID on every response and in every log line."""
 
 import re
 from uuid import uuid4
 
+import structlog
 from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
@@ -24,6 +25,8 @@ class RequestIdMiddleware:
             return
 
         request_id = _incoming_request_id(scope) or str(uuid4())
+        structlog.contextvars.clear_contextvars()
+        structlog.contextvars.bind_contextvars(request_id=request_id)
 
         async def send_with_request_id(message: Message) -> None:
             if message["type"] == "http.response.start":
