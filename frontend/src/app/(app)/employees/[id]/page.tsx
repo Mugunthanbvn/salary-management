@@ -143,12 +143,18 @@ export default async function EmployeePage({
 }
 
 /** "Customer Success Manager, L2, in Customer Success, Germany. Full-time since 1 Jun 2022. ACME-002210." */
-function summary(employee: EmployeeDetail, reference: ReferenceData): string {
+function summary(
+  employee: EmployeeDetail,
+  reference: ReferenceData,
+): ReactNode {
   return (
-    `${employee.job_role.title}, ${employee.level}, in ${employee.department.name}, ` +
-    `${countryName(employee.country_code, reference)}. ` +
-    `${EMPLOYMENT_TYPE_LABELS[employee.employment_type]} since ${formatDate(employee.hire_date)}. ` +
-    `${employee.employee_code}.`
+    <>
+      {`${employee.job_role.title}, ${employee.level}, in ${employee.department.name}, ` +
+        `${countryName(employee.country_code, reference)}. ` +
+        `${EMPLOYMENT_TYPE_LABELS[employee.employment_type]} since ${formatDate(employee.hire_date)}. `}
+      {/* A code never breaks at its hyphen ("ACME-" / "002210"). */}
+      <span className="whitespace-nowrap">{employee.employee_code}.</span>
+    </>
   );
 }
 
