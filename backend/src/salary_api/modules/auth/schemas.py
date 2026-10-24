@@ -1,12 +1,19 @@
-from pydantic import BaseModel, ConfigDict, Field
+from typing import Annotated
+
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints
 
 from salary_api.core.permissions import Permission, Role
+
+# Emails are stored and compared trimmed and lowercased (docs/06-data-model.md section 4.1).
+NormalisedEmail = Annotated[
+    str, StringConstraints(strip_whitespace=True, to_lower=True, min_length=1, max_length=254)
+]
 
 
 class LoginRequest(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
-    email: str = Field(min_length=1, max_length=254)
+    email: NormalisedEmail
     # Capped so a huge body cannot make argon2 work for long.
     password: str = Field(min_length=1, max_length=1024)
 
