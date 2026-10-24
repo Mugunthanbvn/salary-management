@@ -39,6 +39,11 @@ CODE_PREFIX = "ACME-"
 TIEBREAK = ("last_name", "first_name")
 
 
+def can_see_salaries(principal: Principal) -> bool:
+    """Whether the caller may see individual salaries. Without it, salaries are masked."""
+    return principal.has(Permission.SALARY_READ)
+
+
 def create_employee(
     session: Session, principal: Principal, request: EmployeeCreate
 ) -> EmployeeDetail:
@@ -100,7 +105,7 @@ def get_employee(session: Session, principal: Principal, employee_id: int) -> Em
     employee = repository.get_detail(session, employee_id)
     if employee is None:
         raise NotFound(f"Employee {employee_id} was not found.")
-    return _detail(employee, salary_visible=principal.has(Permission.SALARY_READ))
+    return _detail(employee, salary_visible=can_see_salaries(principal))
 
 
 def list_employees(
@@ -124,7 +129,7 @@ def list_employees(
         offset=(query.page - 1) * query.page_size,
         limit=query.page_size,
     )
-    salary_visible = principal.has(Permission.SALARY_READ)
+    salary_visible = can_see_salaries(principal)
     return EmployeePage(
         items=[
             EmployeeListItem(**_list_fields(employee, salary_visible=salary_visible))
