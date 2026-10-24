@@ -186,7 +186,10 @@ export function CountryPay({
             className="flex items-baseline justify-between gap-3 border-t border-rule py-3"
           >
             <span className="min-w-0">
-              <Link href={link(row.country_code)} className="text-ink">
+              <Link
+                href={link(row.country_code)}
+                className="inline-flex min-h-11 items-center text-ink"
+              >
                 {countryName(row.country_code, reference)}
               </Link>
               <span className="mt-0.5 block text-[13px] text-ink-3">
