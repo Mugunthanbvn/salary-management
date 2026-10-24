@@ -6,12 +6,19 @@ Model builders (make_employee, make_salary_record, ...) are added with their mod
 
 from typing import Any
 
+from pwdlib.hashers.argon2 import Argon2Hasher
 from pydantic_settings import SettingsConfigDict
 
 from salary_api.core.config import Settings
+from salary_api.core.security import PasswordHasher
 
 # Low entropy on purpose, so secret scanners (gitleaks) do not mistake it for a real key.
 TEST_JWT_SECRET = "test-only-" + "x" * 32
+
+# Argon2id with the cheapest parameters, so tests hash in well under a millisecond.
+# The app gets it through a dependency override (tests/conftest.py); production keeps
+# pwdlib's defaults.
+FAST_PASSWORD_HASHER = PasswordHasher(Argon2Hasher(time_cost=1, memory_cost=8, parallelism=1))
 
 
 class _SettingsWithoutEnvFile(Settings):
