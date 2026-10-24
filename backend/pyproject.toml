@@ -59,7 +59,7 @@ ignore = ["N818"]
 "tests/**" = ["S101", "S105", "S106", "PLR2004"]
 
 [tool.ruff.lint.isort]
-known-first-party = ["salary_api"]
+known-first-party = ["salary_api", "scripts", "tests"]
 
 [tool.ruff.format]
 docstring-code-format = true
