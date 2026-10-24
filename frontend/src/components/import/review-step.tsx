@@ -8,12 +8,11 @@ import { saveFile } from "@/lib/download";
 import { formatCount } from "@/lib/numbers";
 
 import { errorReportName, problemsCsv } from "./error-report";
-
+import { ImportSteps } from "./import-steps";
 import type { CommitProblem } from "./messages";
 import { PreviewRows } from "./preview-rows";
+import { ProblemNote } from "./problem-note";
 import { RowErrors } from "./row-errors";
-import { ProblemNote } from "./upload-step";
-import { ImportSteps } from "./import-steps";
 
 type ImportJobReport = components["schemas"]["ImportJobReport"];
 

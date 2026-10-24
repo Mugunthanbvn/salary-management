@@ -1,17 +1,13 @@
 "use client";
 
 import { cn } from "cn";
-import {
-  useState,
-  type ChangeEvent,
-  type DragEvent,
-  type ReactNode,
-} from "react";
+import { useState, type ChangeEvent, type DragEvent } from "react";
 
 import { MarginNote, PageTitle, Section } from "@/components/print";
 
-import type { Explained } from "./messages";
 import { ImportSteps } from "./import-steps";
+import type { Explained } from "./messages";
+import { ProblemNote } from "./problem-note";
 
 const ERROR_ID = "upload-error";
 
@@ -120,31 +116,5 @@ export function UploadStep({
         {error ? <ProblemNote id={ERROR_ID} problem={error} /> : null}
       </Section>
     </>
-  );
-}
-
-/** A refusal in red pen: what went wrong, and what to do next. */
-export function ProblemNote({
-  id,
-  problem,
-  children,
-}: {
-  id?: string;
-  problem: Explained;
-  /** More detail under the message, e.g. the rows a commit found in the way. */
-  children?: ReactNode;
-}) {
-  return (
-    <div id={id} role="alert" className="mt-4 max-w-[720px]">
-      <p className="text-[17px] leading-normal font-bold text-ink red-pen">
-        {problem.message}
-      </p>
-      {problem.more ? (
-        <p className="mt-2 text-[15px] break-words text-ink-2">
-          {problem.more}
-        </p>
-      ) : null}
-      {children}
-    </div>
   );
 }
