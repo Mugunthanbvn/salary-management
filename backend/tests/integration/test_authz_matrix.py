@@ -95,6 +95,11 @@ def _salary_history(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{make_employee(session).id}/salary-history"}
 
 
+def _in_germany(session: Session) -> dict[str, Any]:
+    make_country(session, "DE")
+    return {"params": {"country": "DE"}}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -112,6 +117,7 @@ MATRIX = [
     Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
     Endpoint("GET", "/api/v1/insights/overview", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/insights/by-department", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/by-job-title", (401, 200, 200, 200), _in_germany),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of

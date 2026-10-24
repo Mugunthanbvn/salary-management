@@ -11,6 +11,7 @@ from salary_api.modules.reference.models import JobFamily, JobRole
 from tests.factories import make_department, make_employee, make_fx_rates, make_job_role
 
 BY_DEPARTMENT = "/api/v1/insights/by-department"
+BY_JOB_TITLE = "/api/v1/insights/by-job-title"
 
 
 def _stats(currency: str, *values: int | None, suppressed: bool = False) -> dict[str, Any]:
@@ -107,3 +108,96 @@ def test_viewer_sees_small_departments_hidden_with_their_complement(
     counts = {group["department"]["name"]: group["stats"]["count"] for group in body["groups"]}
     assert counts == {"Customer Success": None, "Engineering": None, "Sales": 10}
     assert body["groups"][0]["stats"]["suppressed"] is True
+
+
+def test_pay_by_job_title_needs_a_country(as_role: Callable[[str], TestClient]) -> None:
+    response = as_role("HR_MANAGER").get(BY_JOB_TITLE)
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["loc"] == ["query", "country"]
+
+
+def _engineers_in_india(session: Session) -> tuple[JobRole, JobRole]:
+    data = make_job_role(session, "Data Engineer")
+    software = make_job_role(session, "Software Engineer")
+    make_employee(session, country="IN", job_role=data, level="L2", base_minor=180_000_000)
+    make_employee(session, country="IN", job_role=data, level="L3", base_minor=260_000_000)
+    make_employee(session, country="IN", job_role=software, level="L3", base_minor=240_000_000)
+    make_employee(session, country="DE", job_role=software, level="L3", base_minor=7_000_000)
+    return data, software
+
+
+def test_pay_by_job_title_compares_roles_within_one_country_in_local_currency(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    data, software = _engineers_in_india(db_session)
+
+    response = as_role("HR_MANAGER").get(BY_JOB_TITLE, params={"country": "IN"})
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["currency"], body["split_by_level"]) == ("INR", False)
+    assert body["population"]["country"] == ["IN"]
+    assert body["groups"] == [
+        {
+            "job_role": {"id": data.id, "title": "Data Engineer"},
+            "level": None,
+            "stats": _stats(
+                "INR",
+                2,
+                180_000_000,
+                200_000_000,
+                220_000_000,
+                220_000_000,
+                240_000_000,
+                260_000_000,
+            ),
+        },
+        {
+            "job_role": {"id": software.id, "title": "Software Engineer"},
+            "level": None,
+            "stats": _stats("INR", 1, *[240_000_000] * 6),
+        },
+    ]
+
+
+def test_pay_by_job_title_can_split_each_role_by_level(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    _engineers_in_india(db_session)
+
+    body = (
+        as_role("HR_MANAGER")
+        .get(BY_JOB_TITLE, params={"country": "IN", "split_by_level": "true"})
+        .json()
+    )
+
+    assert body["split_by_level"] is True
+    assert [
+        (group["job_role"]["title"], group["level"], group["stats"]["median"])
+        for group in body["groups"]
+    ] == [
+        ("Data Engineer", "L2", 180_000_000),
+        ("Data Engineer", "L3", 260_000_000),
+        ("Software Engineer", "L3", 240_000_000),
+    ]
+
+
+def test_viewer_has_levels_hidden_in_pairs_within_each_role(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    # Each role's total is visible without the split, so hiding only its small level would
+    # let the total minus the other level reveal it.
+    for title in ("Data Engineer", "Software Engineer"):
+        role = make_job_role(db_session, title)
+        for level, size in (("L2", 3), ("L3", 10)):
+            for _ in range(size):
+                make_employee(db_session, country="IN", job_role=role, level=level)
+
+    body = (
+        as_role("VIEWER")
+        .get(BY_JOB_TITLE, params={"country": "IN", "split_by_level": "true"})
+        .json()
+    )
+
+    assert [group["stats"]["count"] for group in body["groups"]] == [None, None, None, None]
