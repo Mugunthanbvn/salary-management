@@ -101,8 +101,18 @@ class _Audience:
         return not self.salary_visible and count < MIN_GROUP_SIZE
 
     def hidden_groups(self, counts: Sequence[int]) -> set[int]:
-        """The indexes of the groups of one breakdown that this caller may not see."""
-        return {index for index, count in enumerate(counts) if self.hides(count)}
+        """The indexes of the groups of one breakdown that this caller may not see.
+
+        The small-group rule hides groups under MIN_GROUP_SIZE. If that hides exactly one,
+        the smallest visible group is hidden too (complementary suppression, docs/09 2.8):
+        otherwise the total minus the visible groups would give the hidden one away.
+        Ties go to the group listed first.
+        """
+        hidden = {index for index, count in enumerate(counts) if self.hides(count)}
+        visible = [index for index in range(len(counts)) if index not in hidden]
+        if len(hidden) == 1 and visible:
+            hidden.add(min(visible, key=lambda index: (counts[index], index)))
+        return hidden
 
 
 @dataclass(frozen=True, slots=True)
