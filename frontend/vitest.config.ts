@@ -10,10 +10,11 @@ export default defineConfig({
   },
   test: {
     environment: "jsdom",
-    include: ["src/**/*.test.{ts,tsx}"],
+    include: ["src/**/*.test.{ts,tsx}", "next.config.test.ts"],
     setupFiles: ["./src/test/setup.ts"],
     clearMocks: true,
     restoreMocks: true,
+    unstubEnvs: true,
     coverage: {
       // Reported only; there is no gate yet (docs/14-testing-strategy.md §7).
       provider: "v8",
