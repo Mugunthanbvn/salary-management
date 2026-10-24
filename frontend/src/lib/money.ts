@@ -14,7 +14,7 @@ export function formatMoney(
   { minorUnits = "auto" }: FormatMoneyOptions = {},
 ): string {
   const { major, fraction } = splitMinor(
-    BigInt(amountMinor),
+    toBigInt(amountMinor),
     minorDigits(currency),
   );
   // Whole amounts read like the printout ("€54,000"); any minor part shows every digit.
@@ -54,6 +54,16 @@ function withSymbol(parts: Intl.NumberFormatPart[], currency: string): string {
         : part.value;
     })
     .join("");
+}
+
+/** Money arrives as integer minor units; a fraction or an imprecise number is a bug. */
+function toBigInt(amountMinor: number | bigint | string): bigint {
+  if (typeof amountMinor === "number" && !Number.isSafeInteger(amountMinor)) {
+    throw new RangeError(
+      `Money must be a safe integer of minor units, got ${amountMinor}`,
+    );
+  }
+  return BigInt(amountMinor);
 }
 
 /**
