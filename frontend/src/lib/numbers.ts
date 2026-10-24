@@ -27,3 +27,8 @@ export function formatPercent(
     roundingMode: "halfEven",
   }).format(ratio as Intl.StringNumericLiteral);
 }
+
+export function formatCount(count: number): string {
+  void count;
+  throw new Error("formatCount is not implemented yet");
+}

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatPercent, formatRatio } from "./numbers";
+import { formatCount, formatPercent, formatRatio } from "./numbers";
 
 describe("formatRatio", () => {
   // Ratios such as the compa-ratio arrive from the API as decimal strings.
@@ -21,5 +21,11 @@ describe("formatPercent", () => {
     { ratio: "0.0825", digits: 1, text: "8.2%" }, // ties to even
   ])("shows $ratio as $text", ({ ratio, digits, text }) => {
     expect(formatPercent(ratio, { fractionDigits: digits })).toBe(text);
+  });
+});
+
+describe("formatCount", () => {
+  it("groups a headcount the same way on the server and in the browser", () => {
+    expect(formatCount(9012)).toBe("9,012");
   });
 });
