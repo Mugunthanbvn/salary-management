@@ -33,6 +33,14 @@ class InvalidFxRateError(ValueError):
     """The rate is zero, negative or not finite, or a USD rate other than 1."""
 
 
+class FxRateMissingError(LookupError):
+    """No USD rate for a currency. A configuration error: never fall back to 0 or 1."""
+
+    def __init__(self, currency: str) -> None:
+        super().__init__(f"No USD rate for {currency}")
+        self.currency = currency
+
+
 @dataclass(frozen=True, slots=True)
 class Money:
     """An exact amount: `amount_minor` counts the currency's minor unit (cents, paise, yen)."""
@@ -117,7 +125,9 @@ def to_usd(money: Money, rates: Mapping[str, FxRate]) -> UsdAmount:
 
     usd_minor = round_half_even(amount_minor * 10**(2 - exp) * rate_to_usd), all in Decimal.
     """
-    rate = rates[money.currency]
+    rate = rates.get(money.currency)
+    if rate is None:
+        raise FxRateMissingError(money.currency)
     shift = minor_unit_exponent(USD) - minor_unit_exponent(money.currency)
     usd_minor = _round_half_even(Decimal(money.amount_minor).scaleb(shift) * rate.rate_to_usd)
     return UsdAmount(Money(usd_minor, USD), rate.as_of)
