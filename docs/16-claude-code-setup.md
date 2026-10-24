@@ -38,8 +38,10 @@ frontend/CLAUDE.md             # loaded when working under frontend/
   agents/
     reviewer.md
   hooks/
-    block-protected-files.sh   # PreToolUse guard
+    block-protected-files.sh   # PreToolUse guard (Read/Edit/Write)
+    guard-bash.sh              # PreToolUse guard (Bash)
     format-changed-file.sh     # PostToolUse formatter
+    test-hooks.sh              # tests for the hooks: .claude/hooks/test-hooks.sh
 ```
 
 ---
@@ -165,18 +167,17 @@ Each skill is a `SKILL.md` with a trigger-style `description` (so Claude invokes
 ### 5.6 `/new-module <name>`
 **Trigger:** adding a new backend feature slice.
 1. Read an existing module (e.g. `modules/employees/`) to mirror its conventions. Don't invent a new pattern.
-2. Create `modules/<name>/{__init__,router,schemas,service,repository,models}.py` with minimal typed skeletons.
-3. Create `tests/unit/test_<name>_*.py` and `tests/integration/test_<name>_api.py` with one placeholder **failing** test describing the first behaviour.
-4. Register the router in the app factory; add an entry to the authz matrix (it fails until permissions are declared).
-5. If there are models, create an Alembic revision stub.
-6. Hand over to `/tdd` for the first behaviour.
+2. Create `modules/<name>/{__init__,router,schemas,service,repository,models}.py` as an empty scaffold (an `APIRouter` with its prefix, no endpoints, no models).
+3. Register the empty router in the app factory.
+4. Commit it as `chore(<name>): scaffold module`: it has no behaviour, so it is neither `test:` nor `feat:`.
+5. Hand over to `/tdd` for the first failing test. Endpoints (each with its authz-matrix row), models and their Alembic revisions all come through TDD.
 
 ### 5.7 `/commit`
 **Trigger:** the user asks to commit, or a TDD step is complete.
 1. `git status` + `git diff --staged`; if nothing is staged, propose a **single logical** change set to stage.
 2. Keep red and green separate: never mix a new failing test and its implementation into one commit when doing TDD pairing.
 3. Write a Conventional Commit message (`type(scope): subject` ≤ 72 chars, body for the why).
-4. Add the agreed attribution trailer.
+4. Add the attribution trailer lines the current session provides (default `Co-Authored-By: Claude Opus 5.5 <noreply@anthropic.com>`); never hard-code a session link.
 5. Commit. Never `--no-verify`, never amend a pushed commit, never push unless asked.
 
 ---
@@ -184,7 +185,7 @@ Each skill is a `SKILL.md` with a trigger-style `description` (so Claude invokes
 ## 6. Reviewer subagent (`.claude/agents/reviewer.md`)
 
 - **Role:** read-only code reviewer giving an independent second opinion on a diff.
-- **Tools:** Read, Grep, Glob, and Bash limited to `git diff` / `git log` / `git show`. **No Edit or Write.**
+- **Tools:** Read, Grep, Glob, and Bash limited to `git diff` / `git log` / `git show`. **No Edit or Write.** The Bash limit is advisory (an instruction, not enforced, since the agent has Bash); the orchestrator reviews the agent's tool use.
 - **Input:** a branch or diff range (default `main...HEAD`).
 - **Checklist** (derived from CLAUDE.md and the rules):
   1. Was a test added before or with each behaviour (check commit order)? Are the tests meaningful, not just coverage padding?
@@ -205,44 +206,53 @@ The built-in `/code-review` and `/security-review` commands are also run before 
 
 ## 7. `settings.json`: permissions and hooks
 
-### 7.1 Permissions (outline)
+### 7.1 Permissions
+
+As committed in `.claude/settings.json`:
 
 ```jsonc
 {
   "permissions": {
     "allow": [
-      "Bash(make:*)",
-      "Bash(uv run:*)", "Bash(uv sync:*)", "Bash(uv add:*)",
-      "Bash(pnpm:*)",
+      "Bash(make:*)", "Bash(uv:*)", "Bash(uvx:*)", "Bash(pnpm:*)", "Bash(npx:*)",
       "Bash(git status:*)", "Bash(git diff:*)", "Bash(git log:*)", "Bash(git show:*)",
-      "Bash(git add:*)", "Bash(git commit:*)",
-      "Read(./**)", "Edit(./backend/**)", "Edit(./frontend/**)", "Edit(./docs/**)"
+      "Bash(git add:*)", "Bash(git commit:*)", "Bash(git checkout:*)", "Bash(git switch:*)",
+      "Bash(git branch:*)", "Bash(git merge:*)", "Bash(git worktree:*)", "Bash(git push:*)",
+      "Read(./**)", "Edit(./**)", "Write(./**)"
     ],
     "deny": [
-      "Read(./**/.env)", "Read(./**/.env.*)",
-      "Bash(git push --force:*)", "Bash(git push -f:*)",
+      "Read(./**/.env)", "Read(./**/.env.local)", "Read(./**/.env.development)",
+      "Read(./**/.env.production)", "Read(./**/.env.test)",
+      "Edit(./**/.env)", "Edit(./**/.env.local)", "Edit(./**/.env.development)",
+      "Edit(./**/.env.production)", "Edit(./**/.env.test)",
+      "Bash(git push --force:*)", "Bash(git push -f:*)", "Bash(git push --force-with-lease:*)",
+      "Bash(git checkout -- :*)", "Bash(git checkout .:*)", "Bash(git branch -D:*)",
+      "Bash(git reset --hard:*)", "Bash(git clean:*)", "Bash(git worktree remove --force:*)",
       "Bash(rm -rf:*)",
       "Bash(curl:*)", "Bash(wget:*)"
     ],
     "ask": [
-      "Bash(git push:*)",
       "Bash(turso:*)", "Bash(vercel:*)"
     ]
   }
 }
 ```
 
-- **Allow:** routine, reversible, local operations so TDD loops run without prompts.
-- **Deny:** reading secrets, destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible).
-- **Ask:** anything outward-facing (push, deploy, database cloud CLI).
-- `.env.example` remains readable (it holds no secrets). The deny patterns target `.env` and `.env.<env>` **(proposed exact patterns, verified at setup)**.
+- **Allow:** routine, reversible, local operations so TDD loops run without prompts. Plain `git push` is allowed because the build is run by an autonomous orchestrator that pushes after each block.
+- **Deny:** reading or editing secrets, force pushes, git commands that discard work (checkout `--`/`.`, `branch -D`, `reset --hard`, `clean`, `worktree remove --force`), destructive commands, raw network fetches from the shell (research goes through the web tools, where it's visible). Deny wins over allow.
+- **Ask:** deploy and database cloud CLIs (`vercel`, `turso`).
+- `.env.example` remains readable and editable (it holds no secrets): the deny patterns name `.env` and `.env.<env>` files explicitly instead of `.env.*`. The PreToolUse hooks (§7.2) cover every other `.env.<name>` (e.g. `.env.development.local`) for Read, Edit and Write, and in Bash commands.
+- Allow rules match a command prefix only, so `Bash(uv:*)`, `Bash(npx:*)` and `Bash(pnpm:*)` would let `uv run cat .env`, `npx vercel` or `git push origin main --force` through. `guard-bash.sh` closes that gap.
 
 ### 7.2 Hooks
 
 | Event | Matcher | Script | Behaviour |
 |---|---|---|---|
-| **PreToolUse** | `Edit\|Write` | `.claude/hooks/block-protected-files.sh` | Exits with a blocking status and an explanation if the target path is `backend/uv.lock`, `frontend/pnpm-lock.yaml`, `frontend/src/lib/api/schema.d.ts` (generated) or any `.env` file. The message tells Claude which command to use instead (`uv add`, `pnpm add`, `make api-sync`) |
-| **PostToolUse** | `Edit\|Write` | `.claude/hooks/format-changed-file.sh` | For `*.py` under `backend/`: `uv run ruff format <file>` and `uv run ruff check --fix <file>`. For `*.ts, *.tsx, *.css, *.json, *.md` under `frontend/`: `pnpm prettier --write <file>`. Non-blocking; failures are reported back |
+| **PreToolUse** | `Read\|Edit\|MultiEdit\|Write` | `.claude/hooks/block-protected-files.sh` | Read: blocks any `.env` / `.env.<name>` file except `.env.example` ("secrets files are not readable by agents"). Edit/Write: also blocks `uv.lock`, `pnpm-lock.yaml`, `frontend/src/lib/api/schema.d.ts` and `frontend/openapi.json` (generated), with a message naming the command to use instead (`uv add`, `pnpm add`, `make api-sync`). Paths match by name or suffix, after resolving `..`, so git worktrees are covered |
+| **PreToolUse** | `Bash` | `.claude/hooks/guard-bash.sh` | Parses the command (python3 `shlex`; quoted text and heredoc bodies are arguments) and finds command words, also through `env`, `sudo`, `uv run`, `uvx`, `npx`, `pnpm exec`/`dlx` and `bash -c`. Blocks a `.env` / `.env.<name>` reference other than `.env.example`, `curl`/`wget`, and `git push` with `--force`, `-f`, `--force-with-lease`, `--force-if-includes`, `--mirror`, `--delete`, `-d`, `--prune`, `+refspec` or `:ref`. Returns `permissionDecision: "ask"` for `vercel`/`turso` |
+| **PostToolUse** | `Edit\|MultiEdit\|Write` | `.claude/hooks/format-changed-file.sh` | For `*.py` under `backend/`: `uv run ruff format <file>` and `uv run ruff check --fix --ignore F401 <file>` (an import added in one edit is used in the next; lefthook and CI still catch unused imports). For `*.ts, *.tsx, *.css, *.json, *.md` under `frontend/`: `pnpm prettier --write <file>`. The project root is the nearest folder above the file with `backend/pyproject.toml` or `frontend/package.json`, so a worktree uses its own tools. Non-blocking; a no-op until the tool is installed; failures are reported back to Claude (exit 2) |
+
+`.claude/hooks/test-hooks.sh` pipes sample hook JSON into each hook and checks the results (PASS/FAIL, non-zero exit on any failure). Run it after changing a hook.
 
 Why hooks instead of instructions: formatting and protected files are "every time, no exceptions" rules, and Anthropic's guidance is to move such rules from CLAUDE.md into hooks, which are deterministic.
 
