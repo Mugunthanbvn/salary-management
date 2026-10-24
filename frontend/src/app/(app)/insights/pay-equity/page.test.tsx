@@ -127,6 +127,16 @@ describe("/insights/pay-equity", () => {
     ).toBeVisible();
   });
 
+  it("goes back to insights for the same country and department", async () => {
+    servePayEquity();
+
+    await renderPage({ country: "DE", department_id: "4" });
+
+    expect(
+      screen.getByRole("link", { name: "Back to insights" }),
+    ).toHaveAttribute("href", "/insights?country=DE&department_id=4");
+  });
+
   it("sums up who was evaluated, who was left out and who is flagged", async () => {
     servePayEquity();
 
