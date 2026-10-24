@@ -142,6 +142,28 @@ describe("/employees", () => {
     ).toBeNull();
   });
 
+  it.each([
+    { who: "an HR manager", me: makeMe(), label: "Export" },
+    { who: "a viewer", me: makeViewer(), label: "Export (no salary data)" },
+  ])("offers $who an export of the list", async ({ me, label }) => {
+    serveDirectory();
+
+    await renderPage({}, me);
+
+    expect(screen.getByRole("button", { name: label })).toBeVisible();
+  });
+
+  it("offers no export without the EXPORT permission", async () => {
+    serveDirectory();
+
+    await renderPage(
+      {},
+      makeMe({ permissions: ["EMPLOYEE_READ", "INSIGHTS_READ"] }),
+    );
+
+    expect(screen.queryByRole("button", { name: /^Export/ })).toBeNull();
+  });
+
   it("shows the API's problem, with its request id, when the list fails", async () => {
     server.use(
       http.get<never, never, ReferenceData>(
