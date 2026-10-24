@@ -9,7 +9,7 @@ from decimal import Decimal
 from enum import StrEnum
 
 from salary_api.domain.enums import EmploymentType
-from salary_api.domain.money import Money
+from salary_api.domain.money import CurrencyMismatchError, Money
 
 
 class NoCompaRatioReason(StrEnum):
@@ -40,4 +40,6 @@ def compa_ratio(base: Money, band_mid: Money | None, employment_type: Employment
         return CompaRatio(None, NoCompaRatioReason.NOT_FULL_TIME)
     if band_mid is None:
         return CompaRatio(None, NoCompaRatioReason.NO_BAND)
+    if band_mid.currency != base.currency:
+        raise CurrencyMismatchError(base.currency, band_mid.currency)
     return CompaRatio(Decimal(base.amount_minor) / Decimal(band_mid.amount_minor))
