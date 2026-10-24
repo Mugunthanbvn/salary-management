@@ -14,12 +14,14 @@ from sqlalchemy import (
 )
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
+from salary_api.core.append_only import append_only
 from salary_api.core.models import Base, UtcDateTime, utc_now
 from salary_api.domain.enums import ComponentType, Level, SalaryReason
 from salary_api.modules.reference.models import JobRole, level_column
 from salary_api.modules.users.models import User
 
 
+@append_only
 class SalaryComponent(Base):
     """An annual allowance or bonus target, in its record's currency (ADR 0010)."""
 
@@ -47,6 +49,7 @@ class SalaryComponent(Base):
     amount_minor: Mapped[int] = mapped_column(BigInteger)
 
 
+@append_only
 class SalaryRecord(Base):
     """One salary event. The current salary is the greatest (effective_date, id) (ADR 0006)."""
 
