@@ -39,7 +39,7 @@ DATASET = generate(seed=42, employees=200)
 # salary record with its components. If the generator changes on purpose, update them in the
 # same commit and say why in the message.
 GOLDEN_200 = "dd5dbeb669a713d790d80546ea0e95ba43264e2d9d5c204ec002a8a4e10e58ef"
-GOLDEN_HISTORY_200 = "4385c35b6247dc761ebc9bb45e97c536d898f6f38929d5837522495300bbf15d"
+GOLDEN_HISTORY_200 = "e7c4e5d3879386f22dc211d5336cf72dcfdcc3702aa9252e72d3c5940c09e296"
 
 
 def _users() -> list[UserRow]:

@@ -26,8 +26,8 @@ from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings, make_setti
 from tests.seed_checks import active_employee_pay, employee_checksum, history_checksum
 
 GOLDEN_10K = "b40ac43181867ca39528d16b0899337cafbd9b1608c43b72f8a2330e47801bef"
-GOLDEN_HISTORY_10K = "c1637caa0425c1b40f421c1f46aada97c8f5dd9cc2870506304c2670b38d13ee"
-SALARY_RECORDS, COMPONENTS, TERMINATED = 24_052, 39_562, 300
+GOLDEN_HISTORY_10K = "d18072582a9a507ae1c13ebb44727d87414d70439459dc4728c379bfefe89ad4"
+SALARY_RECORDS, COMPONENTS, TERMINATED = 24_057, 39_580, 300
 
 pytestmark = pytest.mark.xdist_group("seed_10k")
 

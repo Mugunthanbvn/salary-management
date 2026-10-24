@@ -53,14 +53,15 @@ def back_cast(  # noqa: PLR0913  (one keyword per fact about the employee)
     """The employee's salary records, oldest first: HIRE at `hire_date`, the current salary last.
 
     `end_date` is the anchor date, or the termination date of a terminated employee.
-    Each earlier base is the later one divided by the raise, rounded to `unit_minor` again.
+    Each earlier base is the later one divided by the raise, rounded to `unit_minor` again, and
+    at least one unit away from it, so every record changes the base.
     """
     events = _events(rng, hire_date, end_date, current_level, allowed_levels)
     newest_first: list[HistoryEntry] = []
     base, level = current_base_minor, current_level
     for event in reversed(events):
         newest_first.append(HistoryEntry(event.effective_date, event.reason, level, base))
-        base = round_to_unit(Decimal(base) / event.factor, unit_minor)
+        base = _earlier_base(base, event.factor, unit_minor)
         if event.promotes:
             level = _level_below(level)
     newest_first.append(HistoryEntry(hire_date, SalaryReason.HIRE, level, base))
@@ -120,8 +121,25 @@ def _same_day_years_later(day: date, years: int) -> date:
         return day.replace(year=day.year + years, day=28)
 
 
+def _earlier_base(later_minor: int, factor: Decimal, unit_minor: int) -> int:
+    """The base before an event with this factor: `later / factor`, rounded to the unit.
+
+    Rounding can undo a small change (a 2 % raise on 19 units rounds back to 19), so the result
+    is moved at least one unit the other way: a raise always raises, a cut always cuts. It never
+    goes below one unit.
+    """
+    earlier = round_to_unit(Decimal(later_minor) / factor, unit_minor)
+    if factor > 1:
+        return max(min(earlier, later_minor - unit_minor), unit_minor)
+    return max(earlier, later_minor + unit_minor)
+
+
 def _raise(rng: random.Random, bounds: Bounds) -> Decimal:
-    return 1 + draw_uniform(rng, bounds)
+    """1 + a change drawn from `bounds`, never exactly 1 (a CORRECTION may be either way)."""
+    factor = 1 + draw_uniform(rng, bounds)
+    while factor == 1:
+        factor = 1 + draw_uniform(rng, bounds)
+    return factor
 
 
 def _level_below(level: Level) -> Level:
