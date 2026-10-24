@@ -12,6 +12,7 @@ from salary_api.modules.imports.parsing import (
 )
 
 HEADER = "employee_code,first_name,last_name,email,job_role,level,employment_type,country,hire_date"
+HEADER += ",base_salary"
 
 
 def _row(row: int, **values: str) -> RawRow:
@@ -26,7 +27,9 @@ def _csv(*lines: str, bom: bool = False) -> bytes:
 @pytest.mark.parametrize("bom", [False, True])
 def test_csv_rows_are_keyed_by_template_column_with_or_without_a_bom(bom: bool) -> None:
     content = _csv(
-        HEADER, "ACME-010001,Jürgen,Müller,j@acme.example,QA,L2,FULL_TIME,DE,2022-04-01", bom=bom
+        HEADER,
+        "ACME-010001,Jürgen,Müller,j@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,52000",
+        bom=bom,
     )
 
     rows = parse_csv(content, max_rows=10)
@@ -43,14 +46,25 @@ def test_csv_rows_are_keyed_by_template_column_with_or_without_a_bom(bom: bool) 
             employment_type="FULL_TIME",
             country="DE",
             hire_date="2022-04-01",
+            base_salary="52000",
         )
     ]
 
 
 def test_csv_headers_are_case_insensitive_trimmed_and_in_any_order() -> None:
-    names = [" Hire_Date ", "COUNTRY", "Employment_Type", "level", "job_role", "EMAIL"]
+    names = [
+        "Base_Salary",
+        " Hire_Date ",
+        "COUNTRY",
+        "Employment_Type",
+        "level",
+        "job_role",
+        "EMAIL",
+    ]
     header = ",".join([*names, "last_name", "first_name", "employee_code"])
-    content = _csv(header, "2022-04-01,DE,FULL_TIME,L2,QA,j@acme.example,Müller,Jürgen,ACME-010001")
+    content = _csv(
+        header, "52000,2022-04-01,DE,FULL_TIME,L2,QA,j@acme.example,Müller,Jürgen,ACME-010001"
+    )
 
     [row] = parse_csv(content, max_rows=10)
 
@@ -58,7 +72,7 @@ def test_csv_headers_are_case_insensitive_trimmed_and_in_any_order() -> None:
 
 
 def test_blank_lines_are_skipped_but_still_count_as_spreadsheet_rows() -> None:
-    line = "ACME-01000{n},A,B,a{n}@acme.example,QA,L2,FULL_TIME,DE,2022-04-01"
+    line = "ACME-01000{n},A,B,a{n}@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,52000"
     content = _csv(HEADER, line.format(n=1), "", ",,,,,,,,", line.format(n=2), "")
 
     rows = parse_csv(content, max_rows=10)
@@ -70,8 +84,8 @@ def test_quoted_values_may_hold_commas_quotes_and_line_breaks() -> None:
     content = _csv(
         HEADER,
         'ACME-010001,"Mary, Jr","O""Brien","m@acme.example","Line\r\nbreak",'
-        "L2,FULL_TIME,DE,2022-04-01",
-        "ACME-010002,A,B,b@acme.example,QA,L2,FULL_TIME,DE,2022-04-01",
+        "L2,FULL_TIME,DE,2022-04-01,52000",
+        "ACME-010002,A,B,b@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,52000",
     )
 
     first, second = parse_csv(content, max_rows=10)
@@ -83,7 +97,8 @@ def test_quoted_values_may_hold_commas_quotes_and_line_breaks() -> None:
 
 def test_empty_cells_and_absent_optional_columns_are_none() -> None:
     content = _csv(
-        HEADER + ",bonus_target", "ACME-010001,A,B,a@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,  "
+        HEADER + ",bonus_target",
+        "ACME-010001,A,B,a@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,52000,  ",
     )
 
     [row] = parse_csv(content, max_rows=10)
@@ -92,14 +107,14 @@ def test_empty_cells_and_absent_optional_columns_are_none() -> None:
 
 
 def test_values_keep_their_spaces_for_the_validator_to_trim() -> None:
-    content = _csv(HEADER, " ACME-010001 ,A,B,a@acme.example,QA,L2,FULL_TIME,DE,2022-04-01")
+    content = _csv(HEADER, " ACME-010001 ,A,B,a@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,52000")
 
     [row] = parse_csv(content, max_rows=10)
 
     assert row.values["employee_code"] == " ACME-010001 "
 
 
-ROW = "ACME-010001,A,B,a@acme.example,QA,L2,FULL_TIME,DE,2022-04-01"
+ROW = "ACME-010001,A,B,a@acme.example,QA,L2,FULL_TIME,DE,2022-04-01,52000"
 
 
 def test_a_file_that_is_not_utf8_is_refused_with_an_excel_hint() -> None:
@@ -128,7 +143,7 @@ def test_a_header_row_that_does_not_match_the_template_is_refused(
 def test_a_value_outside_the_header_columns_is_refused_with_its_row() -> None:
     content = _csv(HEADER, ROW, ROW.replace("A,B", "Smith, Jr,B"))
 
-    with pytest.raises(UnreadableFile, match="Row 3 has a value in column J, which has no header"):
+    with pytest.raises(UnreadableFile, match="Row 3 has a value in column K, which has no header"):
         parse_csv(content, max_rows=10)
 
 
