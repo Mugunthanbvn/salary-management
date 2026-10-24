@@ -37,6 +37,8 @@ def login(
         session.commit()  # the failure stays recorded: the login failure limit counts it
         raise Unauthenticated(INVALID_CREDENTIALS)  # one message: no user enumeration
 
+    if hasher.needs_rehash(user.password_hash):
+        user.password_hash = hasher.hash(credentials.password)  # upgrade outdated parameters
     user.last_login_at = utc_now()
     record_event(
         session,
