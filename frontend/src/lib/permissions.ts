@@ -13,7 +13,7 @@ export function can(me: Me, permission: Permission): boolean {
   return me.permissions.includes(permission);
 }
 
+/** Ask is shown only when the API has it on (`features.ask`) and the person may use it. */
 export function canAsk(me: Me): boolean {
-  void me;
-  throw new Error("canAsk is not implemented yet");
+  return me.features.ask && can(me, "ASK");
 }
