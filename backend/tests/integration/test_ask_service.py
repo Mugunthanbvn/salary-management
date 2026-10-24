@@ -14,7 +14,7 @@ from salary_api.core.config import Settings
 from salary_api.core.errors import RateLimited, UpstreamUnavailable
 from salary_api.core.permissions import Principal, Role
 from salary_api.modules.ask import service
-from salary_api.modules.ask.llm import LLMRateLimited, LLMUnavailable
+from salary_api.modules.ask.llm import LLMRateLimited, LLMResponse, LLMUnavailable, ToolCall
 from salary_api.modules.ask.schemas import AskRequest
 from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.insights import service as insights
@@ -454,3 +454,16 @@ def test_reference_data_lists_departments_and_job_roles_for_the_model(
     system = llm.requests[0].messages[0]["content"]
     assert "Customer Success" in system
     assert "Customer Success Manager" in system
+
+
+def test_provider_extras_of_a_tool_call_are_sent_back_with_it(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    extra = {"extra_content": {"google": {"thought_signature": "c2ln"}}}
+    tool_call = ToolCall(id="call-x", name="get_fx_rates", arguments="{}", extra=extra)
+    llm = FakeLLM(LLMResponse(content=None, tool_calls=(tool_call,)), answer())
+
+    _ask(db_session, llm, settings_with_key)
+
+    assistant = next(m for m in llm.requests[1].messages if m["role"] == "assistant")
+    assert assistant["tool_calls"][0]["extra_content"] == extra["extra_content"]

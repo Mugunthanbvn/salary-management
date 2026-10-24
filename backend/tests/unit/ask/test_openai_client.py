@@ -153,3 +153,26 @@ def test_names_the_provider_from_the_base_url(base_url: str, provider: str) -> N
     client = OpenAICompatibleLLMClient(base_url=base_url, api_key="k", model="m")
 
     assert (client.provider, client.model) == (provider, "m")
+
+
+def test_keeps_provider_extras_of_a_tool_call_to_send_them_back() -> None:
+    # Gemini returns a thought signature with each call and expects it back next turn.
+    extra = {"extra_content": {"google": {"thought_signature": "c2ln"}}}
+    message = {
+        "role": "assistant",
+        "content": None,
+        "tool_calls": [
+            {
+                "id": "call-1",
+                "type": "function",
+                "function": {"name": "get_fx_rates", "arguments": "{}"},
+                **extra,
+            }
+        ],
+    }
+
+    response = _client(lambda _: _completion(message)).complete(
+        [{"role": "user", "content": "Hi"}], TOOLS
+    )
+
+    assert response.tool_calls[0].extra == extra

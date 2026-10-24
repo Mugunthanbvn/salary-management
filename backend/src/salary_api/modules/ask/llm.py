@@ -4,7 +4,7 @@ Production uses the OpenAI-compatible adapter (`openai_client.py`); tests use a 
 `FakeLLM` (tests/ask_fakes.py), so CI never touches the network.
 """
 
-from collections.abc import Sequence
+from collections.abc import Mapping, Sequence
 from dataclasses import dataclass, field
 from typing import Any, Protocol
 
@@ -20,6 +20,8 @@ class ToolCall:
     id: str
     name: str
     arguments: str
+    # Provider-specific fields of the call (Gemini's thought signature), sent back as is.
+    extra: Mapping[str, Any] = field(default_factory=dict[str, Any])
 
 
 @dataclass(frozen=True, slots=True)
