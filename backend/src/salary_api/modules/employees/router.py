@@ -12,6 +12,7 @@ from salary_api.modules.employees.schemas import (
     EmployeeListQuery,
     EmployeePage,
     EmployeeUpdate,
+    TerminateRequest,
 )
 
 router = APIRouter(prefix="/employees", tags=["employees"])
@@ -75,3 +76,15 @@ def update_employee(
     employee_id: int, body: EmployeeUpdate, principal: CanWrite, session: SessionDep
 ) -> EmployeeDetail:
     return service.update_employee(session, principal, employee_id, body)
+
+
+@router.post(
+    "/{employee_id:int}/terminate",
+    response_model=EmployeeDetail,
+    responses=problem_responses(401, 403, 404, 409),
+    summary="Terminate an employee (soft delete; history is kept)",
+)
+def terminate_employee(
+    employee_id: int, body: TerminateRequest, principal: CanWrite, session: SessionDep
+) -> EmployeeDetail:
+    return service.terminate_employee(session, principal, employee_id, body)

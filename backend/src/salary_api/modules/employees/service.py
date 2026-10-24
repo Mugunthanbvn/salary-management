@@ -24,6 +24,7 @@ from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Comp, Money, SalaryBasis
 from salary_api.domain.currency import SUPPORTED_CURRENCIES
+from salary_api.domain.enums import EmployeeStatus
 from salary_api.domain.money import (
     FxRate,
     FxRateMissingError,
@@ -44,6 +45,7 @@ from salary_api.modules.employees.schemas import (
     EmployeeListQuery,
     EmployeePage,
     EmployeeUpdate,
+    TerminateRequest,
 )
 from salary_api.modules.reference import repository as reference
 from salary_api.modules.reference import service as reference_service
@@ -155,6 +157,33 @@ def update_employee(
         entity=ENTITY,
         entity_id=employee_id,
         diff=changes,
+    )
+    _commit_versioned(session, employee_id)
+    return get_employee(session, principal, employee_id)
+
+
+def terminate_employee(
+    session: Session, principal: Principal, employee_id: int, request: TerminateRequest
+) -> EmployeeDetail:
+    """Soft delete: the employee and their salary history stay (ADR 0013)."""
+    employee = _get_version(session, employee_id, request.version)
+    termination_date = request.termination_date or _today()
+    diff: dict[str, Any] = {
+        "status": [employee.status, EmployeeStatus.TERMINATED],
+        "termination_date": [None, termination_date.isoformat()],
+    }
+    if request.note:
+        diff["note"] = request.note
+    employee.status = EmployeeStatus.TERMINATED
+    employee.termination_date = termination_date
+    employee.version += 1
+    record_event(
+        session,
+        actor_id=principal.user_id,
+        action=AuditAction.EMPLOYEE_TERMINATE,
+        entity=ENTITY,
+        entity_id=employee_id,
+        diff=diff,
     )
     _commit_versioned(session, employee_id)
     return get_employee(session, principal, employee_id)

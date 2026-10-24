@@ -75,6 +75,14 @@ class EmployeeUpdate(BaseModel):
         return value
 
 
+class TerminateRequest(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1)
+    termination_date: date | None = None  # today when left out; never before the hire date
+    note: Note | None = None  # kept in the audit event
+
+
 class EmployeeListItem(BaseModel):
     """An employee in a list. Without SALARY_READ the salary fields are null and
     `salary_masked` is true (docs/07-api-spec.md section 1.7)."""
