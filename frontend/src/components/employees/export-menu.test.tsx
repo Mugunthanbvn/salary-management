@@ -45,9 +45,9 @@ describe("ExportMenu", () => {
   it("downloads exactly the directory's filters and sort, without paging", async () => {
     let asked: URL | undefined;
     server.use(
-      http.get<never, never, Blob>(EXPORT_URL, ({ request }) => {
+      http.get<never, never, string>(EXPORT_URL, ({ request }) => {
         asked = new URL(request.url);
-        return new HttpResponse(new Blob(["employee_code\n"]), {
+        return new HttpResponse("employee_code\n", {
           headers: {
             "Content-Type": "text/csv; charset=utf-8",
             "Content-Disposition":
@@ -63,10 +63,9 @@ describe("ExportMenu", () => {
     await exportAs(/^Export$/, "CSV");
 
     await waitFor(() => expect(saveFile).toHaveBeenCalledTimes(1));
-    expect(saveFile).toHaveBeenCalledWith(
-      expect.any(Blob),
-      "acme-employees-2026-10-24.csv",
-    );
+    const [file, filename] = saveFile.mock.calls[0] as [Blob, string];
+    expect(filename).toBe("acme-employees-2026-10-24.csv");
+    expect(await file.text()).toBe("employee_code\n");
     expect(Object.fromEntries(asked!.searchParams)).toEqual({
       country: "DE",
       level: "L3",
@@ -79,9 +78,9 @@ describe("ExportMenu", () => {
   it("asks for an Excel file when Excel is chosen", async () => {
     let format: string | null = null;
     server.use(
-      http.get<never, never, Blob>(EXPORT_URL, ({ request }) => {
+      http.get<never, never, string>(EXPORT_URL, ({ request }) => {
         format = new URL(request.url).searchParams.get("format");
-        return new HttpResponse(new Blob(["xlsx"]));
+        return new HttpResponse("xlsx");
       }),
     );
     renderMenu();
@@ -90,7 +89,7 @@ describe("ExportMenu", () => {
 
     await waitFor(() =>
       expect(saveFile).toHaveBeenCalledWith(
-        expect.any(Blob),
+        expect.anything(),
         "acme-employees.xlsx",
       ),
     );
