@@ -32,11 +32,13 @@ export function AccountMenu() {
           </span>
         </DropdownMenuLabel>
         <DropdownMenuSeparator />
-        <DropdownMenuItem asChild>
-          <Link href="/employees/import" className="no-underline">
-            Import employees
-          </Link>
-        </DropdownMenuItem>
+        {me.can("IMPORT") ? (
+          <DropdownMenuItem asChild>
+            <Link href="/employees/import" className="no-underline">
+              Import employees
+            </Link>
+          </DropdownMenuItem>
+        ) : null}
         <DropdownMenuItem>Sign out</DropdownMenuItem>
       </DropdownMenuContent>
     </DropdownMenu>
