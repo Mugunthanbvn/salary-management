@@ -66,7 +66,7 @@ def compa_ratio(base: Money, band_mid: Money | None, employment_type: Employment
     Only FULL_TIME employees get a ratio: part-time pay is not FTE-normalised, so comparing
     it with a full-time band would be wrong. That check comes before the band check.
     """
-    if employment_type is not EmploymentType.FULL_TIME:
+    if employment_type != EmploymentType.FULL_TIME:  # equality, so a plain DB string works
         return CompaRatio(None, NoCompaRatioReason.NOT_FULL_TIME)
     if band_mid is None:
         return CompaRatio(None, NoCompaRatioReason.NO_BAND)
