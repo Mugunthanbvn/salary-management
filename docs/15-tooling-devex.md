@@ -135,7 +135,7 @@ salary-management/
 | `typecheck` | `pyright` (backend); `tsc --noEmit` (frontend) | CI + locally |
 | `test` | Backend `pytest -n auto --cov` (SQLite) + the coverage gate (`backend/scripts/coverage_gate.py`) + frontend `vitest run` | TDD loop / CI |
 | `test-pg` | `docker compose up -d postgres`, migrations, backend integration tests with a Postgres `DATABASE_URL`, then compose down | portability check |
-| `e2e` | Builds the frontend, starts API + web on a temp seeded DB, runs `playwright test` | before merging UI work / CI |
+| `e2e` | Builds the frontend, starts API (:8100) + web (:3100) on a temp seeded DB (`frontend/e2e/start-api.sh`), runs `playwright test`, stops both | before merging UI work (local only in v1) |
 | `api-sync` | Exports `openapi.json` from the FastAPI app (no server needed), regenerates `frontend/src/lib/api/schema.d.ts` with openapi-typescript, runs `tsc` | after any API change |
 | `knip` | `pnpm knip` | CI + locally |
 | `audit` **(proposed)** | `uvx pip-audit`, `pnpm audit --prod` | CI security job |
