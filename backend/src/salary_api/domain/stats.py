@@ -56,7 +56,15 @@ def summarize(amounts: Iterable[int]) -> Summary | InsufficientData:
     )
 
 
-def _percentile(ordered: Sequence[int], p: Decimal) -> Decimal:
+def median(values: Iterable[Decimal]) -> Decimal:
+    """The exact, unrounded median of `values`, such as compa-ratios. Needs at least one value."""
+    ordered = sorted(values)
+    if not ordered:
+        raise ValueError("median of no values")
+    return _percentile(ordered, P50)
+
+
+def _percentile[N: (int, Decimal)](ordered: Sequence[N], p: Decimal) -> Decimal:
     """Linear interpolation between closest ranks (NumPy "linear", SQL PERCENTILE_CONT).
 
     `ordered` is sorted and not empty. The result is exact, not rounded.
