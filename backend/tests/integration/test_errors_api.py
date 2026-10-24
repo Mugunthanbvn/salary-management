@@ -1,7 +1,18 @@
 """Every error is RFC 9457 problem+json with a glossary slug (docs/glossary.md section 5)."""
 
+import pytest
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+
+from salary_api.core.errors import (
+    Duplicate,
+    Forbidden,
+    InvalidState,
+    NotFound,
+    ProblemError,
+    Unauthenticated,
+    VersionConflict,
+)
 
 PROBLEM_JSON = "application/problem+json"
 PROBLEMS = "https://acme.example/problems/"
@@ -78,3 +89,48 @@ def test_unhandled_error_returns_500_problem_json_without_internal_detail(app: F
         "request_id": "req-500",
     }
     assert "hunter2" not in response.text
+
+
+@pytest.mark.parametrize(
+    ("problem", "expected"),
+    [
+        (Unauthenticated("Sign in to continue."), (401, "unauthenticated", "Not authenticated")),
+        (Forbidden("Requires SALARY_READ."), (403, "forbidden", "Forbidden")),
+        (NotFound("Employee 42 was not found."), (404, "not-found", "Not found")),
+        (Duplicate("Email is already in use."), (409, "duplicate", "Duplicate")),
+        (InvalidState("Employee 42 is terminated."), (409, "invalid-state", "Invalid state")),
+    ],
+)
+def test_problem_exceptions_render_their_glossary_status_slug_and_title(
+    app: FastAPI, client: TestClient, problem: ProblemError, expected: tuple[int, str, str]
+) -> None:
+    status, slug, title = expected
+
+    @app.get("/api/v1/_test/problem")
+    def raise_problem() -> None:
+        raise problem
+
+    response = client.get("/api/v1/_test/problem")
+
+    assert response.status_code == status
+    assert response.headers["content-type"] == PROBLEM_JSON
+    body = response.json()
+    assert (body["type"], body["title"], body["detail"]) == (
+        f"{PROBLEMS}{slug}",
+        title,
+        problem.detail,
+    )
+
+
+def test_version_conflict_returns_409_with_the_current_version(
+    app: FastAPI, client: TestClient
+) -> None:
+    @app.patch("/api/v1/_test/employees/42")
+    def update_employee() -> None:
+        raise VersionConflict("Employee 42 was modified by someone else.", current_version=8)
+
+    response = client.patch("/api/v1/_test/employees/42")
+
+    assert response.status_code == 409
+    assert response.json()["type"] == f"{PROBLEMS}version-conflict"
+    assert response.json()["current_version"] == 8
