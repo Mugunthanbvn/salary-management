@@ -137,11 +137,11 @@ Researched in [04-research.md](04-research.md):
 - [ ] Clarifying-questions email sent ([03](03-clarifications.md)) and answers logged
 - [x] One-page requirements is the first commit (`docs: add one-page requirements`)
 - [x] Every build block is merged with a merge commit; history shows `test:` → `feat:` pairs
-- [ ] `make verify` is green; CI is green on `main` (green locally on the release branch; CI on `main` not checked yet)
+- [x] `make verify` is green; CI is green on `main`
 - [x] Seed runs: 10,000 employees, deterministic
-- [ ] Deployed URL works for all three demo roles (Admin / HR Manager / Viewer)
+- [ ] Deployed URL works for all three demo roles (Admin / HR Manager / Viewer): live at https://salary-management-seven.vercel.app, health is ok; sign-in per role to be confirmed
 - [ ] Video demo recorded and linked in the root README
-- [ ] Root README: what it is, live URL, demo credentials, how to run locally, links to `docs/` (all but the live URL, which waits for the deployment)
+- [ ] Root README: what it is, live URL, demo logins (passwords go in the submission email), how to run locally, links to `docs/` (all but the video link)
 - [x] Artifacts committed: requirements, design notes, diagrams, ADRs, prompt log, trade-offs, performance numbers (measured, not just targets; local only, deployed numbers pending)
 - [ ] Tag `v1.0.0`
 - [ ] **Reply to the same email** with the repository link

@@ -157,7 +157,7 @@ The demo DB can be restored to the pristine seed at any time by recreating it fr
 
 The deploy is the riskiest unknown (young Turso Python driver, a two-project Vercel monorepo, the cookie through the rewrite), so it is proven **before** any feature work.
 
-- [ ] `backend/` deploys to Vercel as a FastAPI function; `/api/v1/health` responds.
+- [x] `backend/` deploys to Vercel as a FastAPI function; `/api/v1/health` responds (`{"status":"ok","db":"ok"}` on 2026-10-24).
 - [ ] Health does a real **write + read** against Turso through the SQLAlchemy libSQL dialect (e.g. inserts and reads a `healthcheck` row).
 - [ ] Alembic `upgrade head` works against Turso from a laptop.
 - [ ] `frontend/` deploys; a hello page calls `/api/v1/health` through the rewrite.

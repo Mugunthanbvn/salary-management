@@ -35,7 +35,7 @@
 | Turso URL | `libsql://incubyte-salary-assessment-mugunthanbvn.aws-ap-south-1.turso.io` |
 | Turso token | **Rotate it**: the first token was pasted in chat. Create a new one, revoke the old one, put only the new one in Vercel |
 | Demo passwords | Already in the database; the user has them (not in the repo) |
-| Vercel | **Not deployed yet** |
+| Vercel | **Deployed** at https://salary-management-seven.vercel.app (one project, two services); `/api/v1/health` returns `ok`. `LLM_API_KEY` is set, `LLM_MODEL` is not (default `gemini-flash-latest`) |
 
 ### 2.1 Vercel setup (one project, two services)
 
