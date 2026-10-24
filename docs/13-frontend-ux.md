@@ -149,6 +149,8 @@ Every screen defines:
 
 Rules: when a group mixes currencies, the section header shows a **"USD"** badge with the FX tooltip. Local-currency sections show the currency code in the header.
 
+**As built (v1):** the URL holds one `country` at a time (job titles and top earners need exactly one), `department_id`, `comp`, `period`, `employment_type`, `status`, plus `split_by_level` (job titles) and `direction` (top earners). Job role and level filters are left out of the header for now. The summary sentence gives headcount, countries and the USD payroll (highlighted) with the FX date; the median is in the country table instead. Min and max ("Lowest to highest") appear only when the API sends them (HR/Admin). The country table is not sortable; a country's name links to the dashboard filtered to it. Each section shows its own problem (title, detail, request ID), so one failed insight does not blank the page. Without a country, job titles and top earners ask the reader to choose one and make no call. The currency is stated in a margin note under each section rather than a header badge.
+
 ### 4.3 Pay equity (`/insights/pay-equity`)
 
 **Question it answers:** "Are we paying people fairly against the pay band for their job, and is any team systematically below band?"
@@ -156,12 +158,14 @@ Rules: when a group mixes currencies, the section header shows a **"USD"** badge
 | Area | Content |
 |---|---|
 | Explainer (collapsible) | "Compa-ratio = base pay ÷ the midpoint of the pay band for the same role, level and country. Below 0.8 is under the band minimum (may be underpaid); above 1.2 is over the band maximum." |
-| Filters | Country (recommended), department, job role, level. The Base/Total toggle is disabled here (tooltip: "Pay bands are defined on base salary") |
-| Summary tiles | Employees evaluated · Employees below band · Employees above band · Departments below threshold |
+| Filters | Country (required: bands are per country), department. The Base/Total and Annual/Monthly toggles are not shown here: the explainer says pay bands are defined on base salary, and amounts are annual |
+| Summary sentence | Employees evaluated · below band · above band · not full-time (left out) · without a band, as one sentence under the title (DESIGN.md: no KPI tiles) |
 | **Cohort table** | Role · Level · Country · Headcount · P25 · Median · P75 · Band min/mid/max (local currency) · Median compa-ratio · # underpaid · # overpaid. Sort by most flagged. A spread bar shows P25–P75 and the median tick drawn over the band (min–max shaded, mid marked) |
 | **Department rollup** (shown first) | Bar chart + table: median compa-ratio per department in the selected country, with a reference line at 1.00 and a threshold line at 0.95. Departments below 0.95 get a "Systematically below band" badge ([09-insights-pay-equity.md](09-insights-pay-equity.md) §3.8) |
 | **Drill-down** (HR/Admin) | Click a cohort → flagged employees: name, code, pay, band, compa-ratio badge (red < 0.8, amber > 1.2), link to the employee |
 | Viewer | Department rollup + cohort table (no drill-down); groups with < 5 people suppressed; band values visible |
+
+**As built (v1):** without a country the page asks for one (a link per country) and calls nothing. The department rollup is a table with each team's median compa-ratio drawn on the API's `low`–`high` scale (1.00 and the `rollup` threshold marked); teams with `below_threshold` read "Below band as a team" in red pen. Cohorts are a list (one layout from 360 px up), most below-band first, the first 12 with "Show all"; flags are words ("3 below band" red pen, "1 above band" blue, "All in band"). The drill-down lists every member of the cohort, as the API returns them, not only the flagged ones, in a side sheet (full screen on phones), with "Below band" / "Above band" / "In band".
 
 ### 4.4 Employee directory (`/employees`)
 
