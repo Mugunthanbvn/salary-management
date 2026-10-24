@@ -9,7 +9,7 @@ from salary_api.modules.reference.models import Country
 def reference_data(session: Session) -> schemas.ReferenceData:
     """Countries by name, departments by name, job roles by title; enums in glossary order."""
     return schemas.ReferenceData(
-        countries=[_country(country) for country in repository.list_countries(session)],
+        countries=countries(session),
         departments=[
             schemas.Department(id=department.id, name=department.name)
             for department in repository.list_departments(session)
@@ -28,6 +28,11 @@ def reference_data(session: Session) -> schemas.ReferenceData:
         ],
         salary_change_reasons=list(SalaryReason),
     )
+
+
+def countries(session: Session) -> list[schemas.Country]:
+    """Every country, active or not, by name."""
+    return [_country(country) for country in repository.list_countries(session)]
 
 
 def _country(country: Country) -> schemas.Country:
