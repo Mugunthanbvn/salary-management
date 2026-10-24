@@ -1,5 +1,5 @@
 // @vitest-environment node
-import { http, HttpResponse } from "msw";
+import { delay, http, HttpResponse } from "msw";
 import { describe, expect, it } from "vitest";
 
 import { server } from "@/test/msw/server";
@@ -38,6 +38,19 @@ describe("getApiHealth", () => {
     server.use(http.get(HEALTH_URL, () => HttpResponse.error()));
 
     const health = await getApiHealth(API_ORIGIN);
+
+    expect(health).toBe("unreachable");
+  });
+
+  it("reports unreachable when the API does not answer in time", async () => {
+    server.use(
+      http.get(HEALTH_URL, async () => {
+        await delay(200);
+        return HttpResponse.json({ status: "ok", db: "ok", version: "1.0.0" });
+      }),
+    );
+
+    const health = await getApiHealth(API_ORIGIN, { timeoutMs: 20 });
 
     expect(health).toBe("unreachable");
   });
