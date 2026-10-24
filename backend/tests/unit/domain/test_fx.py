@@ -5,7 +5,8 @@ from decimal import Decimal
 
 import pytest
 
-from salary_api.domain.money import FxRate
+from salary_api.domain.currency import UnknownCurrencyError
+from salary_api.domain.money import FxRate, InvalidFxRateError
 
 AS_OF = date(2026, 10, 1)
 
@@ -20,3 +21,23 @@ def test_fx_rate_holds_a_decimal_rate_and_its_date() -> None:
 def test_fx_rate_rejects_a_float_rate(rate_to_usd: object) -> None:
     with pytest.raises(TypeError, match="Decimal"):
         FxRate("EUR", rate_to_usd, AS_OF)  # type: ignore[arg-type]
+
+
+@pytest.mark.parametrize(
+    ("currency", "rate_to_usd"),
+    [
+        ("EUR", Decimal("0")),
+        ("EUR", Decimal("-1.085")),
+        ("EUR", Decimal("NaN")),
+        ("EUR", Decimal("Infinity")),
+        ("USD", Decimal("1.1")),
+    ],
+)
+def test_fx_rate_rejects_a_rate_that_cannot_be_right(currency: str, rate_to_usd: Decimal) -> None:
+    with pytest.raises(InvalidFxRateError, match=currency):
+        FxRate(currency, rate_to_usd, AS_OF)
+
+
+def test_fx_rate_rejects_an_unsupported_currency() -> None:
+    with pytest.raises(UnknownCurrencyError):
+        FxRate("XYZ", Decimal("1"), AS_OF)
