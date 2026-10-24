@@ -1,14 +1,36 @@
 """Pay equity: compa-ratio against the band midpoint, flags, cohorts and rollups (docs/09 §3.8)."""
 
 from decimal import Decimal
+from typing import Any
 
 import pytest
 
-from salary_api.domain.enums import EmploymentType, PayEquityFlag
+from salary_api.domain.enums import EmploymentType, Level, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
-from salary_api.domain.pay_equity import CompaRatio, NoCompaRatioReason, compa_ratio, flag
+from salary_api.domain.pay_equity import (
+    CohortKey,
+    CompaRatio,
+    EmployeePay,
+    NoCompaRatioReason,
+    compa_ratio,
+    flag,
+)
 
 FULL_TIME = EmploymentType.FULL_TIME
+
+
+def make_pay(**overrides: Any) -> EmployeePay:
+    """A full-time DE employee paid exactly the band midpoint, unless overridden."""
+    values: dict[str, Any] = {
+        "department_id": 1,
+        "job_role_id": 10,
+        "level": Level.L2,
+        "country_code": "DE",
+        "employment_type": FULL_TIME,
+        "base": Money(5000000, "EUR"),
+        "band_mid": Money(5000000, "EUR"),
+    }
+    return EmployeePay(**(values | overrides))
 
 
 @pytest.mark.parametrize(
@@ -65,3 +87,15 @@ def test_flag_compares_the_unrounded_ratio_with_inclusive_band_edges(
 def test_compa_ratio_refuses_a_band_in_another_currency() -> None:
     with pytest.raises(CurrencyMismatchError):
         compa_ratio(Money(9000000, "USD"), Money(5000000, "EUR"), FULL_TIME)
+
+
+def test_a_cohort_is_the_job_role_level_and_country() -> None:
+    pay = make_pay(job_role_id=7, level=Level.L3, country_code="IN")
+
+    assert pay.cohort == CohortKey(job_role_id=7, level=Level.L3, country_code="IN")
+
+
+def test_people_in_different_departments_share_a_cohort() -> None:
+    support, engineering = make_pay(department_id=1), make_pay(department_id=2)
+
+    assert support.cohort == engineering.cohort
