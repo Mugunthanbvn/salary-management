@@ -4,10 +4,12 @@ from collections.abc import Callable
 from datetime import date
 from typing import Any
 
+import pytest
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from salary_api.core.permissions import Principal, Role
+from salary_api.domain.money import FxRateMissingError
 from salary_api.modules.insights import service
 from salary_api.modules.insights.schemas import InsightQuery
 from tests.factories import make_employee, make_fx_rate, make_fx_rates
@@ -173,3 +175,38 @@ def test_overview_of_nobody_has_no_amounts(
     assert body["fx_as_of"] is None
     assert body["stats"] == _stats("USD", 0, *[None] * 6)
     assert body["by_country"] == []
+
+
+def test_a_missing_usd_rate_is_an_explicit_server_error_naming_the_currency(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_fx_rate(db_session, "EUR")
+    make_employee(db_session, country="DE")
+    make_employee(db_session, country="IN")  # no INR rate
+
+    response = as_role("HR_MANAGER").get(OVERVIEW)
+
+    assert response.status_code == 500
+    assert response.headers["content-type"] == "application/problem+json"
+    body = response.json()
+    assert (body["type"], body["currency"]) == ("about:blank", "INR")
+    assert "No USD rate for INR" in body["detail"]
+
+
+def test_the_service_never_falls_back_to_a_rate_of_zero_or_one(db_session: Session) -> None:
+    make_employee(db_session, country="IN")
+
+    with pytest.raises(FxRateMissingError):
+        service.overview(db_session, _principal(Role.HR_MANAGER), InsightQuery())
+
+
+def test_a_missing_rate_of_a_currency_not_in_the_population_does_not_matter(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_fx_rate(db_session, "EUR")
+    make_employee(db_session, country="DE")
+    make_employee(db_session, country="IN")  # no INR rate, but filtered out
+
+    response = as_role("HR_MANAGER").get(OVERVIEW, params={"country": "DE"})
+
+    assert response.status_code == 200
