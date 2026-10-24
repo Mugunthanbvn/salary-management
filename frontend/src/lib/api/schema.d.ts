@@ -125,6 +125,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/employees/{employee_id}/salary-changes": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Record a salary change (appends to the history) */
+        post: operations["record_salary_change_api_v1_employees__employee_id__salary_changes_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/employees/{employee_id}/terminate": {
         parameters: {
             query?: never;
@@ -180,6 +197,13 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** ChangedBy */
+        ChangedBy: {
+            /** Full Name */
+            full_name: string;
+            /** Id */
+            id: number;
+        };
         /**
          * Comp
          * @description Which amount a salary filter or statistic uses: the base or the total compensation.
@@ -564,6 +588,62 @@ export interface components {
          * @enum {string}
          */
         SalaryBasis: "local" | "usd";
+        /** SalaryChange */
+        SalaryChange: {
+            /** Employee Version */
+            employee_version: number;
+            record: components["schemas"]["SalaryHistoryRecord"];
+        };
+        /**
+         * SalaryChangeRequest
+         * @description A new salary record. Role, level and country default to the current ones.
+         */
+        SalaryChangeRequest: {
+            /** Base Minor */
+            base_minor: number;
+            /**
+             * Components
+             * @default []
+             */
+            components: components["schemas"]["ComponentIn"][];
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /** Note */
+            note?: string | null;
+            reason: components["schemas"]["SalaryReason"];
+            /** Version */
+            version: number;
+        };
+        /** SalaryHistoryRecord */
+        SalaryHistoryRecord: {
+            base: components["schemas"]["Money"];
+            /** Base Change Pct */
+            base_change_pct: string | null;
+            changed_by: components["schemas"]["ChangedBy"] | null;
+            /** Components */
+            components: components["schemas"]["Component"][];
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /**
+             * Effective Date
+             * Format: date
+             */
+            effective_date: string;
+            /** Id */
+            id: number;
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"];
+            /** Note */
+            note: string | null;
+            reason: components["schemas"]["SalaryReason"];
+            total: components["schemas"]["Money"];
+        };
         /**
          * SalaryReason
          * @description Why a salary record was written.
@@ -1212,6 +1292,95 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["EmployeeDetail"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not found */
+            404: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    record_salary_change_api_v1_employees__employee_id__salary_changes_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path: {
+                employee_id: number;
+            };
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "application/json": components["schemas"]["SalaryChangeRequest"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["SalaryChange"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */

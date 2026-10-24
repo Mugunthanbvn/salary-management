@@ -1,10 +1,12 @@
+from datetime import date, datetime
 from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
 from salary_api.core.schemas import Money
 from salary_api.domain.constants import MAX_AMOUNT_MINOR
-from salary_api.domain.enums import ComponentType
+from salary_api.domain.enums import ComponentType, Level, SalaryReason
+from salary_api.modules.reference.schemas import JobRoleRef
 
 # Amounts arrive as JSON integers of minor units: strict, so 5400000.0 and "5400000" are refused
 # rather than converted (docs/06-data-model.md section 5.1).
@@ -41,3 +43,44 @@ class Component(BaseModel):
     type: ComponentType
     name: str
     amount: Money
+
+
+class SalaryChangeRequest(BaseModel):
+    """A new salary record. Role, level and country default to the current ones."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    version: int = Field(ge=1)  # the employee version the client read
+    effective_date: date
+    reason: SalaryReason
+    base_minor: BaseMinor
+    # Replaces the component set; nothing is inherited from the current record.
+    components: Components = []
+    note: Note | None = None
+
+
+class ChangedBy(BaseModel):
+    id: int
+    full_name: str
+
+
+class SalaryHistoryRecord(BaseModel):
+    id: int
+    effective_date: date
+    reason: SalaryReason
+    job_role: JobRoleRef  # the role and level at that time
+    level: Level
+    base: Money
+    total: Money
+    components: list[Component]
+    # Percent change of base from the previous record, e.g. "12.50"; null for the first
+    # record and when the currency changed.
+    base_change_pct: str | None
+    changed_by: ChangedBy | None  # null for seeded history
+    note: str | None
+    created_at: datetime
+
+
+class SalaryChange(BaseModel):
+    record: SalaryHistoryRecord
+    employee_version: int  # send it with the employee's next change

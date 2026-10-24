@@ -20,6 +20,7 @@ from salary_api.modules.auth.router import router as auth_router
 from salary_api.modules.employees.router import router as employees_router
 from salary_api.modules.health.router import router as health_router
 from salary_api.modules.reference.router import router as reference_router
+from salary_api.modules.salaries.router import router as salaries_router
 
 API_PREFIX = "/api/v1"
 
@@ -66,6 +67,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.include_router(auth_router, prefix=API_PREFIX)
     app.include_router(reference_router, prefix=API_PREFIX)
     app.include_router(employees_router, prefix=API_PREFIX)
+    app.include_router(salaries_router, prefix=API_PREFIX)
     return app
 
 

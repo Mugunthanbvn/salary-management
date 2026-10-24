@@ -1,6 +1,24 @@
 {
   "components": {
     "schemas": {
+      "ChangedBy": {
+        "properties": {
+          "full_name": {
+            "title": "Full Name",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "full_name"
+        ],
+        "title": "ChangedBy",
+        "type": "object"
+      },
       "Comp": {
         "description": "Which amount a salary filter or statistic uses: the base or the total compensation.",
         "enum": [
@@ -1008,6 +1026,165 @@
         ],
         "title": "SalaryBasis",
         "type": "string"
+      },
+      "SalaryChange": {
+        "properties": {
+          "employee_version": {
+            "title": "Employee Version",
+            "type": "integer"
+          },
+          "record": {
+            "$ref": "#/components/schemas/SalaryHistoryRecord"
+          }
+        },
+        "required": [
+          "record",
+          "employee_version"
+        ],
+        "title": "SalaryChange",
+        "type": "object"
+      },
+      "SalaryChangeRequest": {
+        "additionalProperties": false,
+        "description": "A new salary record. Role, level and country default to the current ones.",
+        "properties": {
+          "base_minor": {
+            "exclusiveMinimum": 0.0,
+            "maximum": 999999999999999.0,
+            "title": "Base Minor",
+            "type": "integer"
+          },
+          "components": {
+            "default": [],
+            "items": {
+              "$ref": "#/components/schemas/ComponentIn"
+            },
+            "maxItems": 20,
+            "title": "Components",
+            "type": "array"
+          },
+          "effective_date": {
+            "format": "date",
+            "title": "Effective Date",
+            "type": "string"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "maxLength": 500,
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SalaryReason"
+          },
+          "version": {
+            "minimum": 1.0,
+            "title": "Version",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "version",
+          "effective_date",
+          "reason",
+          "base_minor"
+        ],
+        "title": "SalaryChangeRequest",
+        "type": "object"
+      },
+      "SalaryHistoryRecord": {
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "base_change_pct": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Base Change Pct"
+          },
+          "changed_by": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/ChangedBy"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "components": {
+            "items": {
+              "$ref": "#/components/schemas/Component"
+            },
+            "title": "Components",
+            "type": "array"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "effective_date": {
+            "format": "date",
+            "title": "Effective Date",
+            "type": "string"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "note": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Note"
+          },
+          "reason": {
+            "$ref": "#/components/schemas/SalaryReason"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "id",
+          "effective_date",
+          "reason",
+          "job_role",
+          "level",
+          "base",
+          "total",
+          "components",
+          "base_change_pct",
+          "changed_by",
+          "note",
+          "created_at"
+        ],
+        "title": "SalaryHistoryRecord",
+        "type": "object"
       },
       "SalaryReason": {
         "description": "Why a salary record was written.",
@@ -2195,6 +2372,126 @@
         "summary": "Reactivate a terminated employee",
         "tags": [
           "employees"
+        ]
+      }
+    },
+    "/api/v1/employees/{employee_id}/salary-changes": {
+      "post": {
+        "operationId": "record_salary_change_api_v1_employees__employee_id__salary_changes_post",
+        "parameters": [
+          {
+            "in": "path",
+            "name": "employee_id",
+            "required": true,
+            "schema": {
+              "title": "Employee Id",
+              "type": "integer"
+            }
+          }
+        ],
+        "requestBody": {
+          "content": {
+            "application/json": {
+              "schema": {
+                "$ref": "#/components/schemas/SalaryChangeRequest"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/SalaryChange"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "404": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not found"
+          },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state`"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Record a salary change (appends to the history)",
+        "tags": [
+          "salaries"
         ]
       }
     },
