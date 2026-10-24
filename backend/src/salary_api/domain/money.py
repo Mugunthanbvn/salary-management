@@ -128,6 +128,8 @@ def to_usd(money: Money, rates: Mapping[str, FxRate]) -> UsdAmount:
     rate = rates.get(money.currency)
     if rate is None:
         raise FxRateMissingError(money.currency)
+    if rate.currency != money.currency:
+        raise CurrencyMismatchError(money.currency, rate.currency)
     shift = minor_unit_exponent(USD) - minor_unit_exponent(money.currency)
     usd_minor = _round_half_even(Decimal(money.amount_minor).scaleb(shift) * rate.rate_to_usd)
     return UsdAmount(Money(usd_minor, USD), rate.as_of)
