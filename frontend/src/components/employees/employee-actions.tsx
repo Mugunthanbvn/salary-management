@@ -6,6 +6,11 @@ import { useMe } from "@/components/shell/me-context";
 import { Button } from "@/components/ui/button";
 import type { components } from "@/lib/api/schema";
 
+import {
+  EditDetailsDialog,
+  ReactivateDialog,
+  TerminateDialog,
+} from "./profile-dialogs";
 import { SalaryChangeDialog } from "./salary-change-form";
 
 type EmployeeDetail = components["schemas"]["EmployeeDetail"];
@@ -35,6 +40,12 @@ export function EmployeeActions({
   const canChangeSalary = me.can("SALARY_WRITE") && active;
   const canEdit = me.can("EMPLOYEE_WRITE");
   if (!canChangeSalary && !canEdit) return null;
+  const dialog = (name: Exclude<Open, null>) => ({
+    open: open === name,
+    onOpenChange: (next: boolean) => setOpen(next ? name : null),
+    employee,
+    version,
+  });
 
   return (
     <>
@@ -50,9 +61,17 @@ export function EmployeeActions({
         )
       ) : null}
       {canEdit ? (
-        <Button variant="secondary" onClick={() => setOpen("edit")}>
-          Edit details
-        </Button>
+        <>
+          <Button variant="secondary" onClick={() => setOpen("edit")}>
+            Edit details
+          </Button>
+          <EditDetailsDialog {...dialog("edit")} />
+          {active ? (
+            <TerminateDialog {...dialog("terminate")} />
+          ) : (
+            <ReactivateDialog {...dialog("reactivate")} />
+          )}
+        </>
       ) : null}
       {canChangeSalary ? (
         <>
