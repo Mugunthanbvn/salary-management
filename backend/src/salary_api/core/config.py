@@ -1,9 +1,9 @@
 """API configuration from environment variables (docs/glossary.md section 7)."""
 
-from typing import Literal, Self
+from typing import Annotated, Literal, Self
 
-from pydantic import Field, SecretStr, model_validator
-from pydantic_settings import BaseSettings, SettingsConfigDict
+from pydantic import Field, SecretStr, field_validator, model_validator
+from pydantic_settings import BaseSettings, NoDecode, SettingsConfigDict
 from sqlalchemy import make_url
 
 type AppEnv = Literal["development", "test", "production"]
@@ -27,13 +27,21 @@ class Settings(BaseSettings):
     jwt_secret: SecretStr = SecretStr(DEV_PLACEHOLDER)
     jwt_ttl_minutes: int = Field(default=480, gt=0)
     cookie_secure: bool = False
-    cors_origins: list[str] = Field(default_factory=list[str])
+    # Comma-separated in the environment: CORS_ORIGINS=http://localhost:3000,http://127.0.0.1:3000
+    cors_origins: Annotated[list[str], NoDecode] = Field(default_factory=list[str])
     llm_base_url: str = ""
     llm_model: str = ""
     llm_api_key: SecretStr = SecretStr("")
     ask_rate_limit_per_hour: int = Field(default=20, gt=0)
     ask_max_steps: int = Field(default=4, gt=0)
     log_level: LogLevel = "INFO"
+
+    @field_validator("cors_origins", mode="before")
+    @classmethod
+    def _split_comma_separated(cls, value: object) -> object:
+        if isinstance(value, str):
+            return [origin.strip() for origin in value.split(",") if origin.strip()]
+        return value
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_values(self) -> Self:
