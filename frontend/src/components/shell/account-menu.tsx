@@ -2,6 +2,7 @@
 
 import { ChevronDownIcon } from "lucide-react";
 import Link from "next/link";
+import { toast } from "sonner";
 
 import {
   DropdownMenu,
@@ -17,10 +18,21 @@ import { ROLE_LABELS } from "@/lib/roles";
 
 import { useMe } from "./me-context";
 
-/** Ends the session through the API (it clears the httpOnly cookie), then reloads at /login. */
+/**
+ * Ends the session through the API (it clears the httpOnly cookie), then reloads at /login.
+ * A 401 means the session had already ended, which is just as good.
+ */
 async function signOut() {
-  await api.POST("/api/v1/auth/logout");
-  hardNavigate("/login");
+  try {
+    const { response } = await api.POST("/api/v1/auth/logout");
+    if (response.ok || response.status === 401) {
+      hardNavigate("/login");
+      return;
+    }
+  } catch {
+    // The network failed; the session is still on, so say so below.
+  }
+  toast.error("Couldn't sign you out. Try again.");
 }
 
 /** The signed-in person's menu in the top bar, on every screen size. */
