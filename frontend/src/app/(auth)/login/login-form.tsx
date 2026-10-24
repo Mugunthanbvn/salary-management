@@ -20,7 +20,19 @@ function text(form: FormData, name: string): string {
 /** What to tell the person when the API refuses the sign-in. */
 function errorMessage(response: Response): string {
   // Same words for an unknown email and a wrong password, like the API.
-  return response.status === 401 ? "Email or password is incorrect" : "";
+  if (response.status === 401) return "Email or password is incorrect";
+  if (response.status === 429) return tooManyAttempts(response);
+  return "";
+}
+
+/** 5 failures in 15 minutes lock the email; Retry-After says for how many seconds. */
+function tooManyAttempts(response: Response): string {
+  const seconds = Number(response.headers.get("Retry-After"));
+  if (!Number.isFinite(seconds) || seconds <= 0) {
+    return "Too many attempts. Try again later.";
+  }
+  const minutes = Math.ceil(seconds / 60);
+  return `Too many attempts. Try again in ${minutes} ${minutes === 1 ? "minute" : "minutes"}.`;
 }
 
 /**
