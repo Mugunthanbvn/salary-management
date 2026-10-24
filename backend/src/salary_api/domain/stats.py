@@ -64,6 +64,14 @@ def median(values: Iterable[Decimal]) -> Decimal:
     return _percentile(ordered, P50)
 
 
+def mean(values: Iterable[Decimal]) -> Decimal:
+    """The unrounded Decimal mean of `values`, such as compa-ratios. Needs at least one."""
+    collected = list(values)
+    if not collected:
+        raise ValueError("mean of no values")
+    return sum(collected, Decimal(0)) / len(collected)
+
+
 def _percentile[N: (int, Decimal)](ordered: Sequence[N], p: Decimal) -> Decimal:
     """Linear interpolation between closest ranks (NumPy "linear", SQL PERCENTILE_CONT).
 
