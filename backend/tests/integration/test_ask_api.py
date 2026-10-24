@@ -18,7 +18,7 @@ from salary_api.core.deps import get_session
 from salary_api.modules.ask import service
 from salary_api.modules.ask.llm import LLMClient
 from salary_api.modules.ask.openai_client import OpenAICompatibleLLMClient
-from salary_api.modules.ask.router import get_llm_client
+from salary_api.modules.ask.router import get_llm_client, get_sleep
 from tests.ask_fakes import FakeLLM, answer, call
 from tests.conftest import create_test_app, signed_in_client
 from tests.factories import make_employee, make_fx_rates, make_settings, make_user
@@ -41,6 +41,7 @@ def app() -> FastAPI:
 def use_llm(app: FastAPI) -> Iterator[Callable[[Callable[[], LLMClient]], None]]:
     def use(factory: Callable[[], LLMClient]) -> None:
         app.dependency_overrides[get_llm_client] = factory
+        app.dependency_overrides[get_sleep] = lambda: lambda _seconds: None
 
     yield use
     app.dependency_overrides.pop(get_llm_client, None)

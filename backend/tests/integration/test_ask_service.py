@@ -17,6 +17,7 @@ from salary_api.modules.ask import service
 from salary_api.modules.ask.llm import LLMRateLimited, LLMResponse, LLMUnavailable, ToolCall
 from salary_api.modules.ask.schemas import AskRequest
 from salary_api.modules.audit.models import AuditEvent
+from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.insights import service as insights
 from tests.ask_fakes import FakeLLM, answer, call, calls, text
 from tests.factories import (
@@ -84,8 +85,13 @@ def _ask(
     )
 
 
-def _events(session: Session) -> list[AuditEvent]:
-    return list(session.scalars(select(AuditEvent).where(AuditEvent.action == "ask.query")))
+def _events(session: Session, action: str = "ask.query") -> list[AuditEvent]:
+    return list(session.scalars(select(AuditEvent).where(AuditEvent.action == action)))
+
+
+def _outcome(session: Session) -> str:
+    [event] = _events(session, "ask.answer")
+    return (event.diff or {})["outcome"]
 
 
 # --- The answer
@@ -282,6 +288,7 @@ def test_invalid_output_gets_one_repair_retry(
 
     assert response.answer == "Repaired."
     assert "not valid" in llm.requests[1].messages[-1]["content"]
+    assert llm.requests[1].tools == []  # the repair may only answer
 
 
 def test_invalid_output_after_the_repair_retry_is_upstream_unavailable(
@@ -292,7 +299,7 @@ def test_invalid_output_after_the_repair_retry_is_upstream_unavailable(
     with pytest.raises(UpstreamUnavailable):
         _ask(db_session, llm, settings_with_key)
 
-    assert _events(db_session)[0].diff["outcome"] == "invalid_output"  # type: ignore[index]
+    assert _outcome(db_session) == "invalid_output"
 
 
 def test_an_injected_employee_name_changes_neither_tools_nor_permissions(
@@ -328,7 +335,7 @@ def test_an_injected_name_in_a_tool_result_stays_in_a_tool_message(
     assert holding == ["tool"]
 
 
-def test_each_question_writes_one_ask_query_event_without_tool_results(
+def test_each_question_writes_an_ask_query_and_its_answer_without_tool_results(
     db_session: Session, settings_with_key: Settings
 ) -> None:
     llm = FakeLLM(
@@ -338,15 +345,20 @@ def test_each_question_writes_one_ask_query_event_without_tool_results(
 
     _ask(db_session, llm, settings_with_key, question="Q" * 900)
 
-    [event] = _events(db_session)
-    assert event.entity == "ask"
-    diff = event.diff or {}
+    [query] = _events(db_session)
+    [answered] = _events(db_session, "ask.answer")
+    assert (query.entity, answered.entity, answered.entity_id) == ("ask", "ask", str(query.id))
+    asked = query.diff or {}
+    assert (asked["provider"], asked["model"], len(asked["question"])) == (
+        "fake",
+        "fake-model-1",
+        200,
+    )
+    diff = answered.diff or {}
     assert diff["tools"] == ["get_pay_overview", "get_fx_rates"]
-    assert (diff["provider"], diff["model"], diff["steps"]) == ("fake", "fake-model-1", 1)
-    assert diff["outcome"] == "answered"
-    assert len(diff["question"]) == 200
+    assert (diff["steps"], diff["outcome"]) == (1, "answered")
     assert isinstance(diff["latency_ms"], int)
-    assert "7000000" not in json.dumps(diff)  # never the tool results
+    assert "7000000" not in json.dumps([asked, diff])  # never the tool results
 
 
 # --- Provider errors (the API maps these; see test_ask_api.py)
@@ -367,13 +379,15 @@ def test_a_provider_429_is_retried_once_after_its_short_retry_after(
 def test_a_provider_429_twice_is_rate_limited_with_retry_after(
     db_session: Session, settings_with_key: Settings
 ) -> None:
+    sleeps = _Sleeps()
     llm = FakeLLM(LLMRateLimited(None), LLMRateLimited(30))
 
     with pytest.raises(RateLimited) as raised:
-        _ask(db_session, llm, settings_with_key)
+        _ask(db_session, llm, settings_with_key, sleep=sleeps)
 
+    assert sleeps == [2]  # no Retry-After: a short fixed wait, never an immediate retry
     assert raised.value.headers["Retry-After"] == "30"
-    assert _events(db_session)[0].diff["outcome"] == "upstream_rate_limited"  # type: ignore[index]
+    assert _outcome(db_session) == "upstream_rate_limited"
 
 
 def test_a_provider_429_with_a_long_retry_after_is_not_retried(
@@ -396,7 +410,7 @@ def test_a_provider_failure_is_upstream_unavailable_and_audited(
     with pytest.raises(UpstreamUnavailable):
         _ask(db_session, llm, settings_with_key)
 
-    assert _events(db_session)[0].diff["outcome"] == "upstream_error"  # type: ignore[index]
+    assert _outcome(db_session) == "upstream_error"
 
 
 # --- The per-user limit (counted from ask.query events; the API test freezes time)
@@ -467,3 +481,159 @@ def test_provider_extras_of_a_tool_call_are_sent_back_with_it(
 
     assistant = next(m for m in llm.requests[1].messages if m["role"] == "assistant")
     assert assistant["tool_calls"][0]["extra_content"] == extra["extra_content"]
+
+
+# --- Review fixes (B9 review): each reproduces a gap first
+
+
+def test_reproduce_a_burst_cannot_pass_the_limit_before_its_questions_are_recorded(
+    db_session: Session, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    settings = make_settings(llm_api_key="test-key", ask_rate_limit_per_hour=1)
+    principal = _principal(db_session, Role.VIEWER)
+    first_check = service._refuse_over_the_limit  # pyright: ignore[reportPrivateUsage]
+
+    def check_then_a_parallel_question_lands(*args: Any, **kwargs: Any) -> None:
+        first_check(*args, **kwargs)
+        if kwargs.get("recorded_before") is None:  # between the check and our own record
+            record_event(
+                db_session,
+                actor_id=principal.user_id,
+                action=AuditAction.ASK_QUERY,
+                entity="ask",
+                entity_id=None,
+                diff={"question": "parallel"},
+            )
+            db_session.commit()
+
+    monkeypatch.setattr(service, "_refuse_over_the_limit", check_then_a_parallel_question_lands)
+    llm = FakeLLM(answer())
+
+    with pytest.raises(RateLimited):
+        service.ask(db_session, principal, _question("Q"), llm=llm, settings=settings)
+
+    assert llm.requests == []
+
+
+def test_reproduce_extra_tool_calls_in_one_reply_get_a_too_many_calls_error(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    llm = FakeLLM(calls(*[("get_fx_rates", {})] * 7), answer())
+
+    response = _ask(db_session, llm, settings_with_key)
+
+    assert len(response.tool_calls) == 5
+    codes = [m.get("error", {}).get("code") for m in llm.requests[1].tool_messages()]
+    assert codes == [None] * 5 + ["too_many_calls"] * 2
+
+
+def test_reproduce_a_figure_written_as_a_json_number_is_kept(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    body = (
+        '{"answer": "Ok.", "figures": [{"label": "Headcount", "value": 5}, '
+        '{"label": "Ratio", "value": 0.5}, {"label": "Broken", "value": [1]}], "caveats": []}'
+    )
+    llm = FakeLLM(call("get_pay_overview", {"filters": {"country": "DE"}}), text(body))
+
+    response = _ask(db_session, llm, settings_with_key)
+
+    assert [figure.label for figure in response.figures] == ["Headcount"]  # 0.5 not in data
+    assert len(llm.requests) == 2  # no repair: only the bad figures are dropped
+
+
+def test_reproduce_a_money_figure_must_match_its_currency_too(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    llm = FakeLLM(
+        call("get_pay_overview", {"filters": {"country": "DE"}}),
+        answer(
+            figures=[
+                {"label": "Median EUR", "amount_minor": 7_000_000, "currency": "EUR"},
+                {"label": "Median USD", "amount_minor": 7_000_000, "currency": "USD"},
+                {"label": "Median as a count", "value": "7000000"},
+                {"label": "Headcount", "value": "5"},
+            ]
+        ),
+    )
+
+    response = _ask(db_session, llm, settings_with_key)
+
+    assert [figure.label for figure in response.figures] == ["Median EUR", "Headcount"]
+
+
+def test_reproduce_a_question_stops_calling_tools_after_its_deadline(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    ticks = iter([0.0, 1.0, 100.0, 100.0, 100.0, 100.0])
+    llm = FakeLLM(call("get_fx_rates"), call("get_fx_rates"), answer("In time."))
+
+    response = service.ask(
+        db_session,
+        _principal(db_session, Role.HR_MANAGER),
+        _question("Q"),
+        llm=llm,
+        settings=settings_with_key,
+        sleep=_Sleeps(),
+        clock=lambda: next(ticks),
+    )
+
+    assert len(llm.requests) == 2
+    assert llm.requests[1].tools == []  # past the deadline the model may only answer
+    assert "try narrowing the question" in " ".join(response.caveats)
+
+
+def test_reproduce_the_model_calls_stay_within_the_step_budget(
+    db_session: Session,
+) -> None:
+    settings = make_settings(llm_api_key="test-key", ask_max_steps=2)
+    llm = FakeLLM(call("get_fx_rates"), call("get_fx_rates"), text("not json"), answer())
+
+    response = _ask(db_session, llm, settings)
+
+    assert len(llm.requests) == 3  # 2 tool steps + 1 answer, no repair beyond the budget
+    assert "try narrowing the question" in " ".join(response.caveats)
+
+
+def test_reproduce_a_tool_that_breaks_the_transaction_still_lets_the_answer_be_audited(
+    db_session: Session, settings_with_key: Settings, monkeypatch: pytest.MonkeyPatch
+) -> None:
+    def breaks_the_session(session: Session, *_args: object) -> None:
+        session.add(AuditEvent(action=None, entity="x", at=None))
+        session.flush()  # IntegrityError: the transaction must be rolled back
+
+    monkeypatch.setattr(insights, "overview", breaks_the_session)
+    llm = FakeLLM(call("get_pay_overview"), answer("Still here."))
+
+    response = _ask(db_session, llm, settings_with_key)
+
+    assert response.answer == "Still here."
+    assert _outcome(db_session) == "answered"
+
+
+def test_reproduce_an_unexpected_error_is_audited_before_it_propagates(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    llm = FakeLLM(RuntimeError("bug in the adapter"))
+
+    with pytest.raises(RuntimeError):
+        _ask(db_session, llm, settings_with_key)
+
+    assert _outcome(db_session) == "upstream_error"
+
+
+def test_reproduce_the_trace_shows_only_validated_arguments(
+    db_session: Session, settings_with_key: Settings
+) -> None:
+    llm = FakeLLM(
+        calls(
+            ("get_pay_overview", {"filters": {"country": "DE"}}),
+            ("get_pay_overview", {"filters": {"country": "DE"}, "sql": "DROP TABLE x"}),
+            ("get_pay_overview", {"filters": {"job_role": "x" * 5000}}),
+        ),
+        answer(),
+    )
+
+    response = _ask(db_session, llm, settings_with_key)
+
+    assert [c.args for c in response.tool_calls] == [{"filters": {"country": "DE"}}, {}, {}]
