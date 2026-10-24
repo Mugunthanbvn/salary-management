@@ -26,6 +26,7 @@ from salary_api.modules.salaries.models import SalaryRecord
 from salary_api.modules.salaries.schemas import Component
 
 ENTITY = "employee"  # audit events name the entity they change
+CODE_PREFIX = "ACME-"
 
 
 def create_employee(
@@ -41,7 +42,7 @@ def create_employee(
         base=DomainMoney(request.salary.base_minor, country.default_currency),
         components=request.salary.components,
     )
-    code = request.employee_code or ""
+    code = request.employee_code or _next_employee_code(session)
     employee = Employee(
         employee_code=code,
         first_name=request.first_name,
@@ -134,6 +135,13 @@ def _current_salary(record: SalaryRecord) -> CurrentSalary:
             for c in record.components
         ],
     )
+
+
+def _next_employee_code(session: Session) -> str:
+    """`ACME-` and six digits: one more than the highest code in use."""
+    highest = repository.highest_employee_code(session)
+    number = int(highest.removeprefix(CODE_PREFIX)) + 1 if highest else 1
+    return f"{CODE_PREFIX}{number:06d}"
 
 
 def _field_error(field: str, code: str, message: str) -> FieldError:

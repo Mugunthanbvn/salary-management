@@ -1,4 +1,4 @@
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
 from salary_api.modules.employees.models import Employee
@@ -22,3 +22,10 @@ def get_detail(session: Session, employee_id: int) -> Employee | None:
         )
     )
     return session.scalars(query).one_or_none()
+
+
+def highest_employee_code(session: Session) -> str | None:
+    """The greatest `ACME-######` code. Codes have a fixed width, so text order is number order."""
+    return session.scalar(
+        select(func.max(Employee.employee_code)).where(Employee.employee_code.like("ACME-%"))
+    )
