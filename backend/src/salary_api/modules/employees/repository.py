@@ -36,9 +36,12 @@ def current_version(session: Session, employee_id: int) -> int | None:
 
 
 def highest_employee_code(session: Session) -> str | None:
-    """The greatest `ACME-######` code. Codes have a fixed width, so text order is number order."""
+    """The greatest code of the form `ACME-` + six characters (the API allows only digits).
+
+    Fixed width, so text order is number order; a code of another length never counts.
+    """
     return session.scalar(
-        select(func.max(Employee.employee_code)).where(Employee.employee_code.like("ACME-%"))
+        select(func.max(Employee.employee_code)).where(Employee.employee_code.like("ACME-______"))
     )
 
 

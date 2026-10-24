@@ -171,8 +171,7 @@ def _broken_rules(
     errors: list[FieldError] = []
     if (date_error := _effective_date_error(request.effective_date, employee, latest)) is not None:
         errors.append(date_error)
-    if (country_error := _country_error(request, employee, target.country)) is not None:
-        errors.append(country_error)
+    errors += _country_errors(request, employee, target.country)
     role, level = target.role, target.level
     if role is None:
         message = f"Unknown job role {request.job_role_id}."
@@ -188,20 +187,23 @@ def _broken_rules(
     return errors
 
 
-def _country_error(
+def _country_errors(
     request: SalaryChangeRequest, employee: Employee, country: Country | None
-) -> FieldError | None:
+) -> list[FieldError]:
     """A relocation goes to a known, active country; the currency is always the country's."""
     if country is None:
         message = f"Unknown country {request.country_code}."
-        return {"loc": ["body", "country_code"], "code": "not_found", "message": message}
+        return [{"loc": ["body", "country_code"], "code": "not_found", "message": message}]
+    errors: list[FieldError] = []
     if country.code != employee.country_code and not country.is_active:
         message = f"{country.name} is not an active country."
-        return {"loc": ["body", "country_code"], "code": "inactive", "message": message}
+        errors.append({"loc": ["body", "country_code"], "code": "inactive", "message": message})
     if request.currency not in (None, country.default_currency):
         message = f"Salaries in {country.name} are paid in {country.default_currency}."
-        return {"loc": ["body", "currency"], "code": "currency_mismatch", "message": message}
-    return None
+        errors.append(
+            {"loc": ["body", "currency"], "code": "currency_mismatch", "message": message}
+        )
+    return errors
 
 
 def _effective_date_error(

@@ -223,6 +223,8 @@
             "type": "string"
           },
           "job_role_id": {
+            "maximum": 9.223372036854776e+18,
+            "minimum": 1.0,
             "title": "Job Role Id",
             "type": "integer"
           },
@@ -346,8 +348,15 @@
             "title": "Termination Date"
           },
           "version": {
-            "title": "Version",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
@@ -445,8 +454,15 @@
             "$ref": "#/components/schemas/EmployeeStatus"
           },
           "version": {
-            "title": "Version",
-            "type": "integer"
+            "anyOf": [
+              {
+                "type": "integer"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Version"
           }
         },
         "required": [
@@ -1095,6 +1111,8 @@
           "job_role_id": {
             "anyOf": [
               {
+                "maximum": 9.223372036854776e+18,
+                "minimum": 1.0,
                 "type": "integer"
               },
               {
@@ -1755,6 +1773,8 @@
             "required": false,
             "schema": {
               "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
                 "type": "integer"
               },
               "title": "Department Id",
@@ -1767,6 +1787,8 @@
             "required": false,
             "schema": {
               "items": {
+                "maximum": 9223372036854775807,
+                "minimum": 1,
                 "type": "integer"
               },
               "title": "Job Role Id",
@@ -1912,6 +1934,7 @@
             "required": false,
             "schema": {
               "default": 1,
+              "maximum": 92233720368547758,
               "minimum": 1,
               "title": "Page",
               "type": "integer"
@@ -2112,6 +2135,8 @@
             "name": "employee_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Employee Id",
               "type": "integer"
             }
@@ -2210,6 +2235,8 @@
             "name": "employee_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Employee Id",
               "type": "integer"
             }
@@ -2330,6 +2357,8 @@
             "name": "employee_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Employee Id",
               "type": "integer"
             }
@@ -2450,6 +2479,8 @@
             "name": "employee_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Employee Id",
               "type": "integer"
             }
@@ -2570,6 +2601,8 @@
             "name": "employee_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Employee Id",
               "type": "integer"
             }
@@ -2670,6 +2703,8 @@
             "name": "employee_id",
             "required": true,
             "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
               "title": "Employee Id",
               "type": "integer"
             }

@@ -11,10 +11,11 @@ from sqlalchemy import (
     Index,
     String,
     UniqueConstraint,
+    event,
 )
-from sqlalchemy.orm import Mapped, mapped_column, relationship
+from sqlalchemy.orm import Mapped, Session, UOWTransaction, mapped_column, relationship
 
-from salary_api.core.append_only import append_only
+from salary_api.core.append_only import AppendOnlyError, append_only
 from salary_api.core.models import Base, UtcDateTime, utc_now
 from salary_api.domain.enums import ComponentType, Level, SalaryReason
 from salary_api.modules.reference.models import JobRole, level_column
@@ -48,6 +49,8 @@ class SalaryComponent(Base):
     name: Mapped[str] = mapped_column(String(60))
     amount_minor: Mapped[int] = mapped_column(BigInteger)
 
+    salary_record: Mapped["SalaryRecord"] = relationship(back_populates="components")
+
 
 @append_only
 class SalaryRecord(Base):
@@ -77,6 +80,21 @@ class SalaryRecord(Base):
     changed_by: Mapped[int | None] = mapped_column(ForeignKey("users.id"))  # null when seeded
     created_at: Mapped[datetime] = mapped_column(UtcDateTime, default=utc_now)
 
-    components: Mapped[list[SalaryComponent]] = relationship(order_by=SalaryComponent.id)
+    components: Mapped[list[SalaryComponent]] = relationship(
+        order_by=SalaryComponent.id, back_populates="salary_record"
+    )
     job_role: Mapped[JobRole] = relationship()
     changed_by_user: Mapped[User | None] = relationship()
+
+
+@event.listens_for(Session, "before_flush")
+def _components_only_with_their_record(
+    session: Session, _flush_context: UOWTransaction, _instances: object
+) -> None:
+    """A component is written in the same flush as its new record, never added to a record
+    already written: that would change its total without a new record (ADR 0006)."""
+    for instance in session.new:
+        if isinstance(instance, SalaryComponent) and instance.salary_record not in session.new:
+            raise AppendOnlyError(
+                "Components are written with their salary record, never added to it later."
+            )

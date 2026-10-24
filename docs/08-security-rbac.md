@@ -120,10 +120,10 @@ A parametrized **authorization matrix test** calls every endpoint as each role a
 
 For a caller without `SALARY_READ`:
 
-- Salary fields in employee payloads are `null`, with `"salary_masked": true` ([07-api-spec.md](07-api-spec.md) §1.7). In the detail, the whole `current_salary` (record id, date, reason, components) is `null`.
+- Salary fields in employee payloads are `null`, with `"salary_masked": true` ([07-api-spec.md](07-api-spec.md) §1.7). In the detail, the whole `current_salary` (record id, date, reason, components) is `null`. So is `version`: it goes up with every salary change, so polling it would tell when someone's pay changed (such callers have no write permission, so they never need it).
 - Salary-history, top-earners and cohort-member endpoints return **403**.
 - `salary_min`/`salary_max` filters, `salary_basis` and `comp` (when given) and salary sorts return **403**. Otherwise a Viewer could narrow a range filter (binary search) until one known person is isolated, and so learn their pay.
-- These checks run in the services (`modules/employees/service.py`, `can_see_salaries(principal)`; `modules/salaries/service.py` for the history), so a caller of the service, not only of the route, gets them. A test replays every employee route of the authz matrix as a Viewer and fails on any non-null `*_minor` member in the response.
+- These checks run in the services (`modules/employees/service.py`, `can_see_salaries(principal)`; `modules/salaries/service.py` for the history), so a caller of the service, not only of the route, gets them. A test replays every employee route of the authz matrix as a Viewer and fails on any non-null `*_minor` or `version` member in the response.
 - Exports omit salary columns entirely.
 
 ### 4.2 The small-group rule (n < 5)

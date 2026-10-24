@@ -3,7 +3,7 @@ from typing import Annotated
 
 from pydantic import AfterValidator, BaseModel, ConfigDict, Field, StringConstraints
 
-from salary_api.core.schemas import Money
+from salary_api.core.schemas import Id, Money
 from salary_api.domain.constants import MAX_AMOUNT_MINOR
 from salary_api.domain.enums import ComponentType, Level, SalaryReason
 from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, JobRoleRef
@@ -57,7 +57,7 @@ class SalaryChangeRequest(BaseModel):
     version: int = Field(ge=1)  # the employee version the client read
     effective_date: date
     reason: SalaryReason
-    job_role_id: int | None = None  # a new role; PROMOTION needs a new role or a higher level
+    job_role_id: Id | None = None  # a new role; PROMOTION needs a new role or a higher level
     level: Level | None = None
     country_code: CountryCode | None = None  # a relocation; the salary currency follows it
     currency: CurrencyCode | None = None  # must be the (new) country's currency
