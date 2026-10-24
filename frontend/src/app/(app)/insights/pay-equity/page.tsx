@@ -13,7 +13,11 @@ import { ProblemError } from "@/lib/api/problem";
 import { getReference } from "@/lib/api/reference";
 import type { components } from "@/lib/api/schema";
 import { serverApi } from "@/lib/api/server";
-import { loadPayEquityParams, serializePayEquity } from "@/lib/insights-params";
+import {
+  loadPayEquityParams,
+  serializeInsights,
+  serializePayEquity,
+} from "@/lib/insights-params";
 import { formatCount } from "@/lib/numbers";
 
 type S = components["schemas"];
@@ -82,7 +86,10 @@ export default async function PayEquityPage({
   return (
     <InsightsProvider>
       <Link
-        href={`/insights?country=${encodeURIComponent(country)}`}
+        href={serializeInsights("/insights", {
+          country,
+          department_id: state.department_id,
+        })}
         className="inline-flex min-h-11 items-center"
       >
         Back to insights
