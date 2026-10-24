@@ -14,10 +14,12 @@ from salary_api.core.config import Settings
 from salary_api.core.deps import get_password_hasher, get_session
 from salary_api.core.security import PasswordHasher, decode_access_token
 from salary_api.modules.audit.models import AuditEvent
-from tests.conftest import FROZEN_NOW, create_test_app
+from tests.conftest import FROZEN_NOW, create_test_app, signed_in_client
 from tests.factories import DEFAULT_PASSWORD, FAST_ARGON2, make_settings, make_user
 
 LOGIN = "/api/v1/auth/login"
+LOGOUT = "/api/v1/auth/logout"
+ME = "/api/v1/auth/me"
 PROBLEMS = "https://acme.example/problems/"
 
 
@@ -252,3 +254,91 @@ def test_login_keeps_an_up_to_date_hash(client: TestClient, db_session: Session)
     db_session.rollback()
     db_session.refresh(user)
     assert user.password_hash == current_hash
+
+
+def test_logout_clears_the_cookie_with_the_same_attributes(
+    app: FastAPI, client: TestClient, db_session: Session, settings: Settings
+) -> None:
+    signed_in = signed_in_client(app, make_user(db_session), settings)
+
+    response = signed_in.post(LOGOUT)
+
+    assert response.status_code == 204
+    value, attributes = _set_cookie(response.headers["set-cookie"])
+    attributes.pop("expires")  # a date in the past
+    assert (value, attributes) == (
+        '""',
+        {"httponly": "", "max-age": "0", "path": "/", "samesite": "lax"},
+    )
+
+
+def test_logout_is_audited_as_auth_logout(
+    app: FastAPI,
+    client: TestClient,
+    db_session: Session,
+    settings: Settings,
+    frozen_time: time_machine.Traveller,
+) -> None:
+    user = make_user(db_session)
+    db_session.commit()
+
+    signed_in_client(app, user, settings).post(LOGOUT)
+
+    [event] = _committed_events(db_session)
+    assert (event.actor_id, event.action, event.entity, event.entity_id, event.diff) == (
+        user.id,
+        "auth.logout",
+        "user",
+        str(user.id),
+        None,
+    )
+
+
+def test_me_returns_the_login_body_and_the_feature_flags(
+    app: FastAPI, client: TestClient, db_session: Session, settings: Settings
+) -> None:
+    user = make_user(db_session, role="HR_MANAGER", email="hr@acme.example", full_name="Hal")
+
+    response = signed_in_client(app, user, settings).get(ME)
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "user": {
+            "id": user.id,
+            "email": "hr@acme.example",
+            "full_name": "Hal",
+            "role": "HR_MANAGER",
+        },
+        "permissions": [
+            "EMPLOYEE_READ",
+            "EMPLOYEE_WRITE",
+            "SALARY_READ",
+            "SALARY_WRITE",
+            "INSIGHTS_READ",
+            "EXPORT",
+            "IMPORT",
+            "ASK",
+        ],
+        "features": {"ask": False},
+    }
+
+
+def test_me_reports_ask_enabled_when_an_llm_api_key_is_set(db_session: Session) -> None:
+    settings = make_settings(llm_api_key="test-llm-key")
+    app = create_test_app(settings)
+    app.dependency_overrides[get_session] = lambda: db_session
+
+    response = signed_in_client(app, make_user(db_session), settings).get(ME)
+
+    assert response.json()["features"] == {"ask": True}
+
+
+def test_me_writes_no_audit_event(
+    app: FastAPI, client: TestClient, db_session: Session, settings: Settings
+) -> None:
+    user = make_user(db_session)
+    db_session.commit()
+
+    signed_in_client(app, user, settings).get(ME)
+
+    assert _committed_events(db_session) == []
