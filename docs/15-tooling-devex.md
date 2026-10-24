@@ -37,7 +37,7 @@ Every tool in the repository, what it does and why we chose it, plus the Makefil
 | **pydantic-settings** | Typed configuration from environment variables | The app refuses to start with missing or invalid config; prod refuses default secrets |
 | **SQLAlchemy 2.x** | ORM / SQL toolkit | Typed `Mapped[...]` models. Switching between SQLite, Turso and Postgres is only a `DATABASE_URL` change ([adr/0002-sqlite-everywhere-turso.md](adr/0002-sqlite-everywhere-turso.md)) |
 | **Alembic** | Schema migrations | Versioned, reviewable schema changes: git history for the database |
-| **Turso libSQL SQLAlchemy dialect** | Driver for the hosted SQLite (Turso) in prod | Same SQLite dialect locally and in prod. Added with the deployment (the deploy spike is deferred), not in the scaffold ([17-deployment.md](17-deployment.md)) |
+| **sqlalchemy-libsql** (Turso dialect) | Driver for the hosted SQLite (Turso) in prod: `sqlite+libsql://<db>.turso.io?secure=true` | Same SQLite dialect locally and in prod. Installed; a real Turso round trip is checked at deploy time ([17-deployment.md](17-deployment.md)) |
 | **psycopg 3** (test group) | Postgres driver | Only for the portability CI job |
 | **pwdlib[argon2]** | Password hashing with Argon2 | The current recommendation in the FastAPI docs, which dropped passlib |
 | **PyJWT** | JWT encode and verify | The current recommendation in the FastAPI docs, which dropped python-jose |
