@@ -283,7 +283,7 @@ All of these use `FakeLLM`. No network in CI.
 - Counts per country are exact (largest-remainder allocation).
 - Every employee has ≥ 1 salary record; the latest record matches the denormalized current salary.
 - The demo story is present: Customer Success in DE has a median compa-ratio ≈ 0.92 vs its pay bands, and is the only DE department with `below_threshold: true`.
-- A small seed (e.g. 200 employees) is used in tests for speed. The 10k run is a separate, marked slow test (`-m slow`) **(proposed)**.
+- A small seed (200 employees) is used in most seed tests for speed. The full 10k run also stays in the default suite (`tests/integration/test_seed_full.py`): it takes about 2.5 s in memory, and its tests share one xdist group (`--dist loadgroup`), so a run builds it once. No `slow` mark is needed, so `make test` and CI always run it.
 
 ### 5.7 Frontend unit (Vitest + React Testing Library + MSW)
 
