@@ -162,7 +162,7 @@ def _detail(employee: Employee, *, salary_visible: bool) -> EmployeeDetail:
     return EmployeeDetail(
         **_list_fields(employee, salary_visible=salary_visible),
         termination_date=employee.termination_date,
-        current_salary=_current_salary(record) if record else None,
+        current_salary=_current_salary(record) if record and salary_visible else None,
     )
 
 
@@ -182,13 +182,16 @@ def _list_fields(employee: Employee, *, salary_visible: bool) -> dict[str, Any]:
         "country_code": employee.country_code,
         "status": employee.status,
         "hire_date": employee.hire_date,
-        "current_base": Money(amount_minor=employee.current_base_minor, currency=employee.currency),
-        "current_total": Money(
-            amount_minor=employee.current_total_minor, currency=employee.currency
-        ),
+        "current_base": _money(employee.current_base_minor, employee.currency, salary_visible),
+        "current_total": _money(employee.current_total_minor, employee.currency, salary_visible),
         "salary_masked": not salary_visible,
         "version": employee.version,
     }
+
+
+def _money(amount_minor: int, currency: str, visible: bool) -> Money | None:
+    """An individual salary amount, or None for a caller without SALARY_READ."""
+    return Money(amount_minor=amount_minor, currency=currency) if visible else None
 
 
 def _current_salary(record: SalaryRecord) -> CurrentSalary:
