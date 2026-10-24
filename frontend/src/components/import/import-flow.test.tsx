@@ -123,6 +123,21 @@ describe("ImportFlow: upload", () => {
     ).toHaveAttribute("href", "/api/v1/imports/template?format=xlsx");
   });
 
+  it("marks the step you are on", async () => {
+    serveUpload();
+    renderFlow();
+    const current = () =>
+      within(screen.getByRole("list", { name: "Import steps" })).getByText(
+        (_, element) => element?.getAttribute("aria-current") === "step",
+      );
+    expect(current()).toHaveTextContent("Upload");
+
+    await upload();
+
+    await screen.findByRole("heading", { level: 1, name: /Ready to import/ });
+    expect(current()).toHaveTextContent("Check");
+  });
+
   it("checks the chosen file and shows what will be imported", async () => {
     const received = serveUpload();
     const urls = renderFlow();
