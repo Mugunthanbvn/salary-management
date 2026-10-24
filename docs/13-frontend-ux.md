@@ -22,7 +22,7 @@ Design consequence: this is a **data-dense internal tool used daily**. Speed, le
 
 ```
 ┌──────────────────────────────────────────────────────────────┐
-│ ACME Pay   [Insights] [Employees] [Ask] [Admin ▾]   Hema ▾   │  ← top bar (Admin only for ADMIN; Ask hidden if feature off)
+│ ACME Pay   [Insights] [Employees] [Ask]          Hema Iyer ▾ │  ← top bar (Ask hidden if feature off or no ASK)
 ├──────────────────────────────────────────────────────────────┤
 │ page content                                                 │
 └──────────────────────────────────────────────────────────────┘
@@ -44,7 +44,7 @@ Design consequence: this is a **data-dense internal tool used daily**. Speed, le
 | `/admin/countries` | Countries (default currency) (**cut from v1**) | `REFERENCE_ADMIN` |
 | `/admin/audit` | Audit log (**cut from v1**) | `AUDIT_READ` |
 
-Navigation is a **top bar** (proposed). Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
+Navigation is a **top bar** from 640 px up and a **bottom bar** on phones (Insights, Employees, Ask; §8). The top bar always holds the **account menu**: the person's name, role and email, *Import employees* for `IMPORT` holders, and *Sign out*. The Admin menu is cut from v1. Insights is the landing page, because the problem statement centres on "answering questions about how the org pays people".
 
 **Auth redirect:** `proxy.ts` (Next 16's middleware) redirects unauthenticated requests to `/login?next=…`. Routes the user's permissions don't allow show a 403 page with a link home. The **backend is the enforcement point**; the UI only hides things ([08-security-rbac.md](08-security-rbac.md)).
 
@@ -82,7 +82,7 @@ Paging defaults: **page size 25**, options 25 / 50 / 100 (max 100) ([07-api-spec
 | USD conversions | Shown as a secondary value, e.g. `€52,000 · ≈ US$56,160`, with a tooltip: "FX as of 2026-10-01 (illustrative)" |
 | Locale | A **fixed** locale, so server-rendered and hydrated text are identical: `en-US` grouping by default, and Indian lakh grouping (`₹22,20,000`) for INR via `en-IN`. The `locale` option overrides it. Ratios, percentages and counts use `formatRatio`, `formatPercent` and `formatCount` in `lib/numbers.ts` (decimal strings in, half-even) |
 | Tabular figures | All numeric table cells use `font-variant-numeric: tabular-nums` and right alignment, so digits line up |
-| Compact mode | Charts and KPI tiles may use compact notation (`€1.2M`); tables always show full values |
+| Compact mode | Charts and summary sentences may use compact notation (`€1.2M`, `formatMoney(..., { compact: true })`); tables always show full values |
 
 Unit tests cover JPY (no decimals), INR grouping, negative-free inputs, BigInt-sized amounts, and monthly rounding ([14-testing-strategy.md](14-testing-strategy.md)).
 
@@ -138,7 +138,7 @@ Every screen defines:
 | Area | Content |
 |---|---|
 | Header | Title, global toggles (Base/Total, Annual/Monthly), population chip, filters: country, department, job role, level |
-| KPI tiles | Headcount · Total annual payroll (USD) · Median pay (USD, org-wide) · Countries · FX as-of date |
+| Summary sentence | Headcount · Total annual payroll (USD) · Median pay (USD, org-wide) · Countries · FX as-of date, written as one sentence under the title, not KPI tiles ([design/DESIGN.md](design/DESIGN.md)) |
 | **Pay by country** table | Country, headcount, min, P25, **median**, mean, P75, max in **local currency**, plus a USD median column; sortable; a row click filters the dashboard to that country |
 | **Salary distribution** chart (**cut from v1**) | Histogram (local currency when one country is selected, otherwise USD, with a visible label); P25, median, and P75 reference lines |
 | **Pay by department** | Bar chart of median (and mean on hover). Currency label follows the single- or mixed-currency rule |
@@ -295,7 +295,7 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 
 | Breakpoint (Tailwind) | Layout |
 |---|---|
-| < 640 px (`base`, phone) | Single column. Top bar collapses to the logo + a menu button that opens a navigation sheet. KPI tiles in a 2-column grid. Charts stack full width, using horizontal bars so labels stay readable |
+| < 640 px (`base`, phone) | Single column. The top bar keeps the name and the account menu; the main links (Insights, Employees, Ask) move to a **bottom navigation bar** fixed to the screen, clear of the safe-area inset ([design/DESIGN.md](design/DESIGN.md) "Mobile"). Summaries are sentences, not KPI tiles. Charts stack full width, using horizontal bars so labels stay readable |
 | 640–1023 px (`sm`/`md`, tablet) | Two-column dashboard grid. Tables hide low-priority columns (hire date, type) behind a column picker |
 | ≥ 1024 px (`lg`+, desktop) | Full dashboard grid; tables show all columns; side sheets open at the right |
 
@@ -315,7 +315,7 @@ Component rules on phones:
 Rules that apply everywhere:
 - Touch targets at least **44 × 44 px**; no hover-only information (tooltips also open on tap).
 - No horizontal page scroll at any width ≥ 360 px; long names truncate with the full value on tap.
-- Money stays on one line and never wraps between the symbol and the number; compact notation (`€1.2M`) is allowed in KPI tiles and charts on phones.
+- Money stays on one line and never wraps between the symbol and the number; compact notation (`€1.2M`) is allowed in summary sentences and charts on phones.
 - Text inputs use the right mobile keyboard (`inputmode="decimal"` for amounts, `type="email"` for email, `type="search"` for search).
 - Respects safe-area insets (`env(safe-area-inset-*)`) for the sticky header and footers.
 
@@ -335,7 +335,7 @@ Rules that apply everywhere:
 
 ## 11. Open questions
 
-- Top bar vs sidebar navigation: decided in the design phase (proposed: top bar).
+- Top bar vs sidebar navigation: **decided**: a top bar, and a bottom bar on phones (§2, §8).
 - INR lakh grouping via the `en-IN` locale: **decided**, built into `formatMoney` (§3.3).
 - "Link to newly imported employees" after an import: **(proposed)**.
 - Role and level required on Promotion: **(proposed)**.
