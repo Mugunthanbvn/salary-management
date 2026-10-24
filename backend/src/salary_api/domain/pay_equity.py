@@ -4,6 +4,8 @@ The benchmark is the band midpoint for the employee's job role + level + country
 cohort's own median, so a team-wide gap shows up (docs/09-insights-pay-equity.md §3.8).
 """
 
+from collections import defaultdict
+from collections.abc import Iterable
 from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
@@ -11,6 +13,7 @@ from enum import StrEnum
 from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW
 from salary_api.domain.enums import EmploymentType, Level, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
+from salary_api.domain.stats import median
 
 
 class NoCompaRatioReason(StrEnum):
@@ -82,3 +85,29 @@ def flag(ratio: Decimal) -> PayEquityFlag:
     if ratio > PAY_EQUITY_HIGH:
         return PayEquityFlag.OVERPAID
     return PayEquityFlag.IN_BAND
+
+
+@dataclass(frozen=True, slots=True)
+class DepartmentRollup:
+    """One department in one country: how many have a compa-ratio, and their median."""
+
+    department_id: int
+    country_code: str
+    count: int
+    median_compa_ratio: Decimal
+
+
+def department_rollup(employees: Iterable[EmployeePay]) -> list[DepartmentRollup]:
+    """The median compa-ratio per department x country, sorted by department then country.
+
+    Employees without a compa-ratio (no band, or not full-time) are left out entirely.
+    """
+    ratios: defaultdict[tuple[int, str], list[Decimal]] = defaultdict(list)
+    for pay in employees:
+        ratio = compa_ratio(pay.base, pay.band_mid, pay.employment_type).value
+        if ratio is not None:
+            ratios[pay.department_id, pay.country_code].append(ratio)
+    return [
+        DepartmentRollup(department_id, country_code, len(values), median(values))
+        for (department_id, country_code), values in sorted(ratios.items())
+    ]
