@@ -50,6 +50,17 @@ def test_four_failures_still_allow_a_login(
 
 
 @pytest.mark.usefixtures("user_email")
+def test_five_failures_spread_over_more_than_15_minutes_do_not_block(
+    client: TestClient, frozen_time: time_machine.Traveller
+) -> None:
+    for _ in range(5):  # at 0, 4, 8, 12 and 16 minutes: never 5 within 15 minutes
+        _fail_logins(client, frozen_time, times=1)
+        frozen_time.shift(timedelta(minutes=3))
+
+    assert _login(client).status_code == 200
+
+
+@pytest.mark.usefixtures("user_email")
 def test_five_failures_block_even_the_right_password_with_429(
     client: TestClient, frozen_time: time_machine.Traveller
 ) -> None:
