@@ -29,3 +29,15 @@ def test_sqlite_connections_reject_an_orphan_foreign_key(tmp_path: Path, databas
         connection.execute(insert(children).values(id=1, parent_id=999))
 
     engine.dispose()
+
+
+@pytest.mark.sqlite_only
+def test_file_databases_use_wal_journal_and_a_busy_timeout(tmp_path: Path) -> None:
+    engine = create_db_engine(make_settings(database_url=f"sqlite:///{tmp_path / 'app.db'}"))
+
+    with engine.connect() as connection:
+        journal_mode = connection.exec_driver_sql("PRAGMA journal_mode").scalar()
+        busy_timeout = connection.exec_driver_sql("PRAGMA busy_timeout").scalar()
+
+    assert (journal_mode, busy_timeout) == ("wal", 5000)
+    engine.dispose()
