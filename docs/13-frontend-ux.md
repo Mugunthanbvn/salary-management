@@ -264,6 +264,8 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 
 ## 6. Visual direction (input to the design phase)
 
+> **Superseded for look and feel by [design/DESIGN.md](design/DESIGN.md)** ("Marked-up printout"), which wins where this table differs: its own palette (no amber or green), serif titles, and **one light theme** (it defines no dark palette).
+
 | Principle | Concretely |
 |---|---|
 | Calm, trustworthy, data-first | Neutral greys/slate base, **one accent colour**, semantic colours only for meaning (red = underpaid flag, amber = overpaid flag, green = success) |
@@ -272,7 +274,7 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 | Typography | One clean sans family with true tabular figures; size scale ~12/14/16/20/24/32 **(proposed)** |
 | Charts | Minimal gridlines, direct labels where possible, colour-blind-safe palette, every chart titled with its currency and population |
 | Avoid "AI slop" | No purple gradients, no glassmorphism, no emoji headings, no cards inside cards, no generic hero sections. Impeccable enforces this |
-| Themes | Light and dark, both meeting contrast requirements |
+| Themes | One light theme meeting contrast requirements (DESIGN.md defines no dark palette) |
 
 ## 7. Accessibility (target: WCAG 2.2 AA)
 
@@ -283,7 +285,7 @@ Google Stitch was considered and rejected: it adds a vendor, and its HTML output
 - Forms: labelled inputs, error messages linked via `aria-describedby`, errors announced on submit.
 - Live regions announce toasts and "Thinking…" or answer-ready status on the Ask page.
 - `eslint-plugin-jsx-a11y` in CI; **(proposed)** axe checks in Playwright smoke tests ([14-testing-strategy.md](14-testing-strategy.md)).
-- Respects `prefers-reduced-motion` and `prefers-color-scheme`.
+- Respects `prefers-reduced-motion`. There is one light theme ([design/DESIGN.md](design/DESIGN.md)), so `prefers-color-scheme` is not used.
 
 ## 8. Responsive behaviour (fully mobile responsive)
 
