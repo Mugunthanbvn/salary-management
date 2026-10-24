@@ -113,7 +113,7 @@ Parsing is the **only** format-specific step. Both parsers produce the same `Raw
 - Reads the **first sheet**, or the sheet named `Employees` if present, and only its first 50 columns (the template has 19), so a sheet that claims 16,384 columns costs nothing. A header row is required.
 - Cell types: date cells → `YYYY-MM-DD` text; numeric cells → the decimal text of `Decimal(repr(value))` (`1234.56`, never `1234.5599…`); booleans → `TRUE`/`FALSE`; everything else → string. So both parsers hand the validator the same text.
 
-**Both formats.** Header names are matched case-insensitively after trimming; unknown, repeated or missing required columns are one `400` that lists every problem and carries `expected_headers`. A value in a column with no header (often an unquoted comma in a CSV) is a `400` naming the row and column letter. Blank rows are skipped but still counted, so row numbers match the spreadsheet. A file with no employee rows is `400`; more than 10,000 rows is `422 validation` (`code: too_many_rows`).
+**Both formats.** Header names are matched case-insensitively after trimming; unknown, repeated or missing required columns are one `400` that lists every problem and carries `expected_headers`. A value in a column with no header (often an unquoted comma in a CSV) is a `400` naming the row and column letter. Blank rows are skipped but still counted, so row numbers match the spreadsheet; more than 1,000 blank rows is refused as too many rows, so a file of empty lines or a sheet with one cell at row 1,048,576 is never walked row by row. A header row may have at most 50 columns (CSV and XLSX). A file with no employee rows is `400`; more than 10,000 rows is `422 validation` (`code: too_many_rows`).
 
 ### 5.2 Normalization
 

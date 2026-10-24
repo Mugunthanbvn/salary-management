@@ -9,6 +9,7 @@ import io
 import re
 import warnings
 import zipfile
+from collections import Counter
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
 from datetime import datetime, time
@@ -28,8 +29,12 @@ NOT_A_WORKBOOK = (
 )
 
 EMPLOYEES_SHEET: Final = "Employees"
-XLSX_COLUMNS_READ: Final = 50
-"""Only the first 50 columns of a sheet are read (the template has 19)."""
+MAX_COLUMNS: Final = 50
+"""A header row has at most 50 columns (the template has 19); an XLSX sheet's first 50 are
+read. Bounds the work a hostile file can cause."""
+MAX_BLANK_ROWS: Final = 1_000
+"""Blank rows allowed among the employee rows. More is refused as too many rows, so a file of
+blank lines, or a sheet with a cell at row 1,048,576, is not read row by row."""
 
 # <f> or <x:f ...>: a formula element in a worksheet's XML.
 _FORMULA_ELEMENT = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?f[\s/>]")
@@ -46,8 +51,8 @@ class HeaderMismatch(UnreadableFile):
 class TooManyRows(ValueError):
     """The file has more data rows than `limit`."""
 
-    def __init__(self, limit: int) -> None:
-        super().__init__(f"The file has more than {limit} employee rows.")
+    def __init__(self, limit: int, message: str | None = None) -> None:
+        super().__init__(message or f"The file has more than {limit} employee rows.")
         self.limit = limit
 
 
@@ -142,7 +147,9 @@ def _xlsx_records(
         if cells is None:
             return
         for position, (value, formula) in enumerate(zip(cells, formula_cells or (), strict=False)):
-            if value is None and isinstance(formula, str) and formula.startswith("="):
+            # Any value the formulas read has but the values read lacks is a formula: text
+            # "=...", or an ArrayFormula or DataTableFormula object.
+            if value is None and formula is not None:
                 raise UnreadableFile(
                     f"Cell {_letter(position)}{number} has a formula without a saved value. "
                     "Copy the cells and paste them as values, then upload again."
@@ -160,7 +167,7 @@ def _sheet_rows(workbook: "ReadOnlyWorkbook") -> Iterator[tuple[object, ...]]:
     sheet = sheets.get(EMPLOYEES_SHEET) or workbook.worksheets[0]
     # The saved dimensions can be wrong; read the rows that are really there.
     sheet.reset_dimensions()
-    return sheet.iter_rows(max_col=XLSX_COLUMNS_READ, values_only=True)
+    return sheet.iter_rows(max_col=MAX_COLUMNS, values_only=True)
 
 
 def _cell_text(value: object) -> Cell:
@@ -204,9 +211,14 @@ def _table(records: Iterable[tuple[int, Sequence[Cell]]], *, max_rows: int) -> l
         raise UnreadableFile("The file is empty: it needs a header row and employee rows.")
     columns = _columns(first[1])
     rows: list[RawRow] = []
+    blank_rows = 0
     for number, cells in numbered:
         values = _row_values(number, columns, cells)
         if values is None:
+            blank_rows += 1
+            if blank_rows > MAX_BLANK_ROWS:
+                message = f"The file has more than {MAX_BLANK_ROWS} blank rows: delete them."
+                raise TooManyRows(max_rows, message)
             continue
         if len(rows) == max_rows:
             raise TooManyRows(max_rows)
@@ -221,6 +233,11 @@ def _columns(header: Sequence[Cell]) -> list[str]:
 
     Raises HeaderMismatch naming every unknown, repeated and missing column.
     """
+    if len(header) > MAX_COLUMNS:
+        raise HeaderMismatch(
+            f"The header row has {len(header)} columns: a file may have at most {MAX_COLUMNS} "
+            f"columns (the template has {len(TEMPLATE_COLUMNS)})."
+        )
     columns = [(cell or "").strip().lower() for cell in header]
     named = [column for column in columns if column]
     problems: list[str] = []
@@ -230,7 +247,7 @@ def _columns(header: Sequence[Cell]) -> list[str]:
         unknown = [column for column in named if column not in TEMPLATE_COLUMNS]
         if unknown:
             problems.append(f"Unknown column{_s(unknown)}: {', '.join(unknown)}.")
-        repeated = sorted({column for column in named if named.count(column) > 1})
+        repeated = sorted(column for column, times in Counter(named).items() if times > 1)
         problems += [f"The column {column} appears more than once." for column in repeated]
     missing = [column for column in TEMPLATE_COLUMNS if column in REQUIRED_COLUMNS - set(named)]
     if missing:
