@@ -233,7 +233,7 @@ Department is derived through `job_role → department`; `employees` does not st
 | Column | Type | Null | Constraint / default | Notes |
 |---|---|---|---|---|
 | `id` | INTEGER | no | PK | Internal |
-| `employee_code` | VARCHAR(12) | no | UNIQUE; format `ACME-` + six ASCII digits (validated in the API) | Human-facing ID used for search and import duplicate detection. When a create leaves it out, it is one more than the highest code in use |
+| `employee_code` | VARCHAR(12) | no | UNIQUE; format `ACME-` + six ASCII digits (validated in the API) | Human-facing ID used for search and import duplicate detection. When a create leaves it out, it is one more than the highest `ACME-######` code in use (none is generated past `ACME-999999`) |
 | `first_name` | VARCHAR(100) | no | | Unicode (e.g. `José`, `Müller`, `佐藤`) |
 | `last_name` | VARCHAR(100) | no | | |
 | `email` | VARCHAR(254) | no | UNIQUE | Work email, stored trimmed and lowercased (the model normalises every value, as for `users`), so uniqueness ignores case; seed uses the reserved `acme.example` domain |

@@ -442,12 +442,13 @@ def _check_new_employee(session: Session, request: EmployeeCreate) -> Country:
     if country is None:
         message = f"Unknown country {request.country_code}."
         errors.append(_field_error(("country_code",), "not_found", message))
-    elif not country.is_active:
-        message = f"{country.name} is not an active country."
-        errors.append(_field_error(("country_code",), "inactive", message))
-    elif request.salary.currency not in (None, country.default_currency):
-        message = f"Salaries in {country.name} are paid in {country.default_currency}."
-        errors.append(_field_error(("salary", "currency"), "currency_mismatch", message))
+    else:
+        if not country.is_active:
+            message = f"{country.name} is not an active country."
+            errors.append(_field_error(("country_code",), "inactive", message))
+        if request.salary.currency not in (None, country.default_currency):
+            message = f"Salaries in {country.name} are paid in {country.default_currency}."
+            errors.append(_field_error(("salary", "currency"), "currency_mismatch", message))
     if request.hire_date > _today():
         message = "The hire date cannot be in the future."
         errors.append(_field_error(("hire_date",), "future_date", message))
