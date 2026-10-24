@@ -6,12 +6,16 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from salary_api.core.errors import (
+    BadRequest,
     Duplicate,
     Forbidden,
+    ImportFailed,
     InvalidState,
     NotFound,
+    PayloadTooLarge,
     ProblemError,
     Unauthenticated,
+    UnsupportedMediaType,
     VersionConflict,
 )
 
@@ -100,6 +104,13 @@ def test_unhandled_error_returns_500_problem_json_without_internal_detail(app: F
         (NotFound("Employee 42 was not found."), (404, "not-found", "Not found")),
         (Duplicate("Email is already in use."), (409, "duplicate", "Duplicate")),
         (InvalidState("Employee 42 is terminated."), (409, "invalid-state", "Invalid state")),
+        (BadRequest("The file is not UTF-8."), (400, "bad-request", "Bad request")),
+        (PayloadTooLarge("Upload at most 4 MB."), (413, "payload-too-large", "Payload too large")),
+        (
+            UnsupportedMediaType("Upload a .csv or .xlsx file."),
+            (415, "unsupported-media-type", "Unsupported media type"),
+        ),
+        (ImportFailed("Nothing was imported."), (500, "import-failed", "Import failed")),
     ],
 )
 def test_problem_exceptions_render_their_glossary_status_slug_and_title(
@@ -154,3 +165,20 @@ def test_invalid_response_is_logged_by_type_without_the_response_body(
     assert response.status_code == 500
     assert "ResponseValidationError" in logged
     assert "base-salary-6500000" not in logged
+
+
+def test_an_unexpected_error_is_logged_with_its_type_and_frames_but_not_its_message(
+    app: FastAPI, capsys: pytest.CaptureFixture[str]
+) -> None:
+    @app.get("/api/v1/_test/personal")
+    def personal() -> None:
+        raise ValueError("Lena Müller cannot be used in worksheets.")
+
+    with TestClient(app, raise_server_exceptions=False) as client:
+        client.get("/api/v1/_test/personal", headers={"X-Request-ID": "req-log"})
+
+    logged = capsys.readouterr().out
+    assert "ValueError" in logged
+    assert "req-log" in logged
+    assert " in personal" in logged  # the frame where it was raised
+    assert "Lena" not in logged

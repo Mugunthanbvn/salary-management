@@ -1,9 +1,24 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
+from typing import Any, cast
 
-from sqlalchemy import ColumnElement, Select, and_, case, false, func, or_, select
+from sqlalchemy import (
+    ColumnElement,
+    Select,
+    Table,
+    and_,
+    bindparam,
+    case,
+    false,
+    func,
+    insert,
+    or_,
+    select,
+    update,
+)
 from sqlalchemy.orm import QueryableAttribute, Session, contains_eager, joinedload
 
+from salary_api.core.db import in_chunks
 from salary_api.core.schemas import Comp
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
 from salary_api.domain.money import UsdSortKey
@@ -15,6 +30,29 @@ from salary_api.modules.salaries.models import SalaryRecord
 def add(session: Session, employee: Employee) -> None:
     session.add(employee)
     session.flush()
+
+
+def highest_id(session: Session) -> int:
+    return session.scalar(select(func.max(Employee.id))) or 0
+
+
+def insert_many(session: Session, rows: Sequence[Mapping[str, Any]]) -> None:
+    """Bulk INSERT of employee rows (column values, ids included), in chunks."""
+    for chunk in in_chunks(rows):
+        session.execute(insert(Employee), chunk)
+
+
+def set_current_salary_records(session: Session, record_ids: Mapping[int, int]) -> None:
+    """Point each employee (key) at its current salary record (value), in chunks."""
+    table = cast(Table, Employee.__table__)
+    statement = (
+        update(table)
+        .where(table.c.id == bindparam("employee_id"))
+        .values(current_salary_record_id=bindparam("record_id"))
+    )
+    pairs = [{"employee_id": e, "record_id": r} for e, r in record_ids.items()]
+    for chunk in in_chunks(pairs):
+        session.execute(statement, chunk)
 
 
 def get_detail(session: Session, employee_id: int) -> Employee | None:
@@ -138,18 +176,27 @@ def page(
 
     Sorted by `order`, then by id, so every page boundary is stable.
     """
+    return session.scalars(_sorted(where, order).offset(offset).limit(limit)).all()
+
+
+def all_matching(
+    session: Session, where: EmployeeFilter, *, order: Sequence[SortKey]
+) -> Sequence[Employee]:
+    """Every matching employee, sorted like a page, with role and department loaded."""
+    return session.scalars(_sorted(where, order)).all()
+
+
+def _sorted(where: EmployeeFilter, order: Sequence[SortKey]) -> Select[Employee]:
+    """Matching employees with role and department, sorted by `order` and then by id."""
     order_by = [
         _sort_value(key).desc() if key.descending else _sort_value(key).asc() for key in order
     ]
-    query = (
+    return (
         _matching(select(Employee), where)
         .options(contains_eager(Employee.job_role).contains_eager(JobRole.department))
         .join(JobRole.department)
         .order_by(*order_by, Employee.id)
-        .offset(offset)
-        .limit(limit)
     )
-    return session.scalars(query).all()
 
 
 def _sort_value(key: SortKey) -> ColumnElement[object]:

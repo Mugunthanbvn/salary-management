@@ -135,8 +135,9 @@ class EmployeeDetail(EmployeeListItem):
     current_salary: CurrentSalary | None
 
 
-class EmployeeListQuery(BaseModel):
-    """The query of GET /employees. Unknown parameters are refused (422), so typos show."""
+class EmployeeFilterQuery(BaseModel):
+    """Which employees, in which order: the filters and sort of GET /employees, which the
+    export shares. Unknown parameters are refused (422), so typos show."""
 
     model_config = ConfigDict(extra="forbid")
 
@@ -160,6 +161,11 @@ class EmployeeListQuery(BaseModel):
     # Comma-separated fields, `-` for descending: sort=-hire_date,last_name. Ties are broken
     # by last_name, first_name, id.
     sort: str | None = None
+
+
+class EmployeeListQuery(EmployeeFilterQuery):
+    """The query of GET /employees: the filters and sort, and the page."""
+
     page: int = Field(default=1, ge=1, le=MAX_PAGE)
     page_size: int = Field(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE)
 

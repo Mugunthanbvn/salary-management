@@ -7,6 +7,7 @@ and commits.
 from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import date
+from itertools import count
 from typing import Any
 
 from sqlalchemy.orm import Session
@@ -21,6 +22,7 @@ from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.salary_change import base_change_pct, is_promotion
 from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees import locking
+from salary_api.modules.employees import repository as employees
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference import repository as reference
 from salary_api.modules.reference.models import Country, JobRole
@@ -71,6 +73,61 @@ def record_hire(
     repository.add_record(session, record)
     _make_current(employee, record)
     return record
+
+
+@dataclass(frozen=True, slots=True)
+class BulkHire:
+    """The first salary of an employee inserted in bulk, with their role and level."""
+
+    employee_id: int
+    job_role_id: int
+    level: Level
+    effective_date: date
+    pay: Pay
+
+
+def record_hires_in_bulk(session: Session, hires: Sequence[BulkHire], *, changed_by: int) -> None:
+    """Append the HIRE record of each new (inserted) employee and make it their current
+    salary, with bulk inserts. Joins the caller's transaction.
+
+    Record ids are allocated here, one more than the highest in use, so no RETURNING is
+    needed; the caller's transaction holds the write lock (BEGIN IMMEDIATE on SQLite).
+    """
+    now = utc_now()
+    records: list[dict[str, Any]] = []
+    components: list[dict[str, Any]] = []
+    current: dict[int, int] = {}
+    for record_id, hire in zip(count(repository.highest_record_id(session) + 1), hires):
+        records.append(
+            {
+                "id": record_id,
+                "employee_id": hire.employee_id,
+                "effective_date": hire.effective_date,
+                "currency": hire.pay.base.currency,
+                "base_minor": hire.pay.base.amount_minor,
+                "total_minor": hire.pay.total.amount_minor,
+                "job_role_id": hire.job_role_id,
+                "level": hire.level,
+                "reason": SalaryReason.HIRE,
+                "note": None,
+                "changed_by": changed_by,
+                "created_at": now,
+            }
+        )
+        components += [
+            {
+                "salary_record_id": record_id,
+                "type": c.type,
+                "name": c.name,
+                "amount_minor": c.amount_minor,
+            }
+            for c in hire.pay.components
+        ]
+        current[hire.employee_id] = record_id
+    repository.insert_records(session, records)
+    if components:
+        repository.insert_components(session, components)
+    employees.set_current_salary_records(session, current)
 
 
 def record_salary_change(

@@ -27,9 +27,11 @@ from tests.factories import (
     make_job_role,
     make_user,
 )
+from tests.spreadsheets import hire, import_csv, make_dry_run, make_import_reference, upload
 
 ANON = "ANON"
 EMPLOYEE = "/api/v1/employees/{employee_id:int}"  # int only, so /employees/export is not an id
+IMPORT = "/api/v1/imports/{import_id:int}"
 CALLERS = (ANON, "VIEWER", "HR_MANAGER", "ADMIN")
 
 # Builds one call: TestClient.request keyword arguments (json, params, files, ...) plus an
@@ -91,6 +93,29 @@ def _salary_change(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{employee.id}/salary-changes", "json": body}
 
 
+def _csv_export(session: Session) -> dict[str, Any]:
+    make_employee(session)
+    return {"params": {"format": "csv"}}
+
+
+def _template_query(_session: Session) -> dict[str, Any]:
+    return {"params": {"format": "csv"}}
+
+
+def _import_file(session: Session) -> dict[str, Any]:
+    make_import_reference(session)
+    return upload("hires.csv", import_csv(hire(1)))
+
+
+def _someone_elses_import(session: Session) -> dict[str, Any]:
+    # Uploaded by another HR manager: only its creator or an administrator may see it.
+    return {"url": f"/api/v1/imports/{make_dry_run(session).id}"}
+
+
+def _someone_elses_import_commit(session: Session) -> dict[str, Any]:
+    return {"url": f"/api/v1/imports/{make_dry_run(session).id}/commit"}
+
+
 def _salary_history(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{make_employee(session).id}/salary-history"}
 
@@ -121,6 +146,11 @@ MATRIX = [
     Endpoint("POST", f"{EMPLOYEE}/reactivate", (401, 403, 200, 200), _terminated_employee),
     Endpoint("POST", f"{EMPLOYEE}/salary-changes", (401, 403, 201, 201), _salary_change),
     Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
+    Endpoint("GET", "/api/v1/employees/export", (401, 200, 200, 200), _csv_export),
+    Endpoint("GET", "/api/v1/imports/template", (401, 403, 200, 200), _template_query),
+    Endpoint("POST", "/api/v1/imports", (401, 403, 201, 201), _import_file),
+    Endpoint("GET", IMPORT, (401, 403, 404, 200), _someone_elses_import),
+    Endpoint("POST", f"{IMPORT}/commit", (401, 403, 404, 200), _someone_elses_import_commit),
     Endpoint("GET", "/api/v1/insights/overview", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/insights/by-department", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/insights/by-job-title", (401, 200, 200, 200), _in_germany),

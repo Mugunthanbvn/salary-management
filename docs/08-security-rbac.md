@@ -212,17 +212,17 @@ Audit rows are never updated or deleted through the application. Retention polic
 
 ### 7.1 CSV/XLSX formula injection (export)
 
-A cell such as `=HYPERLINK("http://evil","click")` becomes a live formula when HR opens the export in Excel. Every exported string cell starting with `=`, `+`, `-`, `@`, tab (`\t`) or carriage return (`\r`) is prefixed with a single quote `'` (OWASP guidance). XLSX cells are written as explicit string types via openpyxl. Numeric money columns are written as numbers in **major units with the correct exponent** and are never formulas. A test exports a malicious name and asserts the escaped output ([14-testing-strategy.md](14-testing-strategy.md)).
+A cell such as `=HYPERLINK("http://evil","click")` becomes a live formula when HR opens the export in Excel. Every exported string cell starting with `=`, `+`, `-`, `@`, tab (`\t`) or carriage return (`\r`) is prefixed with a single quote `'` (OWASP guidance). XLSX text cells are string cells: openpyxl writes text as a formula only when it starts with `=`, which the escaping never leaves; characters XML 1.0 cannot hold are dropped first. Numeric money columns are written as numbers in **major units with the correct exponent** and are never formulas. A test exports a malicious name and asserts the escaped output ([14-testing-strategy.md](14-testing-strategy.md)).
 
 ### 7.2 Upload hardening (import)
 
 | Risk | Mitigation |
 |---|---|
-| Oversized upload / zip bomb (XLSX is a zip) | 4 MB request cap (also the Vercel body limit); row cap; openpyxl `read_only=True`; reject archives whose uncompressed size exceeds a limit **(proposed: 50 MB)** |
-| Formulas or macros in XLSX | Read **values only** (`data_only=True`); `.xlsm` and other formats rejected (415) |
-| Wrong type disguised by extension | Check the extension **and** content (CSV decodes as UTF-8; XLSX opens as a valid workbook) |
+| Oversized upload / zip bomb (XLSX is a zip) | 4 MB cap: a declared `Content-Length` over 4 MB + 64 KB is refused (413) before the body is read, and the file is checked again after reading; 10,000-row cap; at most 50 columns and 1,000 blank rows (422 / 400), so hostile shapes cost no time; openpyxl `read_only=True`; archives whose declared uncompressed size exceeds 50 MB are refused unread (400) |
+| Formulas or macros in XLSX | Read **values only** (`data_only=True`); a formula without a saved value is refused (400); `.xlsm`, `.xls` and other extensions rejected (415); `defusedxml` guards the XML parser |
+| Wrong type disguised by extension | The extension picks the parser and the content must parse as that format (CSV decodes as UTF-8; XLSX opens as a workbook), else 400 `bad-request`; the declared MIME type is not trusted |
 | Malicious names/strings stored and later rendered | Stored as plain text; React escapes on render; exports escape formulas (§7.1) |
-| Filename tricks | The original filename is stored for display only, never used as a path; nothing is written to disk |
+| Filename tricks | The original filename is stored for display only (folders a browser sends are cut off), never used as a path; the app writes nothing to disk (the framework may spool a large upload to a temporary file, which it deletes) |
 | Partial writes | Commit is all-or-nothing in one transaction ([ADR 0012](adr/0012-bulk-import-dry-run.md)) |
 
 Details: [11-import-export.md](11-import-export.md).
