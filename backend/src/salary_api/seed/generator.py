@@ -1,7 +1,8 @@
 """Build the whole seed dataset in memory, without a database (docs/12-seed-data.md).
 
-Determinism (section 12): one `random.Random(seed)` drives every draw, in config order. Salary
-history draws from a child generator seeded from it, so `--no-history` changes nothing else.
+Determinism (section 12): one `random.Random(seed)` drives every draw, in config order. The demo
+story and salary history draw from child generators seeded from it, so `--no-story` and
+`--no-history` change only what they switch off.
 Names come from their own per-country sources (names.py). Every date is relative to
 ANCHOR_DATE, never to today, and every ID is assigned here in generation order.
 """
@@ -49,8 +50,17 @@ _MEAN_TENURE_DAYS = config.MEAN_TENURE_YEARS * 365.25
 
 
 @dataclass(frozen=True, slots=True)
+class StoryReport:
+    """Who the demo story changed (section 8), by employee ID. All empty with `--no-story`."""
+
+    underpaid_ids: tuple[int, ...] = ()
+    overpaid_ids: tuple[int, ...] = ()
+    pay_gap_ids: tuple[int, ...] = ()  # every DE Customer Success employee
+
+
+@dataclass(frozen=True, slots=True)
 class Dataset:
-    """Every row the seed writes, with IDs, in insert order."""
+    """Every row the seed writes, with IDs, in insert order, and what the story planted."""
 
     countries: tuple[CountryRow, ...]
     departments: tuple[DepartmentRow, ...]
@@ -60,6 +70,7 @@ class Dataset:
     employees: tuple[EmployeeRow, ...]
     salary_records: tuple[SalaryRecordRow, ...]
     salary_components: tuple[SalaryComponentRow, ...]
+    story: StoryReport
 
 
 @dataclass(frozen=True, slots=True)
@@ -84,17 +95,20 @@ class _Draft:
     termination_date: date | None = None
 
 
-def generate(*, seed: int, employees: int, history: bool = True) -> Dataset:
-    """The dataset for `seed`: `employees` people in the 10 countries, with salary history.
+def generate(*, seed: int, employees: int, story: bool = True, history: bool = True) -> Dataset:
+    """The dataset for `seed`: `employees` people in the 10 countries, with salary history and,
+    unless `story` is off, the planted demo story.
 
     The same arguments always give an equal dataset.
     """
     rng = random.Random(seed)
+    story_rng = random.Random(rng.getrandbits(64))
     history_rng = random.Random(rng.getrandbits(64))
     roles = _roles()
     drafts = _drafts(rng, seed, employees, roles)
     _terminate(rng, drafts)
     drafts.sort(key=lambda draft: draft.hire_date)  # stable: same-day hires keep their order
+    report = _plant_story(story_rng, drafts) if story else StoryReport()
     employee_rows, records, components = _people(history_rng, drafts, history=history)
     return Dataset(
         countries=tuple(
@@ -116,6 +130,7 @@ def generate(*, seed: int, employees: int, history: bool = True) -> Dataset:
         employees=employee_rows,
         salary_records=records,
         salary_components=components,
+        story=report,
     )
 
 
@@ -245,6 +260,46 @@ def _terminate(rng: random.Random, drafts: list[_Draft]) -> None:
         draft = drafts[index]
         days = (config.ANCHOR_DATE - draft.hire_date).days
         draft.termination_date = draft.hire_date + timedelta(days=rng.randint(1, days))
+
+
+def _plant_story(rng: random.Random, drafts: Sequence[_Draft]) -> StoryReport:
+    """Change current base pay for the demo story, before history is walked back from it.
+
+    1. Every DE Customer Success employee: base x 0.92, so the team sits about 8 % under band.
+    2. 2 % of active full-timers become outliers: base = band mid x Uniform(0.65, 0.75) for
+       60 % of them, x Uniform(1.30, 1.45) for the rest. Set from the band mid (not the noisy
+       base, and not on top of step 1), so every outlier is flagged.
+    Employee IDs are positions in hire order plus one.
+    """
+    pay_gap: list[int] = []
+    for employee_id, draft in enumerate(drafts, start=1):
+        if (
+            draft.country.code == config.PAY_GAP_COUNTRY
+            and draft.role.department == config.PAY_GAP_DEPARTMENT
+        ):
+            draft.base_minor = round_to_unit(
+                draft.base_minor * config.PAY_GAP_FACTOR, rounding_unit_minor(draft.country)
+            )
+            pay_gap.append(employee_id)
+    eligible = [
+        employee_id
+        for employee_id, draft in enumerate(drafts, start=1)
+        if draft.employment_type == EmploymentType.FULL_TIME and draft.termination_date is None
+    ]
+    outliers = rng.sample(eligible, round_half_even(len(eligible) * config.OUTLIER_SHARE))
+    underpaid_count = round_half_even(len(outliers) * config.UNDERPAID_SHARE_OF_OUTLIERS)
+    for position, employee_id in enumerate(outliers):
+        draft = drafts[employee_id - 1]
+        bounds = config.UNDERPAID_FACTOR if position < underpaid_count else config.OVERPAID_FACTOR
+        mid = band_for(draft.level, draft.role.spec, draft.country).mid_minor
+        draft.base_minor = round_to_unit(
+            mid * draw_uniform(rng, bounds), rounding_unit_minor(draft.country)
+        )
+    return StoryReport(
+        underpaid_ids=tuple(sorted(outliers[:underpaid_count])),
+        overpaid_ids=tuple(sorted(outliers[underpaid_count:])),
+        pay_gap_ids=tuple(pay_gap),
+    )
 
 
 def _people(
