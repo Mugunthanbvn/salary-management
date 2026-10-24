@@ -4,6 +4,7 @@ Money is never a float. An amount always travels with its currency.
 """
 
 from dataclasses import dataclass
+from datetime import date
 from decimal import Decimal, InvalidOperation
 from typing import Self
 
@@ -77,6 +78,20 @@ class Money:
     def _require_same_currency(self, other: "Money") -> None:
         if other.currency != self.currency:
             raise CurrencyMismatchError(self.currency, other.currency)
+
+
+@dataclass(frozen=True, slots=True)
+class FxRate:
+    """USD per one major unit of `currency` (e.g. INR `Decimal("0.01198")`), valid as of a date."""
+
+    currency: str
+    rate_to_usd: Decimal
+    as_of: date
+
+    def __post_init__(self) -> None:
+        if type(self.rate_to_usd) is not Decimal:
+            kind = type(self.rate_to_usd).__name__
+            raise TypeError(f"rate_to_usd must be a Decimal, not {kind}")
 
 
 def _divide_half_even(numerator: int, denominator: int) -> int:
