@@ -8,4 +8,10 @@ describe("formatMoney", () => {
 
     expect(text).toBe("€54,000.50");
   });
+
+  it("shows yen with no decimals, because JPY has no minor unit", () => {
+    const text = formatMoney(7_200_000, "JPY");
+
+    expect(text).toBe("¥7,200,000");
+  });
 });
