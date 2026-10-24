@@ -18,7 +18,7 @@ FRONTEND := frontend
 PNPM := cd $(FRONTEND) && pnpm
 API_GENERATED := $(FRONTEND)/openapi.json $(FRONTEND)/src/lib/api/schema.d.ts
 
-.PHONY: help setup dev migrate fmt fmt-backend fmt-frontend lint lint-backend lint-frontend \
+.PHONY: help setup dev migrate seed seed-turso fmt fmt-backend fmt-frontend lint lint-backend lint-frontend \
 	typecheck typecheck-backend typecheck-frontend test test-backend test-frontend e2e \
 	build-frontend api-sync api-drift verify verify-backend clean
 
@@ -47,6 +47,23 @@ dev: migrate ## Run the API (:8000) and the web app (:3000) on backend/dev.db; C
 
 migrate: ## Apply database migrations (alembic upgrade head) to DATABASE_URL
 	cd $(BACKEND) && uv run alembic upgrade head
+
+# The deterministic demo data (docs/12-seed-data.md). The seed runs `alembic upgrade head` itself.
+SEED_ARGS := --seed 42 --employees 10000
+SEED_FILE := build/seed.db
+
+seed: ## Replace backend/dev.db data with the 10k demo seed (--seed 42); prints counts and timings
+	cd $(BACKEND) && uv run python -m salary_api.seed $(SEED_ARGS) --reset --db-url sqlite:///./dev.db
+
+seed-turso: ## Build build/seed.db for Turso (needs real SEED_*_PASSWORD); prints, never runs, the upload
+	mkdir -p $(dir $(SEED_FILE))
+	rm -f $(SEED_FILE) $(SEED_FILE)-wal $(SEED_FILE)-shm
+	@# APP_ENV=production: the seed refuses default or missing demo passwords.
+	cd $(BACKEND) && APP_ENV=production uv run python -m salary_api.seed $(SEED_ARGS) \
+	  --db-url sqlite:///../$(SEED_FILE)
+	@echo ""
+	@echo "Built $(SEED_FILE) (one self-contained file). To create the production database, run:"
+	@echo "  turso db create salary-prod --from-file $(SEED_FILE)"
 
 fmt: fmt-backend fmt-frontend ## Format and auto-fix all code
 
