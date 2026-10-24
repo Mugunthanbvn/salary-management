@@ -309,7 +309,7 @@ Runs against a local stack: the FastAPI dev server on a fresh seeded SQLite file
 | 5 | Admin → FX rates → edit a rate | the USD totals on Insights change; an audit log entry is visible |
 | 6 | Ask (FakeLLM provider mode **(proposed)**, or skipped without a key) | answer card + "How I got this" rendered |
 
-Viewports: desktop (1280×800) and phone (390×844) for flows 1 and 3 **(proposed)**. Accessibility smoke: `@axe-core/playwright` on the main pages, which must have no serious or critical violations **(proposed)**.
+Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), because every screen must be fully usable on a phone ([13-frontend-ux.md](13-frontend-ux.md) §8). A component test checks that the employee table renders as cards below 640 px. Accessibility smoke: `@axe-core/playwright` on the main pages, which must have no serious or critical violations **(proposed)**.
 
 ---
 

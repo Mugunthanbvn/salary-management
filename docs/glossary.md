@@ -42,6 +42,7 @@ Role → permission matrix: [08-security-rbac.md](08-security-rbac.md) §3.1. Co
 | Percentile method | linear interpolation between closest ranks (= NumPy `linear`, SQL `PERCENTILE_CONT`) | |
 | Salary currency | always the employee's country `default_currency` | A country change is a salary change |
 | Page size | default `25`, max `100` | |
+| Responsive | Fully mobile responsive from **360 px**; breakpoints `< 640` phone, `640–1023` tablet, `≥ 1024` desktop; design checks at 390 × 844 and 1440 × 900; touch targets ≥ 44 px | [13](13-frontend-ux.md) §8 |
 | JWT lifetime | 8 h (`JWT_TTL_MINUTES=480`) | |
 | Login failure limit | 5 failures per email in 15 min → `429` for 15 min | Counted from `auth.login_failed` |
 | Ask rate limit | 20 per user per hour (`ASK_RATE_LIMIT_PER_HOUR`) | Counted from `ask.query` |

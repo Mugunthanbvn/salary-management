@@ -148,7 +148,7 @@ Details: [10-ai-ask-design.md](10-ai-ask-design.md).
 | **Security** | Argon2 password hashing; JWT in httpOnly cookie; permission checks on every endpoint; masking + small-group rule; audit of all mutations, imports, exports and admin actions; secrets only via environment. See [08-security-rbac.md](08-security-rbac.md). |
 | **Privacy** | Data minimisation — no DOB, gender, address, bank details. LLM receives aggregates by default. |
 | **Reliability** | Soft deletes; optimistic locking; all-or-nothing imports; Turso point-in-time restore for recovery. |
-| **Usability** | Responsive layout; keyboard-friendly; WCAG AA contrast; clear validation messages; currency always labelled. |
+| **Usability** | Fully mobile responsive: every screen and action works on a phone from 360 px wide ([13-frontend-ux.md](13-frontend-ux.md) §8); keyboard-friendly; WCAG AA contrast; clear validation messages; currency always labelled. |
 | **Maintainability** | Layered backend (router → service → repository), pure domain module, typed end-to-end (Pyright strict, TS strict, generated API client). |
 | **Testability** | TDD; fast, deterministic tests (in-memory SQLite, frozen time, seeded randomness); coverage ≥ 90 % on domain + services. See [14-testing-strategy.md](14-testing-strategy.md). |
 | **Cost** | $0 hosting: Vercel (web + API) + Turso; free LLM tier. See [17-deployment.md](17-deployment.md). |
