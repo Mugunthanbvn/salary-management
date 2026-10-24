@@ -1,8 +1,10 @@
 #!/usr/bin/env bash
 # PreToolUse guard for Edit/Write (see docs/16-claude-code-setup.md §7.2).
 # Blocks hand edits to lockfiles, generated API files and .env files (except .env.example).
+# Paths are matched by name or suffix, so files in git worktrees and behind ".." are covered too.
 # Input: the hook JSON on stdin. Exit 2 = block (stderr is shown to Claude). Exit 0 = allow.
 set -u
+set -f # no globbing while splitting paths
 
 input="$(cat)"
 
@@ -24,12 +26,36 @@ fi
 
 [ -n "${file:-}" ] || exit 0
 
+# normalise <path>: drop "." segments and resolve ".." lexically (the file may not exist yet). Bash 3.2 safe.
+normalise() {
+  local IFS=/ part lead="" n
+  local -a parts
+  parts=()
+  case "$1" in /*) lead=/ ;; esac
+  for part in $1; do
+    case "$part" in
+      "" | .) ;;
+      ..)
+        n=${#parts[@]}
+        if [ "$n" -gt 0 ] && [ "${parts[$((n - 1))]}" != .. ]; then
+          unset "parts[$((n - 1))]"
+        elif [ -z "$lead" ]; then
+          parts[n]=..
+        fi
+        ;;
+      *) parts[${#parts[@]}]="$part" ;;
+    esac
+  done
+  if [ ${#parts[@]} -gt 0 ]; then printf '%s%s\n' "$lead" "${parts[*]}"; else printf '%s\n' "${lead:-.}"; fi
+}
+
+file="$(normalise "$file")"
 root="${CLAUDE_PROJECT_DIR:-$(cd "$(dirname "$0")/../.." && pwd)}"
 case "$file" in
   "$root"/*) rel="${file#"$root"/}" ;;
-  *) rel="${file#./}" ;;
+  *) rel="$file" ;;
 esac
-base="$(basename "$file")"
+base="${file##*/}"
 
 block() {
   printf 'Blocked: %s must not be edited by hand. %s\n' "$rel" "$1" >&2
@@ -47,8 +73,8 @@ case "$base" in
     block "It holds secrets. Put new variables with placeholder values in .env.example and ask the user to update their own env file." ;;
 esac
 
-case "$rel" in
-  frontend/src/lib/api/schema.d.ts | frontend/openapi.json)
+case "$file" in
+  frontend/src/lib/api/schema.d.ts | */frontend/src/lib/api/schema.d.ts | frontend/openapi.json | */frontend/openapi.json)
     block "It is generated from the FastAPI OpenAPI spec. Change the backend router or schema, then run 'make api-sync'." ;;
 esac
 
