@@ -322,7 +322,7 @@ Viewports: the smoke flow runs at desktop (1440×900) **and** phone (390×844), 
 |---|---|
 | Wall clock (`now()`, "today") | `time-machine` fixture, frozen per test. Production code takes time from an injectable `Clock` **(proposed)** or `datetime.now(UTC)`, which time-machine patches |
 | Randomness in code (seed) | `random.Random(seed)` instances passed explicitly; never the global `random` |
-| Faker | `Faker.seed(seed)` + per-locale instances created from the seed |
+| Faker | One `Faker(locale)` instance per country, each `seed_instance(seed + country_index)` (never the shared `Faker.seed`); Singapore's curated names use `random.Random(seed + country_index)` |
 | Hypothesis | `derandomize=True` profile in CI (`HYPOTHESIS_PROFILE=ci`), with a fixed `max_examples`. Locally the default profile explores more |
 | Test order | **pytest-randomly** shuffles test order on every run and prints the seed, which exposes hidden coupling between tests. A failing order can be reproduced with `-p randomly -p "randomly_seed=<seed>"` |
 | Parallelism | **pytest-xdist** (`-n auto`). Each worker has its own in-memory DB, so nothing is shared |

@@ -9,7 +9,7 @@
 
 ## 1. Philosophy
 
-The problem is small: **10,000 employees, about 30,000 salary records, about 10 MB of data.** At this scale the main performance risks are not algorithmic. They are **network round-trips** (serverless function ↔ Turso), **cold starts**, and **accidental N+1 queries**. The design keeps the system simple (no cache layer, no queues, no materialized views) and spends effort on:
+The problem is small: **10,000 employees, about 24,000 salary records, about 10 MB of data.** At this scale the main performance risks are not algorithmic. They are **network round-trips** (serverless function ↔ Turso), **cold starts**, and **accidental N+1 queries**. The design keeps the system simple (no cache layer, no queues, no materialized views) and spends effort on:
 
 1. Few queries per request (one list query + one count; one aggregate query per insight).
 2. The right indexes for every filter and sort.
@@ -196,7 +196,7 @@ To be filled in with measured values. Each row records the date, commit and envi
 
 | Metric | Target | Measured | Date / commit | Environment |
 |---|---|---|---|---|
-| Seed 10k (local) | < 5 s | **2.9–3.5 s** into a SQLite file (users 0.5 s of argon2, migrate < 0.1 s, generate 1.1–1.3 s, insert 1.2–1.7 s); **2.3 s** in memory (the golden test) | 2026-10-24 / `9d60d55` | Linux, 4 vCPU shared with other jobs (load ≈ 4.5), Python 3.13, SQLite WAL |
+| Seed 10k (local) | < 5 s | **3.2–3.4 s** with `make seed` (users 0.5–0.65 s of argon2, migrate < 0.1 s, generate 1.0–1.1 s, insert incl. reset 1.6–1.7 s); first build 2.9 s; **2.3 s** in memory (the golden test) | 2026-10-24 / after the B5 review | Linux, 4 vCPU shared with other jobs (load ≈ 4.5), Python 3.13, SQLite WAL |
 | Turso load | < 60 s | TBD | | |
 | `GET /employees` p95 | < 300 ms | TBD | | |
 | `GET /insights/overview` p95 | < 300 ms | TBD | | |

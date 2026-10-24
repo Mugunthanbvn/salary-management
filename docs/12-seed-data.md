@@ -113,7 +113,7 @@ Why a controlled list: pay-equity cohorts are **job role + level + country** ([0
 | L5 | Principal | 6% | 190,000 | 20% |
 | L6 | Director | 2% | 230,000 | 25% |
 
-Each country's levels are split exactly by this pyramid (largest remainder), shuffled, and paired with the role slots. If a level is outside the role's allowed range, it is **clamped** to the nearest allowed level. Clamping distorts the pyramid, most at the top (only six roles allow L6); the seed CLI reports the final distribution. For `--seed 42`: L1 1,834 · L2 3,356 · L3 2,703 · L4 1,612 · L5 472 · L6 23.
+Each country's levels are split exactly by this pyramid (largest remainder), shuffled, and paired with the role slots. If a level is outside the role's allowed range, it is **clamped** to the nearest allowed level. Clamping distorts the pyramid, most at the top (only six roles allow L6); the seed CLI reports the final distribution. For `--seed 42`: L1 1,807 · L2 3,389 · L3 2,691 · L4 1,637 · L5 453 · L6 23.
 
 Employment type: **90% FULL_TIME, 6% PART_TIME, 4% CONTRACTOR**, split exactly per country (largest remainder) and shuffled.
 
@@ -123,12 +123,14 @@ Status **(proposed)**: 3% `TERMINATED` (rounded half-even, chosen at random), wi
 
 ```
 reference_usd   = LEVEL_BAND_USD[level] × FAMILY_MULT[role.family] × COUNTRY_FACTOR[country]
-noise           = exp( Normal(μ = 0, σ = 0.12) )                  # log-normal, ±~12%
+noise           = exp( Normal(μ = 0, σ = 0.06) ), within [0.89, 1.12]  # log-normal, ±~6%
 base_usd        = reference_usd × noise
 base_local      = base_usd / FX_RATE_TO_USD[currency]
 part-time       → base_local × Uniform(0.5, 0.8)                  # proposed: implied FTE not stored
 base_local      = round_to(base_local, ROUNDING[currency])        # 1,000 local; 10,000 for INR and JPY
 ```
+
+**Why the noise is narrow (decided).** A draw outside [0.89, 1.12] (about 1.9 σ each way, symmetric in log terms) is drawn again, so there is no pile at a bound. With σ = 0.12 and no bounds, noise alone flagged about 9 % of full-timers and pushed small teams (France Finance, 0.945) below the 0.95 threshold, which buried the planted story (§8). Now, after rounding, a full-timer always sits at 0.86–1.16 of the band mid, and a DE Customer Success one at 0.81 or more after the −8 % gap, in every one of the 1,360 bands (a unit test checks each band): noise alone never flags anyone, for any seed.
 
 `round_to` rounds half-even to a multiple of the unit, and never below one unit. Base pay is rounded once, after the part-time factor. Uniform draws are integer steps on a 0.0001 grid, and the normal draw is cut to four decimals before `Decimal.exp`, so platform float maths cannot change a salary.
 
@@ -160,17 +162,17 @@ Contractors get **no allowances and no bonus target (proposed)**.
 
 ## 7. Salary history
 
-Each employee gets **1 to 11 salary records**, about 97% of them 6 or fewer (append-only; [adr/0006-append-only-salary-history.md](adr/0006-append-only-salary-history.md)), **about 24k in total** for 10k employees (24,052 for `--seed 42`). Each record carries a `job_role_id` + `level` **snapshot**, so history can show "L2 → L3, Promotion, +12%".
+Each employee gets **1 to 10 salary records**, about 97% of them 6 or fewer (append-only; [adr/0006-append-only-salary-history.md](adr/0006-append-only-salary-history.md)), **about 24k in total** for 10k employees (24,058 for `--seed 42`). Each record carries a `job_role_id` + `level` **snapshot**, so history can show "L2 → L3, Promotion, +12%".
 
 **Back-casting (proposed)** keeps current pay on the bands. The current base is generated first (§5), then history is walked **backwards** from today:
 
 1. **Hire date:** tenure ~ Exponential(mean 3.5 years), truncated at 11 years (drawn from the truncated distribution, so no pile of hires on the cap date; the mean after truncation is about 3.0 years), and at least one day before the seed anchor date. Hire dates fall between 2015-10-01 and 2026-09-30.
 2. **Anniversaries:** on each work anniversary before the anchor date:
    - with probability **0.55** there is a **MERIT** raise of Uniform(2%, 6%);
-   - once per employee, with probability **~15%** overall, a **PROMOTION** of Uniform(10%, 15%) on one random anniversary (instead of a merit raise that year), and level − 1 going back in time (only if the earlier level is still in the role's allowed range).
+   - once per employee, with probability **15%** for an employee with at least one anniversary and a level below theirs in the role's range (about 7% of all employees for `--seed 42`: 705), a **PROMOTION** of Uniform(10%, 15%) on one random anniversary (instead of a merit raise that year), and level − 1 going back in time (only if the earlier level is still in the role's allowed range).
 3. A small number of **MARKET_ADJUSTMENT** (+5–10%) and **CORRECTION** (−3% to +3%) records: each employee gets one with probability **1%** and **0.5%** **(proposed)**, on a random day after the hire date.
 4. Walking back divides the base by each raise factor. The earliest record is the **HIRE** record at `hire_date`.
-5. Amounts are re-rounded at each step to the currency's rounding unit. Components are recomputed per record from the rules in §6, using that record's level.
+5. Amounts are re-rounded at each step to the currency's rounding unit, and moved at least one unit the other way when rounding would undo the change (a 2 % raise on 19 units rounds back to 19). A CORRECTION never draws exactly 0 %. So every record changes the base: a raise always raises, a cut always cuts. Components are recomputed per record from the rules in §6, using that record's level.
 6. `changed_by` = `null` (seeded history has no acting user); reasons use the enum `HIRE`, `PROMOTION`, `MERIT`, `MARKET_ADJUSTMENT`, `CORRECTION`.
 
 This guarantees the current distribution matches §5. The raises insight ([09-insights-pay-equity.md](09-insights-pay-equity.md) §3.7) gets a realistic spread. The history's random draws depend only on dates and levels, never on amounts, so the demo story (§8) scales amounts without changing any salary event.
@@ -190,7 +192,14 @@ The data is planted so pay equity and "Ask about pay" have **real findings** to 
 
 Both patterns can be switched off (`--no-story`) for tests that need a "clean" distribution. The story draws from its own child RNG, so with and without it the people and salary events are the same and only the planted amounts differ (a unit test checks this).
 
-**Measured for `--seed 42 --employees 10000`:** 105 underpaid and 70 overpaid outliers; DE Customer Success median compa-ratio **0.921**, the only DE department below 0.95 (the others sit at 0.977–1.029). Small teams can dip below 0.95 by chance: France's Finance team (about 30 people) is at 0.945. `tests/integration/test_seed_full.py` checks the DE results with the `domain/pay_equity` functions.
+**Measured for `--seed 42 --employees 10000`** (checked by `tests/integration/test_seed_full.py` with the `domain/pay_equity` functions, across all countries):
+
+| | Flagged UNDERPAID | Flagged OVERPAID | Teams (department × country) below 0.95 |
+|---|---|---|---|
+| `--no-story` | 0 | 0 | none (lowest: Marketing BR 0.974) |
+| with the story | 104, exactly the planted ones | 70, exactly the planted ones | only Customer Success DE, median **0.929** (next lowest: Marketing BR 0.974) |
+
+Before the noise was narrowed (σ = 0.12, §5), noise alone flagged 818 full-timers, the story run flagged 975 of which only 175 were planted, and France's Finance team sat at 0.945, below the threshold by chance.
 
 ## 9. Names and emails
 
@@ -258,11 +267,15 @@ Stored as decimal strings ([adr/0005-fx-read-time-conversion.md](adr/0005-fx-rea
 
 - Generate with `--seed 42 --employees 10000` into in-memory SQLite.
 - Assert exact counts per country (table in §2) and per department.
-- Assert `sha256` over the sorted tuples `(employee_code, country, job_role, level, employment_type, current_base_minor, current_total_minor)` equals a **golden value** committed in the test.
+- Assert two `sha256` checksums equal **golden values** committed in the tests (`tests/seed_checks.py` computes them):
+  - employees: the sorted tuples `(employee_code, country, job_role, level, employment_type, current_base_minor, current_total_minor, first_name, last_name, email, hire_date, status, termination_date)`;
+  - history: every salary record `(employee_code, effective_date, reason, level, base_minor, total_minor)` followed by its components `type:name:amount_minor` in ID order, one sorted line per record.
+- Assert the 10k counts: 24,058 salary records, 39,570 components, 300 terminated.
+- Names are in the goldens, so a Faker upgrade that changes its name lists means updating them (with the reason in the commit message).
 - Assert invariants: every employee has ≥ 1 salary record, the latest record matches the denormalized current salary, no amount ≤ 0, JPY amounts are whole yen, every currency has an FX rate, every email is unique.
 - A fast variant with `--employees 200` (golden in `tests/integration/test_seed.py`) and the full 10k check (golden in `tests/integration/test_seed_full.py`) both run in the default suite: the 10k seed takes about 2.5 s in memory, and its tests share one xdist group, so a run builds it once. `make test` and CI therefore run it; there is no separate slow job.
 
-If the generator logic changes on purpose, the golden checksum is updated **in the same commit**, with the reason in the commit message.
+If the generator logic changes on purpose, the golden checksums and counts are updated **in the same commit**, with the reason in the commit message.
 
 ## 13. Loading
 
@@ -304,7 +317,7 @@ uv run python -m salary_api.seed \
 make seed-turso
 ```
 
-Output: a summary table (counts per status, country, department, level, and type; salary records; components; pay bands; FX rates; users; what the demo story planted) and the time of each phase (users, migrate, generate, insert) and in total. A refusal (unsafe production settings, or a database that has data without `--reset`) prints the reason and exits with status 2 before anything is written.
+Output: a summary table (counts per status, country, department, level, and type; salary records; components; pay bands; FX rates; users; what the demo story planted) and the time of each phase (users, migrate, generate, insert) and in total. A refusal prints the reason and exits with status 2 before anything is changed: unsafe production settings are refused before the database is even opened, and a database that has data (without `--reset`) before it is migrated.
 
 ## 15. Open questions
 
