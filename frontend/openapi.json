@@ -1260,6 +1260,16 @@
             },
             "description": "Forbidden: a required permission is missing"
           },
+          "409": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state`"
+          },
           "422": {
             "content": {
               "application/problem+json": {

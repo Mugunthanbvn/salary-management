@@ -6,7 +6,7 @@ directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 
 from sqlalchemy.orm import Session
 
-from salary_api.core.errors import FieldError, NotFound, ValidationFailed
+from salary_api.core.errors import Duplicate, FieldError, NotFound, ValidationFailed
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.money import Money as DomainMoney
@@ -43,6 +43,7 @@ def create_employee(
         components=request.salary.components,
     )
     code = request.employee_code or _next_employee_code(session)
+    _refuse_duplicates(session, employee_code=code, email=request.email)
     employee = Employee(
         employee_code=code,
         first_name=request.first_name,
@@ -135,6 +136,13 @@ def _current_salary(record: SalaryRecord) -> CurrentSalary:
             for c in record.components
         ],
     )
+
+
+def _refuse_duplicates(session: Session, *, employee_code: str, email: str) -> None:
+    if repository.code_in_use(session, employee_code):
+        raise Duplicate(f"The employee_code {employee_code} is already in use.")
+    if repository.email_in_use(session, email):
+        raise Duplicate(f"The email {email} is already in use by another employee.")
 
 
 def _next_employee_code(session: Session) -> str:

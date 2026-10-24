@@ -29,3 +29,15 @@ def highest_employee_code(session: Session) -> str | None:
     return session.scalar(
         select(func.max(Employee.employee_code)).where(Employee.employee_code.like("ACME-%"))
     )
+
+
+def code_in_use(session: Session, employee_code: str) -> bool:
+    return (
+        session.scalar(select(Employee.id).where(Employee.employee_code == employee_code))
+        is not None
+    )
+
+
+def email_in_use(session: Session, email: str) -> bool:
+    """`email` must already be normalised (trimmed, lowercased), as stored."""
+    return session.scalar(select(Employee.id).where(Employee.email == email)) is not None

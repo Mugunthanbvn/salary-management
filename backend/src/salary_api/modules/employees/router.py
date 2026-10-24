@@ -19,7 +19,7 @@ CanCreate = Annotated[
     "",
     status_code=201,
     response_model=EmployeeDetail,
-    responses=problem_responses(401, 403),
+    responses=problem_responses(401, 403, 409),
     summary="Create an employee with their hire salary",
 )
 def create_employee(

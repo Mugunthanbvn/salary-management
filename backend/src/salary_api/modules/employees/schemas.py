@@ -1,11 +1,15 @@
 from datetime import date
+from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, StringConstraints
 
 from salary_api.core.schemas import Money
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level, SalaryReason
 from salary_api.modules.reference.schemas import Department, JobRoleRef
 from salary_api.modules.salaries.schemas import Component, ComponentIn
+
+# Stored trimmed and lowercased, so uniqueness ignores case (docs/06-data-model.md 4.5).
+WorkEmail = Annotated[str, StringConstraints(strip_whitespace=True, to_lower=True)]
 
 
 class HireSalary(BaseModel):
@@ -25,7 +29,7 @@ class EmployeeCreate(BaseModel):
     employee_code: str | None = None
     first_name: str
     last_name: str
-    email: str
+    email: WorkEmail
     job_role_id: int
     level: Level
     employment_type: EmploymentType

@@ -764,6 +764,15 @@ export interface operations {
                     "application/problem+json": components["schemas"]["Problem"];
                 };
             };
+            /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
+            409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
             /** @description Validation failed */
             422: {
                 headers: {
