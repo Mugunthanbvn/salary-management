@@ -3,12 +3,12 @@
     "context7": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@upstash/context7-mcp"]
+      "args": ["-y", "@upstash/context7-mcp@4.4.4"]
     },
     "playwright": {
       "type": "stdio",
       "command": "npx",
-      "args": ["-y", "@playwright/mcp@latest", "--headless"]
+      "args": ["-y", "@playwright/mcp@0.0.83", "--headless"]
     }
   }
 }
