@@ -193,6 +193,134 @@
         "title": "CohortEquity",
         "type": "object"
       },
+      "CohortMember": {
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "compa_ratio": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Compa Ratio"
+          },
+          "employee_code": {
+            "title": "Employee Code",
+            "type": "string"
+          },
+          "employee_id": {
+            "title": "Employee Id",
+            "type": "integer"
+          },
+          "employment_type": {
+            "$ref": "#/components/schemas/EmploymentType"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "flag": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/PayEquityFlag"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "no_compa_ratio_reason": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/NoCompaRatioReason"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          }
+        },
+        "required": [
+          "employee_id",
+          "employee_code",
+          "first_name",
+          "last_name",
+          "employment_type",
+          "base",
+          "compa_ratio",
+          "flag",
+          "no_compa_ratio_reason"
+        ],
+        "title": "CohortMember",
+        "type": "object"
+      },
+      "CohortMembers": {
+        "description": "One cohort's people against its band (docs/07 8.11). SALARY_READ only; audited.",
+        "properties": {
+          "band": {
+            "anyOf": [
+              {
+                "$ref": "#/components/schemas/Band"
+              },
+              {
+                "type": "null"
+              }
+            ]
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "currency": {
+            "title": "Currency",
+            "type": "string"
+          },
+          "department": {
+            "$ref": "#/components/schemas/Department"
+          },
+          "job_role": {
+            "$ref": "#/components/schemas/JobRoleRef"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "members": {
+            "items": {
+              "$ref": "#/components/schemas/CohortMember"
+            },
+            "title": "Members",
+            "type": "array"
+          },
+          "population": {
+            "$ref": "#/components/schemas/Population"
+          },
+          "thresholds": {
+            "$ref": "#/components/schemas/Thresholds"
+          }
+        },
+        "required": [
+          "population",
+          "job_role",
+          "level",
+          "country_code",
+          "department",
+          "currency",
+          "band",
+          "thresholds",
+          "members"
+        ],
+        "title": "CohortMembers",
+        "type": "object"
+      },
       "Comp": {
         "description": "Which amount a salary filter or statistic uses: the base or the total compensation.",
         "enum": [
@@ -1410,6 +1538,15 @@
         "title": "Money",
         "type": "object"
       },
+      "NoCompaRatioReason": {
+        "description": "Why an employee has no compa-ratio.",
+        "enum": [
+          "not_full_time",
+          "no_band"
+        ],
+        "title": "NoCompaRatioReason",
+        "type": "string"
+      },
       "Overview": {
         "description": "docs/09 section 3.1. `stats` is in `currency`: the population's one currency, else USD.",
         "properties": {
@@ -1548,6 +1685,16 @@
         ],
         "title": "PayEquityDepartments",
         "type": "object"
+      },
+      "PayEquityFlag": {
+        "description": "Compa-ratio against the band: < 0.80, 0.80 to 1.20 inclusive, > 1.20.",
+        "enum": [
+          "UNDERPAID",
+          "IN_BAND",
+          "OVERPAID"
+        ],
+        "title": "PayEquityFlag",
+        "type": "string"
       },
       "PayEquitySummary": {
         "description": "Who was evaluated, who was left out and why, and who was flagged.\n\nFor a caller without SALARY_READ, all counts are null when fewer than 5 were evaluated.",
@@ -4703,6 +4850,140 @@
           }
         ],
         "summary": "Compa-ratios against pay bands, per cohort or per department of one country",
+        "tags": [
+          "insights"
+        ]
+      }
+    },
+    "/api/v1/insights/pay-equity/cohort": {
+      "get": {
+        "operationId": "pay_equity_cohort_api_v1_insights_pay_equity_cohort_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "job_role_id",
+            "required": true,
+            "schema": {
+              "maximum": 9223372036854775807,
+              "minimum": 1,
+              "title": "Job Role Id",
+              "type": "integer"
+            }
+          },
+          {
+            "in": "query",
+            "name": "level",
+            "required": true,
+            "schema": {
+              "$ref": "#/components/schemas/Level"
+            }
+          },
+          {
+            "in": "query",
+            "name": "country",
+            "required": true,
+            "schema": {
+              "pattern": "^[A-Z]{2}$",
+              "title": "Country",
+              "type": "string"
+            }
+          },
+          {
+            "in": "query",
+            "name": "employment_type",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmploymentType"
+              },
+              "title": "Employment Type",
+              "type": "array"
+            }
+          },
+          {
+            "in": "query",
+            "name": "status",
+            "required": false,
+            "schema": {
+              "items": {
+                "$ref": "#/components/schemas/EmployeeStatus"
+              },
+              "title": "Status",
+              "type": "array"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/CohortMembers"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "One cohort's members against their band (SALARY_READ; audited)",
         "tags": [
           "insights"
         ]

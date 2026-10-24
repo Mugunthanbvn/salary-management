@@ -635,7 +635,7 @@ Flags: `underpaid` = compa-ratio < 0.80 (below band minimum); `overpaid` = compa
 
 ### 8.11 `GET /insights/pay-equity/cohort`: requires `SALARY_READ`
 
-`job_role_id`, `level`, `country` required. Returns the band and each cohort member with `employee_code`, name, base, `compa_ratio` (decimal string, 2 dp) and flag `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20). 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event.
+`job_role_id`, `level`, `country` required (one of each); `employment_type` and `status` as in §8.1. Returns the cohort's `job_role`, `level`, `country_code`, `department`, `currency`, `band` (`null` if the cohort has no band), `thresholds`, and `members[]`, each with `employee_id`, `employee_code`, `first_name`, `last_name`, `employment_type`, `base`, `compa_ratio` (decimal string, 2 dp), `flag` `UNDERPAID` (< 0.80) / `IN_BAND` (0.80–1.20 inclusive) / `OVERPAID` (> 1.20), and `no_compa_ratio_reason` (`not_full_time` or `no_band` when `compa_ratio` is `null`). Members are listed lowest ratio first, then those without one, ties by `employee_code`. 403 for VIEWER. Viewing it writes an `insights.individuals_view` audit event (`diff = { endpoint: "pay-equity/cohort", filters }`).
 
 ### 8.12 `GET /pay-bands`: `INSIGHTS_READ`
 

@@ -7,7 +7,8 @@ from typing import Annotated, Final, Literal
 from pydantic import BaseModel, ConfigDict, Field
 
 from salary_api.core.schemas import Comp, Id, Money
-from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level
+from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level, PayEquityFlag
+from salary_api.domain.pay_equity import NoCompaRatioReason
 from salary_api.modules.reference.schemas import CountryCode, Department, JobRoleRef
 
 
@@ -72,6 +73,20 @@ class PayEquityQuery(InsightFilters):
 
     view: PayEquityView = PayEquityView.COHORTS
     country: list[CountryCode] = Field(default_factory=list[CountryCode])
+
+
+class CohortQuery(BaseModel):
+    """The query of pay-equity/cohort: one job role, level and country."""
+
+    model_config = ConfigDict(extra="forbid")
+
+    job_role_id: Id
+    level: Level
+    country: CountryCode
+    employment_type: list[EmploymentType] = Field(
+        default_factory=lambda: [EmploymentType.FULL_TIME]
+    )
+    status: list[EmployeeStatus] = Field(default_factory=lambda: [EmployeeStatus.ACTIVE])
 
 
 class Population(BaseModel):
@@ -277,3 +292,29 @@ class PayEquityDepartments(BaseModel):
 
 
 PayEquity = Annotated[PayEquityCohorts | PayEquityDepartments, Field(discriminator="view")]
+
+
+class CohortMember(BaseModel):
+    employee_id: int
+    employee_code: str
+    first_name: str
+    last_name: str
+    employment_type: EmploymentType
+    base: Money
+    compa_ratio: str | None  # base / band midpoint, 2 decimals
+    flag: PayEquityFlag | None  # decided on the unrounded ratio
+    no_compa_ratio_reason: NoCompaRatioReason | None  # why compa_ratio is null
+
+
+class CohortMembers(BaseModel):
+    """One cohort's people against its band (docs/07 8.11). SALARY_READ only; audited."""
+
+    population: Population
+    job_role: JobRoleRef
+    level: Level
+    country_code: str
+    department: Department
+    currency: str
+    band: Band | None  # None when the cohort has no band
+    thresholds: Thresholds
+    members: list[CohortMember]  # lowest compa-ratio first, then those without one

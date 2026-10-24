@@ -9,6 +9,8 @@ from salary_api.modules.insights import service
 from salary_api.modules.insights.schemas import (
     ByDepartment,
     ByJobTitle,
+    CohortMembers,
+    CohortQuery,
     DepartmentCosts,
     InsightQuery,
     JobTitleQuery,
@@ -99,3 +101,15 @@ def pay_equity(
     query: Annotated[PayEquityQuery, Query()], principal: CanReadInsights, session: SessionDep
 ) -> PayEquityCohorts | PayEquityDepartments:
     return service.pay_equity(session, principal, query)
+
+
+@router.get(
+    "/pay-equity/cohort",
+    response_model=CohortMembers,
+    responses=problem_responses(401, 403),
+    summary="One cohort's members against their band (SALARY_READ; audited)",
+)
+def pay_equity_cohort(
+    query: Annotated[CohortQuery, Query()], principal: CanReadIndividuals, session: SessionDep
+) -> CohortMembers:
+    return service.pay_equity_cohort(session, principal, query)

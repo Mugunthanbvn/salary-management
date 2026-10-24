@@ -278,6 +278,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/insights/pay-equity/cohort": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** One cohort's members against their band (SALARY_READ; audited) */
+        get: operations["pay_equity_cohort_api_v1_insights_pay_equity_cohort_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/insights/top-earners": {
         parameters: {
             query?: never;
@@ -383,6 +400,41 @@ export interface components {
             suppressed: boolean;
             /** Underpaid Count */
             underpaid_count: number | null;
+        };
+        /** CohortMember */
+        CohortMember: {
+            base: components["schemas"]["Money"];
+            /** Compa Ratio */
+            compa_ratio: string | null;
+            /** Employee Code */
+            employee_code: string;
+            /** Employee Id */
+            employee_id: number;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            flag: components["schemas"]["PayEquityFlag"] | null;
+            /** Last Name */
+            last_name: string;
+            no_compa_ratio_reason: components["schemas"]["NoCompaRatioReason"] | null;
+        };
+        /**
+         * CohortMembers
+         * @description One cohort's people against its band (docs/07 8.11). SALARY_READ only; audited.
+         */
+        CohortMembers: {
+            band: components["schemas"]["Band"] | null;
+            /** Country Code */
+            country_code: string;
+            /** Currency */
+            currency: string;
+            department: components["schemas"]["Department"];
+            job_role: components["schemas"]["JobRoleRef"];
+            level: components["schemas"]["Level"];
+            /** Members */
+            members: components["schemas"]["CohortMember"][];
+            population: components["schemas"]["Population"];
+            thresholds: components["schemas"]["Thresholds"];
         };
         /**
          * Comp
@@ -806,6 +858,12 @@ export interface components {
             currency: string;
         };
         /**
+         * NoCompaRatioReason
+         * @description Why an employee has no compa-ratio.
+         * @enum {string}
+         */
+        NoCompaRatioReason: "not_full_time" | "no_band";
+        /**
          * Overview
          * @description docs/09 section 3.1. `stats` is in `currency`: the population's one currency, else USD.
          */
@@ -850,6 +908,12 @@ export interface components {
              */
             view: "departments";
         };
+        /**
+         * PayEquityFlag
+         * @description Compa-ratio against the band: < 0.80, 0.80 to 1.20 inclusive, > 1.20.
+         * @enum {string}
+         */
+        PayEquityFlag: "UNDERPAID" | "IN_BAND" | "OVERPAID";
         /**
          * PayEquitySummary
          * @description Who was evaluated, who was left out and why, and who was flagged.
@@ -2413,6 +2477,77 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["PayEquityCohorts"] | components["schemas"]["PayEquityDepartments"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    pay_equity_cohort_api_v1_insights_pay_equity_cohort_get: {
+        parameters: {
+            query: {
+                job_role_id: number;
+                level: components["schemas"]["Level"];
+                country: string;
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["CohortMembers"];
                 };
             };
             /** @description Not authenticated: no valid session, or the user is inactive */

@@ -107,6 +107,12 @@ def pay_rows(
     return session.execute(query).all()
 
 
+def members(session: Session, where: PopulationFilter) -> Sequence[Employee]:
+    """The matching employees, by employee code."""
+    query = _matching(select(Employee), where).order_by(Employee.employee_code)
+    return session.scalars(query).all()
+
+
 def ranked(
     session: Session, where: PopulationFilter, comp: Comp, *, descending: bool, limit: int
 ) -> Sequence[Employee]:

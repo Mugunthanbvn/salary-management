@@ -90,7 +90,7 @@ def test_a_part_timer_in_the_cohort_gets_no_compa_ratio(
         job_role=csm,
         level="L2",
         employment_type="PART_TIME",
-        employee_code="ACME-000304",
+        employee_code="ACME-000390",
         base_minor=2_500_000,
     )
 
@@ -100,7 +100,7 @@ def test_a_part_timer_in_the_cohort_gets_no_compa_ratio(
         .json()
     )
 
-    [part_timer] = [m for m in body["members"] if m["employee_code"] == "ACME-000304"]
+    [part_timer] = [m for m in body["members"] if m["employee_code"] == "ACME-000390"]
     assert (part_timer["compa_ratio"], part_timer["flag"]) == (None, None)
     assert part_timer["no_compa_ratio_reason"] == "not_full_time"
     assert body["members"][-1] == part_timer  # members without a ratio come last

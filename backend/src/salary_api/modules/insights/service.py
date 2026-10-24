@@ -33,10 +33,13 @@ from salary_api.domain.money import CurrencyMismatchError, FxRate, to_usd
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.pay_equity import (
     CohortRollup,
+    CompaRatio,
     DepartmentRollup,
     EmployeePay,
     cohort_rollup,
+    compa_ratio,
     department_rollup,
+    flag,
     pay_equity_summary,
 )
 from salary_api.domain.pay_equity import PayEquitySummary as SummaryOfPay
@@ -51,6 +54,9 @@ from salary_api.modules.insights.schemas import (
     ByDepartment,
     ByJobTitle,
     CohortEquity,
+    CohortMember,
+    CohortMembers,
+    CohortQuery,
     CountryStats,
     DepartmentCost,
     DepartmentCosts,
@@ -74,6 +80,7 @@ from salary_api.modules.insights.schemas import (
     TopEarners,
     TopEarnersQuery,
 )
+from salary_api.modules.reference import repository as reference_repository
 from salary_api.modules.reference import service as reference_service
 from salary_api.modules.reference.models import PayBand
 from salary_api.modules.reference.schemas import Department, JobRoleRef
@@ -337,9 +344,7 @@ def _cohort_equity(
         country_code=key.country_code,
         department=Department(id=department_id, name=names.departments[department_id]),
         stats=_stats(rollup.base, rollup.currency, hidden=hidden, audience=audience),
-        band=Band(
-            min=band.min_minor, mid=band.mid_minor, max=band.max_minor, currency=band.currency
-        ),
+        band=_band(band),
         median_compa_ratio=None if hidden else str(round_ratio(ratios.median_compa_ratio)),
         underpaid_count=None if hidden else ratios.underpaid_count,
         overpaid_count=None if hidden else ratios.overpaid_count,
@@ -365,6 +370,86 @@ def _pay_equity_summary(summary: SummaryOfPay, audience: "_Audience") -> PayEqui
         employees_flagged_overpaid=summary.employees_flagged_overpaid,
         suppressed=False,
     )
+
+
+def pay_equity_cohort(session: Session, principal: Principal, query: CohortQuery) -> CohortMembers:
+    """Each member of one cohort with their compa-ratio and flag (docs/07 section 8.11).
+
+    Individual pay: SALARY_READ only. The view is audited in the same transaction.
+    """
+    _require_salary_read(principal, "Cohort members")
+    countries = [query.country]
+    currency = _markets(session, countries).currency_of_population(countries)
+    role = reference_repository.get_job_role(session, query.job_role_id)
+    if role is None:
+        message = f"Unknown job role {query.job_role_id}."
+        raise ValidationFailed(
+            [{"loc": ["query", "job_role_id"], "code": "not_found", "message": message}]
+        )
+    bands = reference_service.current_pay_bands(
+        session,
+        today=utc_now().date(),
+        countries=countries,
+        job_role_ids=[query.job_role_id],
+        levels=[query.level],
+    )
+    band = bands[0] if bands else None
+    band_mid = None if band is None else DomainMoney(band.mid_minor, band.currency)
+    where = repository.PopulationFilter(
+        countries=countries,
+        job_role_ids=[query.job_role_id],
+        levels=[query.level],
+        employment_types=query.employment_type,
+        statuses=query.status,
+    )
+    rated = [
+        (compa_ratio(_base(employee), band_mid, employee.employment_type), employee)
+        for employee in repository.members(session, where)
+    ]
+    rated.sort(key=lambda pair: (pair[0].value is None, pair[0].value or 0))  # stable: by code
+    result = CohortMembers(
+        population=Population(
+            country=countries,
+            department_id=[],
+            job_role_id=[query.job_role_id],
+            level=[query.level],
+            employment_type=query.employment_type,
+            status=query.status,
+            comp=Comp.BASE,
+        ),
+        job_role=JobRoleRef(id=role.id, title=role.title),
+        level=query.level,
+        country_code=query.country,
+        department=Department(id=role.department.id, name=role.department.name),
+        currency=currency,
+        band=None if band is None else _band(band),
+        thresholds=_THRESHOLDS,
+        members=[_cohort_member(employee, ratio) for ratio, employee in rated],
+    )
+    _audit_individuals_view(session, principal, "pay-equity/cohort", query.model_dump(mode="json"))
+    return result
+
+
+def _base(employee: Employee) -> DomainMoney:
+    return DomainMoney(employee.current_base_minor, employee.currency)
+
+
+def _cohort_member(employee: Employee, ratio: CompaRatio) -> CohortMember:
+    return CohortMember(
+        employee_id=employee.id,
+        employee_code=employee.employee_code,
+        first_name=employee.first_name,
+        last_name=employee.last_name,
+        employment_type=employee.employment_type,
+        base=_money(employee.current_base_minor, employee.currency),
+        compa_ratio=None if ratio.value is None else str(round_ratio(ratio.value)),
+        flag=None if ratio.value is None else flag(ratio.value),  # on the unrounded ratio
+        no_compa_ratio_reason=ratio.reason,
+    )
+
+
+def _band(band: PayBand) -> Band:
+    return Band(min=band.min_minor, mid=band.mid_minor, max=band.max_minor, currency=band.currency)
 
 
 def top_earners(session: Session, principal: Principal, query: TopEarnersQuery) -> TopEarners:

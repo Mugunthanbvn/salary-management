@@ -237,7 +237,7 @@ compa_ratio(employee) = employee_base / band(job_role, level, country).mid
 
 - Uses **base salary only**. Bands are defined on base pay, and allowances follow country policy (for example India's HRA), not the role's market value. The `comp` toggle doesn't apply to this endpoint, and the UI disables it there with a tooltip.
 - Computed in `Decimal`. Shown rounded to 2 dp; full precision is kept for flag decisions.
-- An employee whose role + level + country has **no band** gets `compa_ratio: null` and `no_band: true`, is excluded from the rollups, and is counted in `summary.employees_without_band` (expected to be 0 with seeded data; a test asserts this).
+- An employee whose role + level + country has **no band** gets `compa_ratio: null` and `no_compa_ratio_reason: "no_band"`, is excluded from the rollups, and is counted in `summary.employees_without_band` (expected to be 0 with seeded data; a test asserts this).
 - A **non-`FULL_TIME`** employee (part-time or contractor) also gets `compa_ratio: null` and is excluded from the rollups: their pay isn't FTE-normalised, so comparing it with a full-time band would mislead. This check comes before the band check (`domain/pay_equity.py`, reason `not_full_time`).
 
 #### Flags
@@ -260,7 +260,7 @@ This is how the seeded story surfaces: Customer Success in DE shows a median com
 Per **job role + level + country**: `count`, base P25/median/P75, band `min/mid/max`, `median_compa_ratio`, `underpaid_count`, `overpaid_count`.
 
 **3. Employee drill-down.** `GET /api/v1/insights/pay-equity/cohort?country=DE&job_role_id=...&level=L2`
-**Requires `SALARY_READ`.** Returns flagged employees with `employee_code`, name, base, band, compa-ratio and flag.
+**Requires `SALARY_READ`.** Returns every member of the cohort (not only the flagged ones) with `employee_code`, name, base, compa-ratio and flag, plus the band ([07-api-spec.md](07-api-spec.md) §8.11).
 
 Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group with `count < 5` has its counts, ratios and monetary fields set to `null` with `suppressed: true` (small-group rule, §2.8). Band values are treated as aggregates: they aren't individual pay, so they stay visible.
 
