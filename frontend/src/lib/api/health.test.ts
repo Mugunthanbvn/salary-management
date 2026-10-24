@@ -33,4 +33,12 @@ describe("getApiHealth", () => {
 
     expect(health).toBe("unreachable");
   });
+
+  it("reports unreachable when the API cannot be reached at all", async () => {
+    server.use(http.get(HEALTH_URL, () => HttpResponse.error()));
+
+    const health = await getApiHealth(API_ORIGIN);
+
+    expect(health).toBe("unreachable");
+  });
 });
