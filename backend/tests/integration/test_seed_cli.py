@@ -85,6 +85,20 @@ def test_the_summary_shows_counts_per_country_department_level_and_type_and_timi
     assert re.search(r"total\s+[\d.]+ s", summary)
 
 
+def test_a_turso_token_in_the_environment_does_not_break_a_local_file(tmp_path: Path) -> None:
+    database = tmp_path / "seed.db"
+    settings = make_seed_settings(database_auth_token="token-" + "t" * 16, **REAL_PASSWORDS)
+
+    run_seed(
+        SeedOptions(employees=10, db_url=_url(database)),
+        settings,
+        hasher=FAST_PASSWORD_HASHER,
+        out=io.StringIO(),
+    )
+
+    assert _count(database, "employees") == 10
+
+
 def test_running_twice_needs_reset_and_reset_gives_the_same_counts(tmp_path: Path) -> None:
     database = tmp_path / "seed.db"
     _run(database)
