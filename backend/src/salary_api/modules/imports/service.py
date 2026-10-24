@@ -233,14 +233,16 @@ def _require_committable(session: Session, job: ImportJob, now: datetime) -> Non
 
 
 def _record_failure(session: Session, principal: Principal, job_id: int, error: Exception) -> None:
-    """Mark the job FAILED and write import.fail, after the rollback (its own transaction)."""
+    """Write import.fail and mark the job FAILED, after the rollback (its own transaction).
+
+    A job that another request committed in the meantime keeps its status.
+    """
     reason = _failure_reason(error)
     _logger.error("import_commit_failed", job_id=job_id, error_type=type(error).__name__)
     job = repository.get(session, job_id)
-    if job is None:  # pragma: no cover  (the job was read in this request)
-        return
-    job.failure_reason = reason
-    _end(job, ImportStatus.FAILED)
+    if job is not None and job.status == ImportStatus.DRY_RUN:
+        job.failure_reason = reason
+        _end(job, ImportStatus.FAILED)
     record_event(
         session,
         actor_id=principal.user_id,
