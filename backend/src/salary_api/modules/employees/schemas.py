@@ -19,6 +19,9 @@ WorkEmail = Annotated[
 ]
 
 
+SearchTerm = Annotated[str, StringConstraints(strip_whitespace=True, min_length=2, max_length=100)]
+
+
 class HireSalary(BaseModel):
     """The first salary. `currency` may be left out: it is always the country's currency."""
 
@@ -88,6 +91,8 @@ class EmployeeListQuery(BaseModel):
 
     # Repeat a key for several values (?country=DE&country=FR): values of one key are ORed,
     # different keys are ANDed.
+    # Name, employee code or email; accents and case are ignored (docs/06 section 6.4).
+    q: SearchTerm | None = None
     country: list[CountryCode] = Field(default_factory=list[CountryCode])
     department_id: list[int] = Field(default_factory=list[int])
     job_role_id: list[int] = Field(default_factory=list[int])

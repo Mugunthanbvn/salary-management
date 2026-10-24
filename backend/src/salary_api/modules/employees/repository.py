@@ -51,6 +51,7 @@ def email_in_use(session: Session, email: str) -> bool:
 class EmployeeFilter:
     """Which employees a list shows. An empty sequence means no condition on that field."""
 
+    search: str | None = None  # already folded (domain/search.py)
     countries: Sequence[str] = ()
     department_ids: Sequence[int] = ()
     job_role_ids: Sequence[int] = ()
@@ -91,6 +92,9 @@ def _conditions(where: EmployeeFilter) -> list[ColumnElement[bool]]:
         _any_of(Employee.status, where.statuses),
         _any_of(Employee.currency, where.currencies),
     ]
+    if where.search:
+        # LIKE '%term%' with % and _ in the term escaped, so they match themselves.
+        candidates.append(Employee.search_text.contains(where.search, autoescape=True))
     return [condition for condition in candidates if condition is not None]
 
 

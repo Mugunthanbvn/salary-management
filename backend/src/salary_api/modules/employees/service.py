@@ -14,7 +14,7 @@ from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.money import Money as DomainMoney
-from salary_api.domain.search import employee_search_text
+from salary_api.domain.search import employee_search_text, fold
 from salary_api.modules.audit.service import AuditAction, record_event
 from salary_api.modules.employees import repository
 from salary_api.modules.employees.models import Employee
@@ -106,6 +106,7 @@ def list_employees(
 ) -> EmployeePage:
     """One page of employees, `ACTIVE` ones by default, sorted by name."""
     where = repository.EmployeeFilter(
+        search=fold(query.q) if query.q else None,
         countries=query.country,
         department_ids=query.department_id,
         job_role_ids=query.job_role_id,

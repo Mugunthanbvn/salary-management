@@ -791,6 +791,7 @@ export interface operations {
     list_employees_api_v1_employees_get: {
         parameters: {
             query?: {
+                q?: string | null;
                 country?: string[];
                 department_id?: number[];
                 job_role_id?: number[];
