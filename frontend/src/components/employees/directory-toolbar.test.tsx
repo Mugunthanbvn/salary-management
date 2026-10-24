@@ -40,8 +40,32 @@ describe("search", () => {
     await userEvent.type(screen.getByRole("searchbox"), "mül");
 
     await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
-    expect(onUrlUpdate).toHaveBeenCalledTimes(1);
     // nuqs keeps non-ASCII letters readable in the URL.
+    expect(lastQuery(onUrlUpdate)).toBe("?q=mül");
+    // The search and the page land together, in one update, not as two server renders.
+    await new Promise((resolve) => setTimeout(resolve, 400));
+    expect(onUrlUpdate).toHaveBeenCalledTimes(1);
+  });
+
+  it("writes the search and page 1 in a single URL update", async () => {
+    const onUrlUpdate = vi.fn();
+    renderInApp(<DirectoryToolbar reference={reference} total={3} />, {
+      searchParams: "?page=4",
+      onUrlUpdate,
+    });
+    // A busy machine: a few milliseconds pass between any two debounce timers being
+    // set, so the ones a keystroke could set for q and for page never fire together.
+    const realSetTimeout = globalThis.setTimeout;
+    let lag = 0;
+    vi.spyOn(globalThis, "setTimeout").mockImplementation((callback, ms = 0) =>
+      realSetTimeout(callback, ms >= 100 ? ms + (lag += 5) : ms),
+    );
+
+    await userEvent.type(screen.getByRole("searchbox"), "mül");
+
+    await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled(), {
+      timeout: 2000,
+    });
     expect(lastQuery(onUrlUpdate)).toBe("?q=mül");
   });
 
