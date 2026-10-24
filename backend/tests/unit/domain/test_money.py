@@ -71,3 +71,9 @@ def test_from_major_accepts_trailing_zeros_because_nothing_is_lost(
     money = Money.from_major(major, currency)
 
     assert money == Money(amount_minor, currency)
+
+
+@pytest.mark.parametrize("major", [1234.5, 100.0, True, 100])
+def test_from_major_rejects_floats_and_other_non_text_numbers(major: object) -> None:
+    with pytest.raises(TypeError, match="str or Decimal"):
+        Money.from_major(major, "USD")  # type: ignore[arg-type]
