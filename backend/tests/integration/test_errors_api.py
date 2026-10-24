@@ -6,12 +6,16 @@ from fastapi.testclient import TestClient
 from pydantic import BaseModel
 
 from salary_api.core.errors import (
+    BadRequest,
     Duplicate,
     Forbidden,
+    ImportFailed,
     InvalidState,
     NotFound,
+    PayloadTooLarge,
     ProblemError,
     Unauthenticated,
+    UnsupportedMediaType,
     VersionConflict,
 )
 
@@ -100,6 +104,13 @@ def test_unhandled_error_returns_500_problem_json_without_internal_detail(app: F
         (NotFound("Employee 42 was not found."), (404, "not-found", "Not found")),
         (Duplicate("Email is already in use."), (409, "duplicate", "Duplicate")),
         (InvalidState("Employee 42 is terminated."), (409, "invalid-state", "Invalid state")),
+        (BadRequest("The file is not UTF-8."), (400, "bad-request", "Bad request")),
+        (PayloadTooLarge("Upload at most 4 MB."), (413, "payload-too-large", "Payload too large")),
+        (
+            UnsupportedMediaType("Upload a .csv or .xlsx file."),
+            (415, "unsupported-media-type", "Unsupported media type"),
+        ),
+        (ImportFailed("Nothing was imported."), (500, "import-failed", "Import failed")),
     ],
 )
 def test_problem_exceptions_render_their_glossary_status_slug_and_title(
