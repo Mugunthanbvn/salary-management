@@ -1,7 +1,6 @@
 import type { NextConfig } from "next";
 
-// Server-side only (no NEXT_PUBLIC_ prefix), so it is never sent to the browser.
-const API_ORIGIN = process.env.API_ORIGIN ?? "http://localhost:8000";
+import { API_ORIGIN } from "./src/lib/api/origin";
 
 const nextConfig: NextConfig = {
   cacheComponents: true,
