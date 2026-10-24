@@ -45,13 +45,16 @@ export class ProblemError extends Error {
  * Reads the problem+json body of an error response. A body that is not a problem (for
  * example an HTML 502 from a proxy) becomes an "about:blank" problem with the status text,
  * keeping the X-Request-ID header when there is one.
+ *
+ * openapi-fetch has already read the body: pass its `error` as `parsedBody`.
+ *   const { data, error, response } = await api.GET("/api/v1/auth/me");
+ *   if (error) throw await toProblem(response, error);
  */
 export async function toProblem(
   response: Response,
   parsedBody?: unknown,
 ): Promise<ProblemError> {
-  void parsedBody;
-  const body = await readJson(response);
+  const body = parsedBody === undefined ? await readJson(response) : parsedBody;
   const requestId = response.headers.get("X-Request-ID");
   if (isProblem(body)) {
     return new ProblemError({
@@ -70,6 +73,7 @@ export async function toProblem(
 }
 
 async function readJson(response: Response): Promise<unknown> {
+  if (response.bodyUsed) return undefined;
   try {
     return JSON.parse(await response.text());
   } catch {
