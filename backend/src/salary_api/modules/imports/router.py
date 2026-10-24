@@ -1,16 +1,37 @@
 from typing import Annotated
 
-from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
+from fastapi import APIRouter, Depends, File, Query, Request, Response, UploadFile
+from pydantic import BaseModel, ConfigDict
 
 from salary_api.core.deps import IdPath, SessionDep, require_permission
+from salary_api.core.downloads import FILE_RESPONSES, file_response
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
+from salary_api.core.schemas import FileFormat
 from salary_api.modules.imports import service
 from salary_api.modules.imports.schemas import ImportCommitResult, ImportJobReport
 
 router = APIRouter(prefix="/imports", tags=["imports"])
 
 CanImport = Annotated[Principal, Depends(require_permission(Permission.IMPORT))]
+
+
+class TemplateQuery(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    format: FileFormat = FileFormat.CSV
+
+
+@router.get(
+    "/template",
+    response_class=Response,
+    responses=FILE_RESPONSES | problem_responses(401, 403),
+    summary="Download the import template (header and an example row) as CSV or XLSX",
+)
+def download_template(
+    query: Annotated[TemplateQuery, Query()], _principal: CanImport, session: SessionDep
+) -> Response:
+    return file_response(service.template(session, query.format))
 
 
 @router.post(

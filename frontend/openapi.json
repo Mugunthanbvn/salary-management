@@ -635,6 +635,15 @@
         "title": "FieldError",
         "type": "object"
       },
+      "FileFormat": {
+        "description": "The file a download is written as: `?format=csv|xlsx`.",
+        "enum": [
+          "csv",
+          "xlsx"
+        ],
+        "title": "FileFormat",
+        "type": "string"
+      },
       "HealthResponse": {
         "properties": {
           "db": {
@@ -3256,6 +3265,103 @@
           }
         ],
         "summary": "Upload a CSV or XLSX file and get its dry-run report (nothing is imported yet)",
+        "tags": [
+          "imports"
+        ]
+      }
+    },
+    "/api/v1/imports/template": {
+      "get": {
+        "operationId": "download_template_api_v1_imports_template_get",
+        "parameters": [
+          {
+            "in": "query",
+            "name": "format",
+            "required": false,
+            "schema": {
+              "$ref": "#/components/schemas/FileFormat",
+              "default": "csv"
+            }
+          }
+        ],
+        "responses": {
+          "200": {
+            "content": {
+              "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              },
+              "text/csv; charset=utf-8": {
+                "schema": {
+                  "format": "binary",
+                  "type": "string"
+                }
+              }
+            },
+            "description": "The file, as an attachment"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Download the import template (header and an example row) as CSV or XLSX",
         "tags": [
           "imports"
         ]

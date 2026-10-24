@@ -14,6 +14,7 @@ import structlog
 from sqlalchemy.exc import DBAPIError
 from sqlalchemy.orm import Session
 
+from salary_api.core.downloads import MEDIA_TYPES, DownloadFile
 from salary_api.core.errors import (
     BadRequest,
     Duplicate,
@@ -26,7 +27,7 @@ from salary_api.core.errors import (
 )
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
-from salary_api.core.schemas import Money
+from salary_api.core.schemas import FileFormat, Money
 from salary_api.domain.constants import (
     DRY_RUN_TTL,
     MAX_ACTIVE_DRY_RUNS,
@@ -55,6 +56,7 @@ from salary_api.modules.imports.schemas import (
     ImportPreviewRow,
     ImportRowError,
 )
+from salary_api.modules.imports.template import TemplateReference, csv_template, xlsx_template
 from salary_api.modules.imports.validation import (
     ImportReference,
     ImportRow,
@@ -76,6 +78,24 @@ ENTITY = "import_job"  # audit events name the entity they change
 PREVIEW_ROWS: Final = 50
 FORMATS: Final = {".csv": ImportFormat.CSV, ".xlsx": ImportFormat.XLSX}
 MAX_FILENAME = 255
+
+
+def template(session: Session, file_format: FileFormat) -> DownloadFile:
+    """The import template with one example row; XLSX adds the valid values and dropdowns."""
+    known = _reference(session)
+    reference = TemplateReference(
+        job_roles=known.job_roles,
+        countries=sorted(
+            (country for country in known.countries.values() if country.is_active),
+            key=lambda country: country.code,
+        ),
+    )
+    content = csv_template(reference) if file_format == FileFormat.CSV else xlsx_template(reference)
+    return DownloadFile(
+        content=content,
+        media_type=MEDIA_TYPES[file_format],
+        filename=f"acme-import-template.{file_format}",
+    )
 
 
 def dry_run(

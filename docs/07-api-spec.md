@@ -477,7 +477,7 @@ Full column list and format details: [11-import-export.md](11-import-export.md).
 
 ### 7.1 `GET /imports/template?format=csv|xlsx`: `IMPORT`
 
-Downloads an empty template with the header row (and, for XLSX, a second sheet listing valid job roles, countries, levels and currencies).
+Downloads the template (`format` defaults to `csv`): the header row and one example row, as an attachment `acme-import-template.csv|xlsx`. The XLSX file adds a protected "Reference" sheet listing the valid job roles, levels, employment types, countries and currencies, and dropdowns on those columns ([11](11-import-export.md) §4). 422 for another `format`.
 
 ### 7.2 `POST /imports`: `IMPORT`
 
