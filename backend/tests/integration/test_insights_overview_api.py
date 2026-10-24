@@ -210,3 +210,16 @@ def test_a_missing_rate_of_a_currency_not_in_the_population_does_not_matter(
     response = as_role("HR_MANAGER").get(OVERVIEW, params={"country": "DE"})
 
     assert response.status_code == 200
+
+
+def test_an_unknown_country_in_the_filter_is_a_validation_error(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    make_employee(db_session, country="DE")
+
+    response = as_role("HR_MANAGER").get(OVERVIEW, params={"country": ["DE", "XX"]})
+
+    assert response.status_code == 422
+    assert response.json()["errors"] == [
+        {"loc": ["query", "country"], "code": "not_found", "message": "Unknown country XX."}
+    ]
