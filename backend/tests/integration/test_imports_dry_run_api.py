@@ -212,7 +212,7 @@ def test_codes_and_emails_already_used_by_employees_are_row_errors(
 ) -> None:
     make_import_reference(db_session)
     make_employee(db_session, employee_code="ACME-010001")
-    holder = make_employee(db_session, email="LENA.2@acme.example")
+    make_employee(db_session, employee_code="ACME-000042", email="LENA.2@acme.example")
 
     body = (
         as_role("HR_MANAGER")
@@ -222,7 +222,7 @@ def test_codes_and_emails_already_used_by_employees_are_row_errors(
 
     assert [(e["row"], e["column"], e["code"], e["message"]) for e in body["errors"]] == [
         (2, "employee_code", "duplicate_in_db", "ACME-010001 is already used by an employee."),
-        (3, "email", "duplicate_in_db", f"This email is already used by {holder.employee_code}."),
+        (3, "email", "duplicate_in_db", "This email is already used by ACME-000042."),
     ]
     assert body["valid_count"] == 1
 

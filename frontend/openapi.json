@@ -1,6 +1,21 @@
 {
   "components": {
     "schemas": {
+      "Body_upload_import_api_v1_imports_post": {
+        "properties": {
+          "file": {
+            "contentMediaType": "application/octet-stream",
+            "description": "A .csv (UTF-8) or .xlsx file, at most 4 MB",
+            "title": "File",
+            "type": "string"
+          }
+        },
+        "required": [
+          "file"
+        ],
+        "title": "Body_upload_import_api_v1_imports_post",
+        "type": "object"
+      },
       "ChangedBy": {
         "properties": {
           "full_name": {
@@ -695,6 +710,226 @@
         "title": "HireSalary",
         "type": "object"
       },
+      "ImportFormat": {
+        "description": "The file type of an import job (upper case in the DB and the API).",
+        "enum": [
+          "CSV",
+          "XLSX"
+        ],
+        "title": "ImportFormat",
+        "type": "string"
+      },
+      "ImportJobReport": {
+        "description": "A dry-run report. `valid_count` rows have no error; `error_count` counts the entries\nof `errors` (one row can have several). Only a DRY_RUN job without errors can be\ncommitted, until `expires_at`.",
+        "properties": {
+          "committed_at": {
+            "anyOf": [
+              {
+                "format": "date-time",
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Committed At"
+          },
+          "created_at": {
+            "format": "date-time",
+            "title": "Created At",
+            "type": "string"
+          },
+          "error_count": {
+            "title": "Error Count",
+            "type": "integer"
+          },
+          "errors": {
+            "items": {
+              "$ref": "#/components/schemas/ImportRowError"
+            },
+            "title": "Errors",
+            "type": "array"
+          },
+          "expires_at": {
+            "format": "date-time",
+            "title": "Expires At",
+            "type": "string"
+          },
+          "filename": {
+            "title": "Filename",
+            "type": "string"
+          },
+          "format": {
+            "$ref": "#/components/schemas/ImportFormat"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "preview": {
+            "items": {
+              "$ref": "#/components/schemas/ImportPreviewRow"
+            },
+            "title": "Preview",
+            "type": "array"
+          },
+          "row_count": {
+            "title": "Row Count",
+            "type": "integer"
+          },
+          "status": {
+            "$ref": "#/components/schemas/ImportStatus"
+          },
+          "valid_count": {
+            "title": "Valid Count",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "id",
+          "status",
+          "format",
+          "filename",
+          "row_count",
+          "valid_count",
+          "error_count",
+          "errors",
+          "preview",
+          "created_at",
+          "expires_at",
+          "committed_at"
+        ],
+        "title": "ImportJobReport",
+        "type": "object"
+      },
+      "ImportPreviewRow": {
+        "description": "A valid row as it will be imported. The department follows from the job role.",
+        "properties": {
+          "base": {
+            "$ref": "#/components/schemas/Money"
+          },
+          "country_code": {
+            "title": "Country Code",
+            "type": "string"
+          },
+          "department": {
+            "title": "Department",
+            "type": "string"
+          },
+          "email": {
+            "title": "Email",
+            "type": "string"
+          },
+          "employee_code": {
+            "title": "Employee Code",
+            "type": "string"
+          },
+          "employment_type": {
+            "$ref": "#/components/schemas/EmploymentType"
+          },
+          "first_name": {
+            "title": "First Name",
+            "type": "string"
+          },
+          "hire_date": {
+            "format": "date",
+            "title": "Hire Date",
+            "type": "string"
+          },
+          "job_role": {
+            "title": "Job Role",
+            "type": "string"
+          },
+          "last_name": {
+            "title": "Last Name",
+            "type": "string"
+          },
+          "level": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "row": {
+            "title": "Row",
+            "type": "integer"
+          },
+          "salary_effective_date": {
+            "format": "date",
+            "title": "Salary Effective Date",
+            "type": "string"
+          },
+          "total": {
+            "$ref": "#/components/schemas/Money"
+          }
+        },
+        "required": [
+          "row",
+          "employee_code",
+          "first_name",
+          "last_name",
+          "email",
+          "job_role",
+          "department",
+          "level",
+          "employment_type",
+          "country_code",
+          "hire_date",
+          "salary_effective_date",
+          "base",
+          "total"
+        ],
+        "title": "ImportPreviewRow",
+        "type": "object"
+      },
+      "ImportRowError": {
+        "description": "One refused cell (docs/glossary.md section 6). `row` is the spreadsheet row number\n(the header is row 1); `value` is the cell as written, null when it was empty.",
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/RowErrorCode"
+          },
+          "column": {
+            "title": "Column",
+            "type": "string"
+          },
+          "message": {
+            "title": "Message",
+            "type": "string"
+          },
+          "row": {
+            "title": "Row",
+            "type": "integer"
+          },
+          "value": {
+            "anyOf": [
+              {
+                "type": "string"
+              },
+              {
+                "type": "null"
+              }
+            ],
+            "title": "Value"
+          }
+        },
+        "required": [
+          "row",
+          "column",
+          "code",
+          "message",
+          "value"
+        ],
+        "title": "ImportRowError",
+        "type": "object"
+      },
+      "ImportStatus": {
+        "description": "Where an import job is: previewed, committed, failed at commit, or too old to commit.",
+        "enum": [
+          "DRY_RUN",
+          "COMMITTED",
+          "FAILED",
+          "EXPIRED"
+        ],
+        "title": "ImportStatus",
+        "type": "string"
+      },
       "JobFamily": {
         "description": "The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).",
         "enum": [
@@ -1032,6 +1267,22 @@
           "VIEWER"
         ],
         "title": "Role",
+        "type": "string"
+      },
+      "RowErrorCode": {
+        "description": "Why a cell is refused (docs/glossary.md section 6). The date and currency codes are the\nones POST /employees uses for the same rules.",
+        "enum": [
+          "required",
+          "invalid_format",
+          "unknown_value",
+          "too_many_decimals",
+          "future_date",
+          "before_hire_date",
+          "currency_mismatch",
+          "duplicate_in_file",
+          "duplicate_in_db"
+        ],
+        "title": "RowErrorCode",
         "type": "string"
       },
       "SalaryBasis": {
@@ -2864,6 +3115,125 @@
         "summary": "Health check (public)",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/imports": {
+      "post": {
+        "operationId": "upload_import_api_v1_imports_post",
+        "requestBody": {
+          "content": {
+            "multipart/form-data": {
+              "schema": {
+                "$ref": "#/components/schemas/Body_upload_import_api_v1_imports_post"
+              }
+            }
+          },
+          "required": true
+        },
+        "responses": {
+          "201": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ImportJobReport"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "400": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Bad request: the file cannot be read, or its header row does not match the template (`expected_headers`)"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "413": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Payload too large: the upload is over 4 MB"
+          },
+          "415": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Unsupported media type: not a .csv or .xlsx file"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Upload a CSV or XLSX file and get its dry-run report (nothing is imported yet)",
+        "tags": [
+          "imports"
         ]
       }
     },

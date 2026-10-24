@@ -41,10 +41,10 @@ class ImportJob(Base):
     error_count: Mapped[int]
     # [{row, column, code, message, value}], in row order.
     errors: Mapped[list[dict[str, Any]]] = mapped_column(JSON)
-    # The first valid rows, as the UI shows them.
-    preview: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    # The first valid rows, as the UI shows them. SQL NULL (not JSON null) once cleared.
+    preview: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True))
     # Every normalized row; kept only while a job without errors can still be committed.
-    payload: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON)
+    payload: Mapped[list[dict[str, Any]] | None] = mapped_column(JSON(none_as_null=True))
     created_by: Mapped[int] = mapped_column(ForeignKey("users.id"))
     created_at: Mapped[datetime] = mapped_column(UtcDateTime)
     expires_at: Mapped[datetime] = mapped_column(UtcDateTime)

@@ -102,15 +102,18 @@ Parsing is the **only** format-specific step. Both parsers produce the same `Raw
 - Delimiter: comma. Quoting: RFC 4180. Header row required. Blank lines are ignored.
 - Parsed with Python's `csv` module (streamed, no pandas).
 
+**File type.** The extension picks the parser: `.csv` or `.xlsx` (any case); anything else, including **`.xlsm`, `.xls` and `.xlsb`** (macros or legacy formats), is `415`. The declared MIME type is not trusted (Windows browsers send `application/vnd.ms-excel` for a CSV); instead the content must parse as the format the extension names, else `400` (a CSV renamed to `.xlsx` is `400 bad-request`).
+
 **XLSX**
-- Accepted extension `.xlsx` and MIME `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet`. **`.xlsm`, `.xls` and `.xlsb` are rejected** (macros or legacy formats).
 - `openpyxl.load_workbook(file, read_only=True, data_only=True)`:
-  - `data_only=True` reads **cached cell values, never formulas**. A formula cell with no cached value becomes an error: "Cell contains a formula without a value; paste values instead."
+  - `data_only=True` reads **cached cell values, never formulas**. A formula cell with no cached value refuses the upload (`400`): "Cell L2 has a formula without a saved value. Copy the cells and paste them as values, then upload again." Finding one needs a second, formulas-only read, done only when a worksheet's XML has a formula element.
   - Macros are never executed (openpyxl doesn't execute anything; macro-enabled formats are rejected anyway).
 - **`defusedxml`** is installed so openpyxl parses XML safely (protects against XML entity expansion attacks).
 - **Zip-bomb guard:** reject if the total uncompressed size of the archive exceeds 50 MB.
-- Reads the **first sheet**, or the sheet named `Employees` if present. A header row is required.
-- Cell types: date cells → `date`; numeric cells → converted via `Decimal(repr(value))` to avoid float artefacts; everything else → string.
+- Reads the **first sheet**, or the sheet named `Employees` if present, and only its first 50 columns (the template has 19), so a sheet that claims 16,384 columns costs nothing. A header row is required.
+- Cell types: date cells → `YYYY-MM-DD` text; numeric cells → the decimal text of `Decimal(repr(value))` (`1234.56`, never `1234.5599…`); booleans → `TRUE`/`FALSE`; everything else → string. So both parsers hand the validator the same text.
+
+**Both formats.** Header names are matched case-insensitively after trimming; unknown, repeated or missing required columns are one `400` that lists every problem and carries `expected_headers`. A value in a column with no header (often an unquoted comma in a CSV) is a `400` naming the row and column letter. Blank rows are skipped but still counted, so row numbers match the spreadsheet. A file with no employee rows is `400`; more than 10,000 rows is `422 validation` (`code: too_many_rows`).
 
 ### 5.2 Normalization
 
@@ -135,37 +138,44 @@ DB checks run as **one batched query per key** (`WHERE employee_code IN (...)`),
 
 ### 5.5 Dry-run report
 
-Stored in `import_jobs` and returned to the UI:
+Stored in `import_jobs` and returned to the UI with `201` (a report with row errors is still a `201`; `GET /imports/{id}` returns the same shape):
 
 ```json
 {
   "id": 31,
   "status": "DRY_RUN",
-  "filename": "q4-new-hires.xlsx",
   "format": "XLSX",
+  "filename": "q4-new-hires.xlsx",
   "row_count": 248,
-  "valid_count": 241,
-  "error_count": 7,
-  "expires_at": "2026-10-25T10:45:00Z",
-  "summary": {
-    "by_country": { "IN": 120, "US": 80, "DE": 41 },
-    "total_base_by_currency": [ { "currency": "INR", "amount_minor": 1834500000 } ]
-  },
+  "valid_count": 245,
+  "error_count": 3,
   "errors": [
-    { "row": 12, "column": "email",    "code": "duplicate_in_file", "message": "Same email as row 4", "value": "a.rao@acme.example" },
-    { "row": 31, "column": "job_role", "code": "unknown_value",     "message": "‘Sr Engineer’ is not a known job role. Did you mean ‘Software Engineer’ (level L3)?", "value": "Sr Engineer" },
-    { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals", "value": "450000.5" }
+    { "row": 12, "column": "email",       "code": "duplicate_in_file", "message": "Same email as row 4.", "value": "a.rao@acme.example" },
+    { "row": 31, "column": "job_role",    "code": "unknown_value",     "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'? Job roles: Account Executive, …", "value": "Sr Engineer" },
+    { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals.", "value": "450000.5" }
   ],
-  "preview": [ { "row": 2, "employee_code": "ACME-010001", "name": "Ananya Rao", "country": "IN", "job_role": "Software Engineer", "level": "L2", "base_salary": { "amount_minor": 1500000000, "currency": "INR" } } ]
+  "preview": [
+    { "row": 2, "employee_code": "ACME-010001", "first_name": "Ananya", "last_name": "Rao", "email": "ananya.rao@acme.example",
+      "job_role": "Software Engineer", "department": "Engineering", "level": "L2", "employment_type": "FULL_TIME",
+      "country_code": "IN", "hire_date": "2026-09-01", "salary_effective_date": "2026-09-01",
+      "base":  { "amount_minor": 150000000, "currency": "INR" },
+      "total": { "amount_minor": 162000000, "currency": "INR" } }
+  ],
+  "created_at": "2026-10-24T10:45:00Z",
+  "expires_at": "2026-10-25T10:45:00Z",
+  "committed_at": null
 }
 ```
 
 - `row` numbers are **spreadsheet row numbers** (header = row 1), so the user can find the row in Excel.
-- Messages are written for HR users, with a "did you mean" suggestion for near-miss job roles **(proposed: simple case-insensitive and edit-distance match)**.
-- `preview` holds the first 50 valid rows **(proposed)**, for a sanity check in the UI.
+- `valid_count` counts rows without any error; `error_count` counts the entries of `errors` (one row can have several). Rows with errors = `row_count − valid_count`.
+- Error codes: `required`, `invalid_format`, `unknown_value` (the message lists the allowed values), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, and, as `POST /employees` names the same rules, `future_date`, `before_hire_date` and `currency_mismatch` ([glossary](glossary.md) §6).
+- Messages are written for HR users, with a "did you mean" suggestion for near-miss job roles (case-insensitive, then Python's `difflib` closest match).
+- `preview` holds the first 50 valid rows, for a sanity check in the UI. There is no `summary` block: the UI can count the preview or the errors itself.
 - Department isn't an import column. It is **derived from `job_role`** ([06-data-model.md](06-data-model.md)).
 - An **error report download** (CSV of `row, column, code, message, value`) is offered in the UI and generated client-side from the JSON.
 - A dry-run with errors stays inspectable, but **cannot be committed**. The user fixes the file and re-uploads, which creates a new job.
+- A `DRY_RUN` job past `expires_at` is shown as `EXPIRED` by `GET`, which writes nothing; it is stored as `EXPIRED` at the next upload or commit attempt.
 
 ### 5.6 Commit (all or nothing)
 
@@ -200,7 +210,7 @@ Stored fields (see [06-data-model.md](06-data-model.md)): `id`, `filename`, `for
 
 Why the payload is stored in the DB: **Vercel functions are stateless**. The commit request may hit a different instance, so the validated payload must be persisted between the two requests ([17-deployment.md](17-deployment.md)).
 
-Retention **(proposed)**: the `payload` is cleared 7 days after the job ends (it contains salary data). Job metadata and errors are kept for audit.
+Retention: `payload` and `preview` hold salary data, so they are cleared **as soon as the job ends** (`COMMITTED`, `FAILED` or `EXPIRED`), not after a retention period: v1 has no background jobs to clear them later. `payload` is only stored at all when the dry-run has no errors, since only then can it be committed. Every upload also marks all `DRY_RUN` jobs past `expires_at` as `EXPIRED` (one `UPDATE`), so an abandoned dry-run keeps its rows at most until the next upload after its 24 hours. Job metadata and errors are kept for audit.
 
 ### 5.8 Limits
 
@@ -210,7 +220,7 @@ Retention **(proposed)**: the `payload` is cleared 7 days after the job ends (it
 | Max rows per file | **10,000** | Matches org size; keeps validation and commit within function time limits |
 | XLSX uncompressed size | **50 MB** | Zip-bomb guard |
 | Dry-run validity | **24 hours** | Bounds stale validation; duplicates are re-checked at commit anyway |
-| Concurrent active dry-runs per user | **3 (proposed)** | Stops abuse and bloat |
+| Open dry-runs per user | **3** | Bounds stored salary data. A new upload never fails for this: it marks the user's oldest open dry-runs `EXPIRED` (rows cleared), so at most 3 stay open. A 409 instead would lock out a user who uploaded 3 files with errors, since a dry-run can't be deleted |
 
 Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; commit < 30 s against Turso, checked against the spike's bulk-insert timing) are tracked in [19-performance.md](19-performance.md). Insert with IDs pre-allocated in Python, so no `RETURNING` is needed and `current_salary_record_id` is set on insert.
 

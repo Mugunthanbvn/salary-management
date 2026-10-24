@@ -481,12 +481,12 @@ Downloads an empty template with the header row (and, for XLSX, a second sheet l
 
 ### 7.2 `POST /imports`: `IMPORT`
 
-`multipart/form-data` with field `file`. Max 4 MB; max 10,000 data rows **(proposed)**. Accepts `.csv` (UTF-8, with or without BOM) and `.xlsx` (values only, see [11-import-export.md](11-import-export.md)).
+`multipart/form-data` with field `file`. Max 4 MB; max 10,000 data rows. Accepts `.csv` (UTF-8, with or without BOM) and `.xlsx` (values only, see [11-import-export.md](11-import-export.md)); the extension picks the parser and the content must match it.
 
-Runs parse → validate → duplicate checks (within the file and against the DB). **Nothing is written to employee tables.**
+Runs parse → validate → duplicate checks (within the file and against the DB). **Nothing is written to employee tables**: only the `import_jobs` row and the `import.dry_run` audit event (`job_id`, `filename`, `format`, `file_sha256`, `row_count`, `valid_count`, `error_count`).
 
 ```json
-// 201
+// 201, with Location: /api/v1/imports/31
 {
   "id": 31,
   "status": "DRY_RUN",
@@ -496,16 +496,21 @@ Runs parse → validate → duplicate checks (within the file and against the DB
   "valid_count": 409,
   "error_count": 3,
   "errors": [
-    { "row": 18, "column": "email", "code": "duplicate_in_db", "message": "Email already used by ACME-002210." },
-    { "row": 40, "column": "job_title", "code": "unknown_value", "message": "\"Sr Engineer\" is not a known job role. Did you mean \"Senior Software Engineer\"?" },
-    { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY has no minor unit." }
+    { "row": 18, "column": "email", "code": "duplicate_in_db", "message": "This email is already used by ACME-002210.", "value": "lena@acme.example" },
+    { "row": 40, "column": "job_role", "code": "unknown_value", "message": "'Sr Engineer' is not a known job role. Did you mean 'Software Engineer'? Job roles: …", "value": "Sr Engineer" },
+    { "row": 77, "column": "base_salary", "code": "too_many_decimals", "message": "JPY amounts can't have decimals.", "value": "450000.5" }
   ],
-  "preview": [ { "row": 2, "employee_code": "ACME-010002", "full_name": "Lena Müller", "country_code": "DE", "base": { "amount_minor": 5400000, "currency": "EUR" } } ],
-  "expires_at": "2026-10-25T09:12:00Z"
+  "preview": [ { "row": 2, "employee_code": "ACME-010002", "first_name": "Lena", "last_name": "Müller", "email": "lena.mueller@acme.example",
+                 "job_role": "Software Engineer", "department": "Engineering", "level": "L2", "employment_type": "FULL_TIME",
+                 "country_code": "DE", "hire_date": "2026-09-01", "salary_effective_date": "2026-09-01",
+                 "base": { "amount_minor": 5400000, "currency": "EUR" }, "total": { "amount_minor": 5892000, "currency": "EUR" } } ],
+  "created_at": "2026-10-24T09:12:00Z",
+  "expires_at": "2026-10-25T09:12:00Z",
+  "committed_at": null
 }
 ```
 
-Errors: 413, 415, 400 `bad-request` (unreadable file / header mismatch, reported with the expected headers). Row-level problems are not an error status: they come back in `errors[]` with the 201.
+Errors: 413 `payload-too-large`; 415 `unsupported-media-type` (not `.csv`/`.xlsx`, including `.xlsm` and `.xls`); 400 `bad-request` (unreadable file, a formula without a saved value, or a header mismatch, which adds `expected_headers`); 422 `validation` with code `too_many_rows`. Row-level problems are not an error status: they come back in `errors[]` with the 201. A user keeps at most 3 open dry-runs: a new upload marks the oldest `EXPIRED` ([11](11-import-export.md) §5.8).
 
 ### 7.3 `GET /imports/{id}`: `IMPORT`
 

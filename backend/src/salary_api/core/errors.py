@@ -182,6 +182,11 @@ PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
 
 # Route-level error responses, more specific than the app-wide 4XX.
 _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
+    400: {
+        "model": Problem,
+        "description": "Bad request: the file cannot be read, or its header row does not "
+        "match the template (`expected_headers`)",
+    },
     401: {
         "model": Problem,
         "description": "Not authenticated: no valid session, or the user is inactive",
@@ -193,6 +198,8 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
         "description": "Conflict: `duplicate`, `version-conflict` (with `current_version`) "
         "or `invalid-state`",
     },
+    413: {"model": Problem, "description": "Payload too large: the upload is over 4 MB"},
+    415: {"model": Problem, "description": "Unsupported media type: not a .csv or .xlsx file"},
     429: {
         "model": Problem,
         "description": "Too many requests",
@@ -202,6 +209,10 @@ _ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
                 "schema": {"type": "integer"},
             }
         },
+    },
+    500: {
+        "model": Problem,
+        "description": "`import-failed`: the commit was rolled back and the job marked FAILED",
     },
 }
 

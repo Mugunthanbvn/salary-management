@@ -193,6 +193,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/imports": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        get?: never;
+        put?: never;
+        /** Upload a CSV or XLSX file and get its dry-run report (nothing is imported yet) */
+        post: operations["upload_import_api_v1_imports_post"];
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/reference": {
         parameters: {
             query?: never;
@@ -214,6 +231,14 @@ export interface paths {
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Body_upload_import_api_v1_imports_post */
+        Body_upload_import_api_v1_imports_post: {
+            /**
+             * File
+             * @description A .csv (UTF-8) or .xlsx file, at most 4 MB
+             */
+            file: string;
+        };
         /** ChangedBy */
         ChangedBy: {
             /** Full Name */
@@ -474,6 +499,106 @@ export interface components {
             note?: string | null;
         };
         /**
+         * ImportFormat
+         * @description The file type of an import job (upper case in the DB and the API).
+         * @enum {string}
+         */
+        ImportFormat: "CSV" | "XLSX";
+        /**
+         * ImportJobReport
+         * @description A dry-run report. `valid_count` rows have no error; `error_count` counts the entries
+         *     of `errors` (one row can have several). Only a DRY_RUN job without errors can be
+         *     committed, until `expires_at`.
+         */
+        ImportJobReport: {
+            /** Committed At */
+            committed_at: string | null;
+            /**
+             * Created At
+             * Format: date-time
+             */
+            created_at: string;
+            /** Error Count */
+            error_count: number;
+            /** Errors */
+            errors: components["schemas"]["ImportRowError"][];
+            /**
+             * Expires At
+             * Format: date-time
+             */
+            expires_at: string;
+            /** Filename */
+            filename: string;
+            format: components["schemas"]["ImportFormat"];
+            /** Id */
+            id: number;
+            /** Preview */
+            preview: components["schemas"]["ImportPreviewRow"][];
+            /** Row Count */
+            row_count: number;
+            status: components["schemas"]["ImportStatus"];
+            /** Valid Count */
+            valid_count: number;
+        };
+        /**
+         * ImportPreviewRow
+         * @description A valid row as it will be imported. The department follows from the job role.
+         */
+        ImportPreviewRow: {
+            base: components["schemas"]["Money"];
+            /** Country Code */
+            country_code: string;
+            /** Department */
+            department: string;
+            /** Email */
+            email: string;
+            /** Employee Code */
+            employee_code: string;
+            employment_type: components["schemas"]["EmploymentType"];
+            /** First Name */
+            first_name: string;
+            /**
+             * Hire Date
+             * Format: date
+             */
+            hire_date: string;
+            /** Job Role */
+            job_role: string;
+            /** Last Name */
+            last_name: string;
+            level: components["schemas"]["Level"];
+            /** Row */
+            row: number;
+            /**
+             * Salary Effective Date
+             * Format: date
+             */
+            salary_effective_date: string;
+            total: components["schemas"]["Money"];
+        };
+        /**
+         * ImportRowError
+         * @description One refused cell (docs/glossary.md section 6). `row` is the spreadsheet row number
+         *     (the header is row 1); `value` is the cell as written, null when it was empty.
+         */
+        ImportRowError: {
+            code: components["schemas"]["RowErrorCode"];
+            /** Column */
+            column: string;
+            /** Message */
+            message: string;
+            /** Row */
+            row: number;
+            /** Value */
+            value: string | null;
+        };
+        /**
+         * ImportStatus
+         * @description Where an import job is: previewed, committed, failed at commit, or too old to commit.
+         * @enum {string}
+         */
+        ImportStatus: "DRY_RUN" | "COMMITTED" | "FAILED" | "EXPIRED";
+        /**
          * JobFamily
          * @description The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).
          * @enum {string}
@@ -599,6 +724,13 @@ export interface components {
          * @enum {string}
          */
         Role: "ADMIN" | "HR_MANAGER" | "VIEWER";
+        /**
+         * RowErrorCode
+         * @description Why a cell is refused (docs/glossary.md section 6). The date and currency codes are the
+         *     ones POST /employees uses for the same rules.
+         * @enum {string}
+         */
+        RowErrorCode: "required" | "invalid_format" | "unknown_value" | "too_many_decimals" | "future_date" | "before_hire_date" | "currency_mismatch" | "duplicate_in_file" | "duplicate_in_db";
         /**
          * SalaryBasis
          * @description How salaries in different currencies are compared: in local currency, or in USD.
@@ -1660,6 +1792,102 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    upload_import_api_v1_imports_post: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody: {
+            content: {
+                "multipart/form-data": components["schemas"]["Body_upload_import_api_v1_imports_post"];
+            };
+        };
+        responses: {
+            /** @description Successful Response */
+            201: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ImportJobReport"];
+                };
+            };
+            /** @description Bad request: the file cannot be read, or its header row does not match the template (`expected_headers`) */
+            400: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Payload too large: the upload is over 4 MB */
+            413: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Unsupported media type: not a .csv or .xlsx file */
+            415: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed */
