@@ -67,6 +67,13 @@ def _profile_change(session: Session) -> dict[str, Any]:
     return {"url": f"/api/v1/employees/{employee.id}", "json": {"version": 1, "first_name": "X"}}
 
 
+def _active_employee(session: Session) -> dict[str, Any]:
+    return {
+        "url": f"/api/v1/employees/{make_employee(session).id}/terminate",
+        "json": {"version": 1},
+    }
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -78,6 +85,7 @@ MATRIX = [
     Endpoint("POST", "/api/v1/employees", (401, 403, 201, 201), _new_employee),
     Endpoint("GET", EMPLOYEE, (401, 200, 200, 200), _an_employee),
     Endpoint("PATCH", EMPLOYEE, (401, 403, 200, 200), _profile_change),
+    Endpoint("POST", f"{EMPLOYEE}/terminate", (401, 403, 200, 200), _active_employee),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
