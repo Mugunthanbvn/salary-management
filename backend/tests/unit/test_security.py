@@ -7,7 +7,9 @@ from datetime import timedelta
 import jwt
 import pytest
 import time_machine
+from pwdlib.hashers.argon2 import Argon2Hasher
 
+from salary_api.core.deps import get_password_hasher
 from salary_api.core.permissions import Role
 from salary_api.core.security import (
     InvalidToken,
@@ -147,3 +149,9 @@ def test_a_token_that_was_not_issued_by_us_as_is_invalid(
 ) -> None:
     with pytest.raises(InvalidToken):
         decode_access_token(token, SETTINGS)
+
+
+def test_the_app_hashes_with_pwdlib_default_parameters() -> None:
+    default_hash = PasswordHasher(Argon2Hasher()).hash("correct horse battery")
+
+    assert not get_password_hasher().needs_rehash(default_hash)
