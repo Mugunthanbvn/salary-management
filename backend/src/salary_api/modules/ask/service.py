@@ -252,6 +252,7 @@ class _Conversation:
                         "id": call.id,
                         "type": "function",
                         "function": {"name": call.name, "arguments": call.arguments},
+                        **call.extra,
                     }
                     for call in response.tool_calls
                 ],

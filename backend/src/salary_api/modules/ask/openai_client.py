@@ -75,7 +75,12 @@ class OpenAICompatibleLLMClient:
             raise LLMUnavailable("The provider returned no choices.")
         message = completion.choices[0].message
         calls = tuple(
-            ToolCall(id=call.id, name=call.function.name, arguments=call.function.arguments)
+            ToolCall(
+                id=call.id,
+                name=call.function.name,
+                arguments=call.function.arguments,
+                extra=dict(call.model_extra or {}),
+            )
             for call in message.tool_calls or ()
             if call.type == "function"
         )
