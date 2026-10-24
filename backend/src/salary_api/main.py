@@ -4,13 +4,14 @@ from collections.abc import AsyncGenerator
 from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from salary_api import __version__
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine, create_session_factory
 from salary_api.core.errors import install_problem_handlers
 from salary_api.core.logging import configure_logging
-from salary_api.core.request_id import RequestIdMiddleware
+from salary_api.core.request_id import REQUEST_ID_HEADER, RequestIdMiddleware
 from salary_api.modules.health.router import router as health_router
 
 API_PREFIX = "/api/v1"
@@ -37,7 +38,18 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.settings = settings
     app.state.session_factory = create_session_factory(engine)
 
-    app.add_middleware(RequestIdMiddleware)
+    if settings.cors_origins:
+        # Local development only: in production the browser calls the API through the
+        # same-origin Next.js rewrite.
+        app.add_middleware(
+            CORSMiddleware,
+            allow_origins=settings.cors_origins,
+            allow_credentials=True,
+            allow_methods=["*"],
+            allow_headers=["*"],
+            expose_headers=[REQUEST_ID_HEADER],
+        )
+    app.add_middleware(RequestIdMiddleware)  # added last, so it runs first
     install_problem_handlers(app)
     app.include_router(health_router, prefix=API_PREFIX)
     return app
