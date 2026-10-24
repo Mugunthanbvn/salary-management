@@ -2,7 +2,7 @@
 
 from uuid import uuid4
 
-from starlette.datastructures import MutableHeaders
+from starlette.datastructures import Headers, MutableHeaders
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
 
 REQUEST_ID_HEADER = "X-Request-ID"
@@ -19,7 +19,7 @@ class RequestIdMiddleware:
             await self.app(scope, receive, send)
             return
 
-        request_id = str(uuid4())
+        request_id = Headers(scope=scope).get(REQUEST_ID_HEADER) or str(uuid4())
 
         async def send_with_request_id(message: Message) -> None:
             if message["type"] == "http.response.start":
