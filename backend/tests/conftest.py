@@ -21,9 +21,9 @@ from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine, create_session_factory
-from salary_api.core.deps import get_session
+from salary_api.core.deps import get_password_hasher, get_session
 from salary_api.main import create_app
-from tests.factories import make_settings
+from tests.factories import FAST_PASSWORD_HASHER, make_settings
 
 # HYPOTHESIS_PROFILE=ci (set in CI) makes property tests derandomized and repeatable.
 hypothesis_settings.register_profile("ci", derandomize=True, max_examples=100, deadline=None)
@@ -82,9 +82,16 @@ def db_session(engine: Engine) -> Iterator[Session]:
         yield session
 
 
+def create_test_app(settings: Settings) -> FastAPI:
+    """The real app, hashing passwords with cheap argon2 parameters so tests stay fast."""
+    app = create_app(settings)
+    app.dependency_overrides[get_password_hasher] = lambda: FAST_PASSWORD_HASHER
+    return app
+
+
 @pytest.fixture
 def app(settings: Settings) -> FastAPI:
-    return create_app(settings)
+    return create_test_app(settings)
 
 
 @pytest.fixture
