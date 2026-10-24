@@ -6,6 +6,7 @@ import pytest
 import time_machine
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
+from pwdlib.hashers.argon2 import Argon2Hasher
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
@@ -221,3 +222,33 @@ def test_failed_logins_hash_the_normalised_email(client: TestClient, db_session:
 
     [event] = _committed_events(db_session)
     assert event.diff == {"email_hash": hashlib.sha256(b"nobody@acme.example").hexdigest()}
+
+
+def test_login_upgrades_a_hash_made_with_outdated_parameters(
+    app: FastAPI, client: TestClient, db_session: Session
+) -> None:
+    stronger = PasswordHasher(Argon2Hasher(time_cost=2, memory_cost=8, parallelism=1))
+    app.dependency_overrides[get_password_hasher] = lambda: stronger
+    user = make_user(db_session, email="hr@acme.example")  # hashed with time_cost=1
+    db_session.commit()
+    outdated_hash = user.password_hash
+
+    client.post(LOGIN, json={"email": "hr@acme.example", "password": DEFAULT_PASSWORD})
+
+    db_session.rollback()
+    db_session.refresh(user)
+    assert user.password_hash != outdated_hash
+    assert not stronger.needs_rehash(user.password_hash)
+    assert stronger.verify(DEFAULT_PASSWORD, user.password_hash)
+
+
+def test_login_keeps_an_up_to_date_hash(client: TestClient, db_session: Session) -> None:
+    user = make_user(db_session, email="hr@acme.example")
+    db_session.commit()
+    current_hash = user.password_hash
+
+    client.post(LOGIN, json={"email": "hr@acme.example", "password": DEFAULT_PASSWORD})
+
+    db_session.rollback()
+    db_session.refresh(user)
+    assert user.password_hash == current_hash
