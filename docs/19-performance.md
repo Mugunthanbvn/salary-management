@@ -206,7 +206,7 @@ Measured values; each row records the date, block and environment. TBD rows need
 | Import dry-run / commit 10k | < 5 s / < 30 s | CSV 0.6–1.2 s, XLSX 3.6 s / 1.3–2.1 s | 2026-10-24, B7 | Same; 1.37 MB CSV, 0.49 MB XLSX, every row with a bonus and an allowance. Turso not measured yet |
 | Cold start | ~1–2 s | TBD | | |
 | LCP `/employees` | < 2.5 s | TBD | | |
-| Backend test suite | < 30 s | 143 s for 1,270 tests with coverage (over) | 2026-10-24, B10 | `make test-backend`, pytest-xdist, 4 vCPU at load ≈ 7–13 from other jobs |
+| Backend test suite | < 30 s | 73–143 s for 1,270 tests with coverage (over) | 2026-10-24, B10 | `make test-backend`, pytest-xdist, 4 vCPU at load ≈ 7–13 from other jobs |
 
 ### 9.1 API latency on the 10k seed (local, B10)
 
