@@ -38,4 +38,10 @@ describe("formatMoney", () => {
       expect(formatMoney(12_100_000, currency)).toBe(text);
     },
   );
+
+  it("groups rupees in lakhs and crores, as Indian readers expect", () => {
+    const text = formatMoney(186_000_000, "INR");
+
+    expect(text).toBe("₹18,60,000");
+  });
 });
