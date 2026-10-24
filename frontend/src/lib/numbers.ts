@@ -14,3 +14,12 @@ const RATIO = new Intl.NumberFormat("en-US", {
 export function formatRatio(ratio: string): string {
   return RATIO.format(ratio as Intl.StringNumericLiteral);
 }
+
+export function formatPercent(
+  ratio: string,
+  options: { fractionDigits?: number } = {},
+): string {
+  void ratio;
+  void options;
+  throw new Error("formatPercent is not implemented yet");
+}
