@@ -80,6 +80,12 @@ export function ReviewStep({
             Row numbers match your spreadsheet. Fix these cells in the file,
             then upload it again.
           </MarginNote>
+          {report.errors_truncated ? (
+            <p className="mb-4 text-[15px] font-bold">
+              Showing the first {formatCount(report.errors.length)} of{" "}
+              {formatCount(report.error_count)} errors.
+            </p>
+          ) : null}
           <RowErrors errors={report.errors} />
           <Button
             variant="link"
@@ -95,6 +101,21 @@ export function ReviewStep({
           >
             Download the list of problems
           </Button>
+        </Section>
+      ) : null}
+
+      {Object.keys(report.allowed_values).length > 0 ? (
+        <Section question="What can these columns hold?">
+          <dl className="flex flex-col gap-4">
+            {Object.entries(report.allowed_values).map(([column, values]) => (
+              <div key={column}>
+                <dt className="font-bold text-red-pen">{column}</dt>
+                <dd className="mt-1 max-w-[720px] text-[15px] leading-normal">
+                  {values.join(", ")}
+                </dd>
+              </div>
+            ))}
+          </dl>
         </Section>
       ) : null}
 
