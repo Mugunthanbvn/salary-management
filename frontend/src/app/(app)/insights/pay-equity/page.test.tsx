@@ -257,6 +257,25 @@ describe("/insights/pay-equity", () => {
       // The band is policy, not anyone's pay: it stays visible.
       expect(row).toHaveTextContent("Band €41,760 to €62,640");
     });
+
+    it("tells a screen reader why the middle half is hidden, without an unseen button", async () => {
+      servePayEquity({
+        cohorts: makePayEquityCohorts({
+          cohorts: [makeCohort({ stats: suppressedStats(), suppressed: true })],
+        }),
+      });
+
+      await renderPage({ country: "DE" }, makeViewer());
+
+      const row = within(
+        screen.getByRole("region", { name: COHORTS }),
+      ).getByRole("listitem", { name: "Customer Success Manager, L2" });
+      const middleHalf = within(row).getByText(/^Middle half earns/);
+      expect(middleHalf).toHaveTextContent(
+        "Middle half earns: hidden to protect individual pay (fewer than 5 people)",
+      );
+      expect(within(middleHalf).queryByRole("button")).toBeNull();
+    });
   });
 
   it("opens a cohort for HR and lists its people with their compa-ratio", async () => {
