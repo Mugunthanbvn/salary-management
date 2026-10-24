@@ -35,8 +35,7 @@ export function MarginNote({
 
 const STATUS_TONES = {
   /** Below band, errors: red-pen underline. */
-  problem:
-    "font-bold text-red-pen underline decoration-red-pen decoration-2 underline-offset-[3px]",
+  problem: "red-pen font-bold text-red-pen",
   /** Above band: blue-pen. */
   notice: "text-blue-pen",
   /** In band, nothing to act on. */
