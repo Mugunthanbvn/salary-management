@@ -8,6 +8,8 @@ export type FormatMoneyOptions = {
   period?: "annual" | "monthly";
   /** Short form for charts and sentences ("US$823.5M"); tables show full values. */
   compact?: boolean;
+  /** Overrides the fixed default (en-US, or en-IN for rupees). */
+  locale?: string;
   /** "auto" (default) leaves out minor units that are all zero; "always" keeps them. */
   minorUnits?: "auto" | "always";
 };
@@ -19,6 +21,7 @@ export function formatMoney(
     period = "annual",
     compact = false,
     minorUnits = "auto",
+    locale = defaultLocale(currency),
   }: FormatMoneyOptions = {},
 ): string {
   const annual = toBigInt(amountMinor);
@@ -28,7 +31,7 @@ export function formatMoney(
   // Whole amounts read like the printout ("€54,000"); any minor part shows every digit.
   const fractionDigits =
     minorUnits === "auto" && /^0*$/.test(fraction) ? 0 : fraction.length;
-  const formatter = new Intl.NumberFormat(defaultLocale(currency), {
+  const formatter = new Intl.NumberFormat(locale, {
     style: "currency",
     currency,
     ...(compact
