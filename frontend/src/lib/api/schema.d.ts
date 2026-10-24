@@ -332,12 +332,13 @@ export interface components {
          */
         EmployeeUpdate: {
             /** Email */
-            email?: string | null;
-            employment_type?: components["schemas"]["EmploymentType"] | null;
+            email?: string;
+            /** Employment Type */
+            employment_type?: components["schemas"]["EmploymentType"];
             /** First Name */
-            first_name?: string | null;
+            first_name?: string;
             /** Last Name */
-            last_name?: string | null;
+            last_name?: string;
             /** Version */
             version: number;
         };

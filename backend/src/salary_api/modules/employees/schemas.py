@@ -1,7 +1,8 @@
 from datetime import date
 from typing import Annotated
 
-from pydantic import BaseModel, ConfigDict, Field, StringConstraints
+from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
+from pydantic.json_schema import SkipJsonSchema
 
 from salary_api.core.schemas import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Comp, Money, SalaryBasis
 from salary_api.domain.constants import MAX_AMOUNT_MINOR
@@ -60,10 +61,18 @@ class EmployeeUpdate(BaseModel):
     model_config = ConfigDict(extra="forbid")
 
     version: int = Field(ge=1)  # the version the client read; 409 if it is no longer current
-    first_name: PersonName | None = None
-    last_name: PersonName | None = None
-    email: WorkEmail | None = None
-    employment_type: EmploymentType | None = None
+    # Leave a field out to keep it. null is refused, and the schema does not offer it.
+    first_name: PersonName | SkipJsonSchema[None] = None
+    last_name: PersonName | SkipJsonSchema[None] = None
+    email: WorkEmail | SkipJsonSchema[None] = None
+    employment_type: EmploymentType | SkipJsonSchema[None] = None
+
+    @field_validator("first_name", "last_name", "email", "employment_type", mode="before")
+    @classmethod
+    def _not_null(cls, value: object) -> object:
+        if value is None:
+            raise ValueError("Leave the field out to keep its value; it cannot be null.")
+        return value
 
 
 class EmployeeListItem(BaseModel):
