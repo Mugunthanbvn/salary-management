@@ -17,6 +17,8 @@ How the system is deployed for $0 on Vercel (web + API) and Turso (hosted SQLite
 
 ## 2. Topology
 
+> **Decided at deploy time ([ADR 0019](adr/0019-vercel-services-single-project.md)):** one Vercel project with two **services** replaces the two projects described below. The root `vercel.json` defines `backend` (FastAPI, `backend/index.py`) and `frontend` (Next.js); the top-level rewrites send `/api/*` to `backend` (it receives the original path, so routes stay under `/api/v1`) and everything else to `frontend`, on one domain. Server Components reach the backend through the `BACKEND_URL` binding; the `next.config.ts` `/api` proxy exists only for local development (when `API_ORIGIN` is set). The same-origin cookie design is unchanged. Sections 3.2–3.4 describe the earlier two-project setup.
+
 ```mermaid
 flowchart LR
     U[HR user's browser] -- HTTPS --> W["Vercel project: salary-web<br/>Next.js 16 (Server Components, Server Actions)"]
