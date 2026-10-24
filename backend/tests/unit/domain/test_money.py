@@ -5,6 +5,7 @@ from decimal import Decimal
 
 import pytest
 
+from salary_api.domain.currency import UnknownCurrencyError
 from salary_api.domain.money import Money
 
 
@@ -25,3 +26,8 @@ def test_money_is_immutable() -> None:
 def test_money_rejects_float_amounts(amount: object) -> None:
     with pytest.raises(TypeError, match="int"):
         Money(amount, "USD")  # type: ignore[arg-type]
+
+
+def test_money_rejects_an_unsupported_currency() -> None:
+    with pytest.raises(UnknownCurrencyError):
+        Money(100, "XYZ")
