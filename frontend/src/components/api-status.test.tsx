@@ -9,4 +9,10 @@ describe("ApiStatus", () => {
 
     expect(screen.getByRole("status")).toHaveTextContent("API: ok");
   });
+
+  it("tells the user the API is unreachable when it does not answer", () => {
+    render(<ApiStatus status="unreachable" />);
+
+    expect(screen.getByRole("status")).toHaveTextContent("API unreachable");
+  });
 });
