@@ -254,7 +254,7 @@ Full design: [10-ai-ask-design.md](10-ai-ask-design.md), [ADR 0015](adr/0015-ai-
 | Surface | Limit | Mechanism |
 |---|---|---|
 | `POST /ask` | 20 requests / user / hour | Count of `ask.query` events in `audit_events` over the last hour (serverless functions have no shared memory) |
-| `POST /auth/login` | 5 failures / email / 15 min → 429 | Count of `auth.login_failed` events with the email's hash and `at` less than 15 minutes ago, checked before the password, so the right password is refused too. `Retry-After` = seconds until the oldest of the 5 most recent failures is 15 minutes old. A refused attempt is not recorded as another failure, so the block ends on time. Unknown emails are limited the same way. The events are filtered in Python (no JSON SQL), bounded by the 15-minute window |
+| `POST /auth/login` | 5 failures / email / 15 min → 429 for 15 min | Counted from `auth.login_failed` events with the email's hash. A failure **reaches the limit** when it is the 5th within 15 minutes; the email is then blocked for 15 minutes from that failure, even after older failures leave the window. `Retry-After` = seconds until that failure is 15 minutes old. The block is checked before the password, so the right password is refused too. A refused attempt is not recorded as another failure. Unknown emails are limited the same way. The events (last 30 minutes) are filtered in Python (no JSON SQL) |
 | Everything else | None at the app level (internal tool, small user base) | Vercel platform protections; noted as a gap for a real deployment |
 
 ---

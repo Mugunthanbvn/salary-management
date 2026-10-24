@@ -1,5 +1,6 @@
 import hashlib
 import math
+from collections.abc import Sequence
 from dataclasses import dataclass
 from datetime import datetime, timedelta
 
@@ -29,9 +30,10 @@ from salary_api.modules.users.models import User
 INVALID_CREDENTIALS = "Invalid email or password"
 SIGN_IN_REQUIRED = "Sign in to continue."
 SESSION_NOT_VALID = "Your session has expired or is no longer valid. Sign in again."
-# docs/glossary.md section 3: 5 failures per email in 15 minutes → 429.
+# docs/glossary.md section 3: 5 failures per email in 15 minutes → 429 for 15 minutes.
 LOGIN_FAILURE_LIMIT = 5
 LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
+LOGIN_BLOCK = timedelta(minutes=15)
 
 
 @dataclass(frozen=True, slots=True)
@@ -48,7 +50,7 @@ def login(
     Refused with 429, before any password check, while the email is over the failure limit.
     """
     email = credentials.email
-    _refuse_while_over_failure_limit(session, email_hash(email), now=utc_now())
+    _refuse_while_blocked(session, email_hash(email), now=utc_now())
     user = users.get_by_email(session, email)
     # Always one password check, so an unknown email takes as long as a known one.
     password_ok = hasher.verify(
@@ -116,23 +118,43 @@ def email_hash(email: str) -> str:
     return hashlib.sha256(email.encode()).hexdigest()
 
 
-def _refuse_while_over_failure_limit(session: Session, hashed_email: str, *, now: datetime) -> None:
-    """Counted from audit events, so the limit holds across serverless instances."""
+def _refuse_while_blocked(session: Session, hashed_email: str, *, now: datetime) -> None:
+    """429 while the email is blocked. Counted from audit events, so the limit holds across
+    serverless instances."""
+    # A block that is still on started under 15 minutes ago, from a failure whose own
+    # 15-minute window started under 30 minutes ago.
+    events = events_since(
+        session,
+        action=AuditAction.AUTH_LOGIN_FAILED,
+        since=now - LOGIN_BLOCK - LOGIN_FAILURE_WINDOW,
+    )
     failures = [
         event.at
-        for event in events_since(
-            session, action=AuditAction.AUTH_LOGIN_FAILED, since=now - LOGIN_FAILURE_WINDOW
-        )
+        for event in events
         if event.diff is not None and event.diff.get("email_hash") == hashed_email
     ]
-    if len(failures) < LOGIN_FAILURE_LIMIT:
-        return
-    # The limit lifts when the oldest of the last LOGIN_FAILURE_LIMIT failures leaves the window.
-    lifts_at = failures[-LOGIN_FAILURE_LIMIT] + LOGIN_FAILURE_WINDOW
-    raise RateLimited(
-        "Too many failed sign-in attempts. Try again later.",
-        retry_after_seconds=math.ceil((lifts_at - now).total_seconds()),
-    )
+    block_ends_at = _block_ends_at(failures)
+    if block_ends_at is not None and block_ends_at > now:
+        raise RateLimited(
+            "Too many failed sign-in attempts. Try again later.",
+            retry_after_seconds=math.ceil((block_ends_at - now).total_seconds()),
+        )
+
+
+def _block_ends_at(failures: Sequence[datetime]) -> datetime | None:
+    """When the latest block ends, from failure times oldest first; None if there was none.
+
+    A failure reaches the limit when it is the LOGIN_FAILURE_LIMIT-th (or later) within
+    LOGIN_FAILURE_WINDOW. The block lasts LOGIN_BLOCK from the latest such failure.
+    """
+    reached_at: datetime | None = None
+    oldest = 0  # index of the oldest failure inside the window that ends at `at`
+    for index, at in enumerate(failures):
+        while failures[oldest] <= at - LOGIN_FAILURE_WINDOW:
+            oldest += 1
+        if index - oldest + 1 >= LOGIN_FAILURE_LIMIT:
+            reached_at = at
+    return None if reached_at is None else reached_at + LOGIN_BLOCK
 
 
 def _record_failed_login(session: Session, *, email: str, user: User | None) -> None:
