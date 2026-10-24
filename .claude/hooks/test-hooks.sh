@@ -150,6 +150,13 @@ if [ "$have_ruff" = yes ]; then
   printf 'def f(:\n' >"$proj/backend/src/broken.py"
   fmt "backend syntax error reported -> 2" 2 "$proj/backend/src/broken.py"
   expect_err "syntax error report names ruff format" "ruff format"
+  # an import added before the code that uses it is neither removed nor reported (finding 8)
+  printf 'import os\n' >"$proj/backend/src/import_first.py"
+  fmt "unused import (import-then-use edit) is not reported -> 0" 0 "$proj/backend/src/import_first.py"
+  same "unused import is kept" "$proj/backend/src/import_first.py" 'import os'
+  printf 'def g():\n    unused = 1\n    return 2\n' >"$proj/backend/src/lint.py"
+  fmt "other lint errors are still reported -> 2" 2 "$proj/backend/src/lint.py"
+  expect_err "lint report names ruff check" "ruff check"
   mv "$proj/backend/.venv/bin/ruff" "$proj/backend/.venv/bin/ruff.off"
   fmt "backend without project ruff is a no-op" 0 "$proj/backend/src/broken.py"
   mv "$proj/backend/.venv/bin/ruff.off" "$proj/backend/.venv/bin/ruff"
