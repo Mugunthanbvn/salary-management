@@ -31,9 +31,19 @@ export function formatPercent(
   }).format(ratio as Intl.StringNumericLiteral);
 }
 
+const CHANGE_PCT = new Intl.NumberFormat("en-US", {
+  minimumFractionDigits: 1,
+  maximumFractionDigits: 1,
+  roundingMode: "halfEven",
+  signDisplay: "exceptZero", // "+12.5%", "-3.2%", and "0.0%" for no change
+});
+
+/**
+ * A change already in percent, as the salary history sends it (`base_change_pct: "12.50"`):
+ * `"12.50"` → `"+12.5%"`. One decimal, like the printout.
+ */
 export function formatChangePct(pct: string): string {
-  void pct;
-  throw new Error("formatChangePct is not implemented yet");
+  return `${CHANGE_PCT.format(pct as Intl.StringNumericLiteral)}%`;
 }
 
 const COUNT = new Intl.NumberFormat("en-US", { maximumFractionDigits: 0 });
