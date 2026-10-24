@@ -19,6 +19,8 @@ Import them from `@/components/print`. Build screens from these and the restyled
 
 Rules they already follow: tokens only (`paper`, `ink`, `ink-2`, `ink-3`, `rule`, `highlighter`, `red-pen`,
 `blue-pen`), sentence case, no shadows, no rounded corners except buttons and inputs, 44 px targets.
+For a full-width block of your own, use the `page-gutter` utility for side padding (16/32 px, clear of a
+landscape notch) and `safe-x` on full-width bars (`app/globals.css`).
 
 ## Related helpers
 
