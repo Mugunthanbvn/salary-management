@@ -61,6 +61,7 @@ class Reference:
     """Reference data the tool arguments are validated against, read once per question."""
 
     countries: tuple[str, ...]  # codes, in the reference data's order (by name)
+    country_labels: Mapping[str, str]  # code -> "Germany (EUR)"
     departments: Mapping[str, int]  # name -> id
     job_roles: Mapping[str, int]  # title -> id
 
@@ -83,6 +84,10 @@ def load_reference(session: Session) -> Reference:
     data = reference_service.reference_data(session)
     return Reference(
         countries=tuple(country.code for country in data.countries),
+        country_labels={
+            country.code: f"{country.name} ({country.default_currency})"
+            for country in data.countries
+        },
         departments={department.name: department.id for department in data.departments},
         job_roles={role.title: role.id for role in data.job_roles},
     )

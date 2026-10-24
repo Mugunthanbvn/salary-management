@@ -60,6 +60,11 @@ def record_event(  # noqa: PLR0913
     return event
 
 
-def events_since(session: Session, *, action: AuditAction, since: datetime) -> Sequence[AuditEvent]:
-    """Events of one action strictly after `since`, oldest first (rate limits count these)."""
-    return repository.list_since(session, action=action, since=since)
+def events_since(
+    session: Session, *, action: AuditAction, since: datetime, actor_id: int | None = None
+) -> Sequence[AuditEvent]:
+    """Events of one action strictly after `since`, oldest first (rate limits count these).
+
+    With `actor_id`, only that user's events (the Ask limit is per user).
+    """
+    return repository.list_since(session, action=action, since=since, actor_id=actor_id)
