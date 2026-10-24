@@ -9,7 +9,7 @@ from sqlalchemy.orm import Session
 from salary_api.core.config import Settings
 from salary_api.core.deps import get_session
 from salary_api.core.security import decode_access_token
-from salary_api.main import create_app
+from tests.conftest import create_test_app
 from tests.factories import DEFAULT_PASSWORD, make_settings, make_user
 
 LOGIN = "/api/v1/auth/login"
@@ -41,7 +41,7 @@ def test_login_sets_httponly_cookie(
 def test_login_cookie_is_secure_when_cookie_secure_is_true(
     db_session: Session, frozen_time: time_machine.Traveller
 ) -> None:
-    app: FastAPI = create_app(make_settings(cookie_secure=True, jwt_ttl_minutes=60))
+    app: FastAPI = create_test_app(make_settings(cookie_secure=True, jwt_ttl_minutes=60))
     app.dependency_overrides[get_session] = lambda: db_session
     make_user(db_session, email="hr@acme.example")
 
