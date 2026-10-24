@@ -95,3 +95,29 @@ def test_a_change_committed_between_read_and_write_is_a_version_conflict(
         )
 
     assert conflict.value.extra["current_version"] == 2
+
+
+@pytest.mark.parametrize(
+    "body",
+    [
+        pytest.param({"version": 1, "job_role_id": 2}, id="role"),
+        pytest.param({"version": 1, "level": "L4"}, id="level"),
+        pytest.param({"version": 1, "country_code": "FR"}, id="country"),
+        pytest.param({"version": 1, "current_base_minor": 1}, id="salary"),
+        pytest.param({"version": 1, "status": "TERMINATED"}, id="status"),
+        pytest.param({"first_name": "No version"}, id="no version"),
+        pytest.param({"version": 1, "first_name": None}, id="null name"),
+        pytest.param({"version": 1, "employment_type": None}, id="null employment type"),
+        pytest.param({"version": 1, "email": "not-an-email"}, id="bad email"),
+    ],
+)
+def test_patch_refuses_anything_but_profile_fields(
+    as_role: Callable[[str], TestClient], db_session: Session, body: dict[str, object]
+) -> None:
+    employee = make_employee(db_session)
+
+    response = as_role("HR_MANAGER").patch(f"{EMPLOYEES}/{employee.id}", json=body)
+
+    assert response.status_code == 422
+    assert response.json()["type"] == f"{PROBLEMS}validation"
+    assert employee.version == 1
