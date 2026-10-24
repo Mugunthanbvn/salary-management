@@ -31,8 +31,12 @@ from salary_api.seed.rows import UserRow
 from salary_api.seed.users import demo_users
 from tests.conftest import upgrade_to_head
 from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings, make_settings
+from tests.seed_checks import employee_checksum
 
 DATASET = generate(seed=42, employees=200)
+# sha256 of the employee key fields for --seed 42 --employees 200 (tests/seed_checks.py). If the
+# generator changes on purpose, update it in the same commit and say why in the message.
+GOLDEN_200 = "14163d9717da32da3976544877bd41105a9426c30d88138e1f8606030a28b43f"
 
 
 def _users() -> list[UserRow]:
@@ -92,6 +96,19 @@ def test_every_table_holds_the_generated_rows(
     session: Session, model: type[Any], rows: Any
 ) -> None:
     assert _count(session, model) == rows(DATASET)
+
+
+def test_seed_42_with_200_employees_matches_its_golden_checksum(seeded: Engine) -> None:
+    with seeded.connect() as connection:
+        assert employee_checksum(connection) == GOLDEN_200
+
+
+def test_another_seed_gives_another_checksum(fresh: Engine) -> None:
+    with fresh.begin() as connection:
+        load(connection, generate(seed=43, employees=200), _users())
+
+    with fresh.connect() as connection:
+        assert employee_checksum(connection) != GOLDEN_200
 
 
 def test_the_latest_salary_record_is_every_employees_current_salary(session: Session) -> None:

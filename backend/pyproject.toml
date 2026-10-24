@@ -85,6 +85,8 @@ addopts = [
     "--strict-markers",
     "--strict-config",
     "-n", "auto",
+    # Tests marked xdist_group run on one worker, so the 10k seed is built once per run.
+    "--dist", "loadgroup",
     "--disable-socket",
     "--allow-unix-socket",
 ]
