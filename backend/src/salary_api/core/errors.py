@@ -128,11 +128,10 @@ def problem_response(
     body["instance"] = request.url.path
     body["request_id"] = request_id
     body.update(problem.extra)
-    # Set here too, because a 500 is sent from outside the request id middleware.
-    response_headers = {
-        **(headers or {}),
-        **({REQUEST_ID_HEADER: request_id} if request_id else {}),
-    }
+    response_headers = dict(headers or {})
+    if request_id:
+        # Set here too, because a 500 is sent from outside the request id middleware.
+        response_headers[REQUEST_ID_HEADER] = request_id
     return JSONResponse(
         body, status_code=problem.status, media_type=PROBLEM_JSON, headers=response_headers
     )
