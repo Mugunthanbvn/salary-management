@@ -147,3 +147,26 @@ def make_job_role(
     session.add(role)
     session.flush()
     return role
+
+
+def employee_request(job_role_id: int, **overrides: Any) -> dict[str, Any]:
+    """A valid POST /employees body for a new employee in Germany (EUR), hired 2026-09-01."""
+    body: dict[str, Any] = {
+        "first_name": "Lena",
+        "last_name": "Müller",
+        "email": "lena.mueller@acme.example",
+        "job_role_id": job_role_id,
+        "level": "L2",
+        "employment_type": "FULL_TIME",
+        "country_code": "DE",
+        "hire_date": "2026-09-01",
+        "salary": {
+            "base_minor": 5_400_000,
+            "components": [
+                {"type": "ALLOWANCE", "name": "Transport", "amount_minor": 60_000},
+                {"type": "BONUS_TARGET", "name": "Target bonus", "amount_minor": 432_000},
+            ],
+            "note": "Offer accepted 2026-08-12",
+        },
+    }
+    return body | overrides

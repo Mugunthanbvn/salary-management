@@ -18,7 +18,13 @@ from fastapi.routing import iter_route_contexts
 from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
-from tests.factories import DEFAULT_PASSWORD, make_user
+from tests.factories import (
+    DEFAULT_PASSWORD,
+    employee_request,
+    make_country,
+    make_job_role,
+    make_user,
+)
 
 ANON = "ANON"
 CALLERS = (ANON, "VIEWER", "HR_MANAGER", "ADMIN")
@@ -45,6 +51,11 @@ def _valid_credentials(session: Session) -> dict[str, Any]:
     return {"json": {"email": user.email, "password": DEFAULT_PASSWORD}}
 
 
+def _new_employee(session: Session) -> dict[str, Any]:
+    make_country(session, "DE")
+    return {"json": employee_request(make_job_role(session).id, hire_date="2024-01-15")}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -52,6 +63,7 @@ MATRIX = [
     Endpoint("GET", "/api/v1/auth/me", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/reference", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/countries", (401, 200, 200, 200)),
+    Endpoint("POST", "/api/v1/employees", (401, 403, 201, 201), _new_employee),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
