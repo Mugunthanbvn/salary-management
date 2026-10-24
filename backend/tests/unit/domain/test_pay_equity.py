@@ -6,7 +6,7 @@ import pytest
 
 from salary_api.domain.enums import EmploymentType
 from salary_api.domain.money import Money
-from salary_api.domain.pay_equity import CompaRatio, compa_ratio
+from salary_api.domain.pay_equity import CompaRatio, NoCompaRatioReason, compa_ratio
 
 FULL_TIME = EmploymentType.FULL_TIME
 
@@ -25,3 +25,10 @@ def test_compa_ratio_is_base_over_band_midpoint_unrounded(
     result = compa_ratio(Money(base_minor, "EUR"), Money(mid_minor, "EUR"), FULL_TIME)
 
     assert result == CompaRatio(ratio)
+
+
+def test_an_employee_with_no_band_has_no_compa_ratio_and_reason_no_band() -> None:
+    result = compa_ratio(Money(4600000, "EUR"), None, FULL_TIME)
+
+    assert result == CompaRatio(None, NoCompaRatioReason.NO_BAND)
+    assert NoCompaRatioReason.NO_BAND == "no_band"
