@@ -52,4 +52,3 @@ def test_production_engine_does_not_pool_connections() -> None:
     engine = create_db_engine(settings)
 
     assert isinstance(engine.pool, NullPool)
-

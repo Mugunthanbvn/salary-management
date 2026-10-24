@@ -4,18 +4,17 @@ from typing import Any
 
 from sqlalchemy import URL, Engine, create_engine, event, make_url
 from sqlalchemy.orm import Session, sessionmaker
-from sqlalchemy.pool import StaticPool
+from sqlalchemy.pool import NullPool, Pool, StaticPool
 
 from salary_api.core.config import Settings
 
 
 def create_db_engine(settings: Settings) -> Engine:
     url = make_url(settings.database_url)
+    connect_args: dict[str, Any] = {}
     if _is_in_memory_sqlite(url):
-        # One shared connection, so every session sees the same in-memory database.
-        engine = create_engine(url, poolclass=StaticPool, connect_args={"check_same_thread": False})
-    else:
-        engine = create_engine(url)
+        connect_args["check_same_thread"] = False
+    engine = create_engine(url, poolclass=_pool_class(settings, url), connect_args=connect_args)
     if url.get_backend_name() == "sqlite":
         event.listen(engine, "connect", _enable_foreign_keys)
     if _is_local_sqlite_file(url):
@@ -25,6 +24,14 @@ def create_db_engine(settings: Settings) -> Engine:
 
 def create_session_factory(engine: Engine) -> sessionmaker[Session]:
     return sessionmaker(bind=engine, autoflush=False, expire_on_commit=False)
+
+
+def _pool_class(settings: Settings, url: URL) -> type[Pool] | None:
+    if settings.app_env == "production":
+        return NullPool  # serverless: a pool does not survive between invocations
+    if _is_in_memory_sqlite(url):
+        return StaticPool  # one shared connection, so every session sees the same database
+    return None  # the dialect's default pool
 
 
 def _is_in_memory_sqlite(url: URL) -> bool:
