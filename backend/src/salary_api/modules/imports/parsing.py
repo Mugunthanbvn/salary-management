@@ -6,14 +6,33 @@ validator is written and tested once (ADR 0012). Pure: no database, no logging.
 
 import csv
 import io
+import re
+import warnings
+import zipfile
 from collections.abc import Iterable, Iterator, Mapping, Sequence
 from dataclasses import dataclass
+from datetime import date, datetime, time
+from decimal import Decimal
+from typing import TYPE_CHECKING, Final
 
 from salary_api.modules.imports.columns import REQUIRED_COLUMNS, TEMPLATE_COLUMNS
+
+if TYPE_CHECKING:
+    from openpyxl.workbook.workbook import Workbook as ReadOnlyWorkbook
 
 type Cell = str | None
 
 NOT_UTF8 = "The file is not UTF-8. In Excel choose File > Save As > 'CSV UTF-8 (Comma delimited)'."
+NOT_A_WORKBOOK = (
+    "The file is not an Excel workbook (.xlsx) that can be read. Save it again as .xlsx."
+)
+
+EMPLOYEES_SHEET: Final = "Employees"
+XLSX_COLUMNS_READ: Final = 50
+"""Only the first 50 columns of a sheet are read (the template has 19)."""
+
+# <f> or <x:f ...>: a formula element in a worksheet's XML.
+_FORMULA_ELEMENT = re.compile(rb"<(?:[A-Za-z_][\w.-]*:)?f[\s/>]")
 
 
 class UnreadableFile(ValueError):
@@ -49,6 +68,118 @@ def parse_csv(content: bytes, *, max_rows: int) -> list[RawRow]:
         raise UnreadableFile(NOT_UTF8) from None
     reader = csv.reader(io.StringIO(text, newline=""), strict=True)
     return _table(_csv_records(reader), max_rows=max_rows)
+
+
+def parse_xlsx(content: bytes, *, max_rows: int, max_uncompressed_bytes: int) -> list[RawRow]:
+    """Rows of the sheet called `Employees`, or else of the first sheet, of an XLSX workbook.
+
+    Values only: openpyxl reads the value Excel saved for each formula and never runs
+    anything (`read_only=True, data_only=True`). Refused unread when the archive would
+    expand past `max_uncompressed_bytes` (a zip bomb).
+    """
+    has_formulas = _check_archive(content, max_uncompressed_bytes)
+    values = _open_workbook(content, data_only=True)
+    # Only to find formulas whose value was never saved, which data_only reads as empty.
+    formulas = _open_workbook(content, data_only=False) if has_formulas else None
+    try:
+        return _table(_xlsx_records(values, formulas), max_rows=max_rows)
+    finally:
+        values.close()
+        if formulas is not None:
+            formulas.close()
+
+
+def _check_archive(content: bytes, max_uncompressed_bytes: int) -> bool:
+    """Whether a worksheet has a formula. Raises UnreadableFile for a broken or huge zip."""
+    try:
+        archive = zipfile.ZipFile(io.BytesIO(content))
+    except (zipfile.BadZipFile, OSError, EOFError, ValueError):
+        raise UnreadableFile(NOT_A_WORKBOOK) from None
+    with archive:
+        entries = archive.infolist()
+        # The declared sizes: zipfile never inflates an entry past its declared size.
+        if sum(entry.file_size for entry in entries) > max_uncompressed_bytes:
+            raise UnreadableFile(
+                f"The workbook expands to more than {_size(max_uncompressed_bytes)} "
+                "when unzipped. Save only the employee rows in a new workbook."
+            )
+        try:
+            return any(
+                _FORMULA_ELEMENT.search(archive.read(entry)) is not None
+                for entry in entries
+                if entry.filename.startswith("xl/worksheets/")
+            )
+        except Exception:  # a damaged entry: bad CRC, broken deflate stream, ...
+            raise UnreadableFile(NOT_A_WORKBOOK) from None
+
+
+def _open_workbook(content: bytes, *, data_only: bool) -> "ReadOnlyWorkbook":
+    # Imported here, not at the top: openpyxl is slow to import (docs/19 section 6.3).
+    from openpyxl import load_workbook  # noqa: PLC0415
+
+    try:
+        with warnings.catch_warnings():
+            warnings.simplefilter("ignore")  # e.g. "unsupported extension": not the user's error
+            return load_workbook(io.BytesIO(content), read_only=True, data_only=data_only)
+    except Exception:  # openpyxl raises many kinds of errors for a damaged file
+        raise UnreadableFile(NOT_A_WORKBOOK) from None
+
+
+def _xlsx_records(
+    values: "ReadOnlyWorkbook", formulas: "ReadOnlyWorkbook | None"
+) -> Iterator[tuple[int, Sequence[Cell]]]:
+    """Numbered rows of text cells, read side by side from the values and formulas workbooks."""
+    value_rows = _sheet_rows(values)
+    formula_rows = _sheet_rows(formulas) if formulas is not None else None
+    number = 0
+    while True:
+        number += 1
+        try:
+            cells = next(value_rows, None)
+            formula_cells = next(formula_rows, None) if formula_rows is not None else None
+        except Exception:  # a damaged sheet only shows while it is read
+            raise UnreadableFile(NOT_A_WORKBOOK) from None
+        if cells is None:
+            return
+        for position, (value, formula) in enumerate(zip(cells, formula_cells or (), strict=False)):
+            if value is None and isinstance(formula, str) and formula.startswith("="):
+                raise UnreadableFile(
+                    f"Cell {_letter(position)}{number} has a formula without a saved value. "
+                    "Copy the cells and paste them as values, then upload again."
+                )
+        yield number, [_cell_text(value) for value in cells]
+
+
+def _sheet_rows(workbook: "ReadOnlyWorkbook") -> Iterator[tuple[object, ...]]:
+    try:
+        names: list[str] = workbook.sheetnames
+        sheet = workbook[EMPLOYEES_SHEET] if EMPLOYEES_SHEET in names else workbook.worksheets[0]
+        # The saved dimensions can be wrong; read the rows that are really there.
+        sheet.reset_dimensions()
+        return sheet.iter_rows(max_col=XLSX_COLUMNS_READ, values_only=True)
+    except Exception:
+        raise UnreadableFile(NOT_A_WORKBOOK) from None
+
+
+def _cell_text(value: object) -> Cell:
+    """A cell's value as the text a CSV of the same sheet holds."""
+    if value is None or isinstance(value, str):
+        return value
+    if isinstance(value, bool):
+        return "TRUE" if value else "FALSE"
+    if isinstance(value, float):
+        # Through the float's shortest repr: 1234.56 stays "1234.56", never 1234.5599999...
+        return format(Decimal(repr(value)), "f")
+    if isinstance(value, datetime):
+        return value.date().isoformat() if value.time() == time() else value.isoformat()
+    if isinstance(value, date):
+        return value.isoformat()
+    return str(value)
+
+
+def _size(byte_count: int) -> str:
+    megabytes = byte_count // (1024 * 1024)
+    return f"{megabytes} MB" if megabytes else f"{byte_count} bytes"
 
 
 def _csv_records(reader: Iterator[list[str]]) -> Iterator[tuple[int, Sequence[Cell]]]:

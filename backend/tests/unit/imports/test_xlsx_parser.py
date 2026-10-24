@@ -108,9 +108,9 @@ def test_a_formula_without_a_saved_value_is_refused_with_its_cell() -> None:
 @pytest.mark.parametrize(
     "content",
     [
-        b"employee_code,first_name\r\n",  # a CSV renamed to .xlsx
-        zip_bytes({"notes.txt": b"hello"}),  # a zip, but not a workbook
-        b"PK\x03\x04 broken",
+        pytest.param(b"employee_code,first_name\r\n", id="a CSV renamed to .xlsx"),
+        pytest.param(zip_bytes({"notes.txt": b"hello"}), id="a zip that is no workbook"),
+        pytest.param(b"PK\x03\x04 broken", id="a damaged zip"),
     ],
 )
 def test_a_file_that_is_not_a_workbook_is_refused(content: bytes) -> None:
