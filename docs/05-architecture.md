@@ -247,8 +247,12 @@ core/
 domain/
   money.py              Money value object (amount_minor:int, currency:str), FX conversion with Decimal
   currency.py           ISO 4217 exponent table (JPY=0, USD=2, ...)
+  rounding.py           half-even rounding helpers (the one rounding mode)
   stats.py              percentile/median/mean over sorted ints (pure)
   pay_equity.py         compa-ratio vs pay band, flags, rollups
+  compensation.py       total compensation = base + allowances + bonus targets
+  enums.py              glossary §2 enums (Level, EmploymentType, ...) as StrEnum
+  constants.py          glossary §3 thresholds (MIN_GROUP_SIZE, PAY_EQUITY_LOW/HIGH, rollup 0.95)
 modules/
   health/               GET /health (read-only DB check)
   auth/                 login, logout, me
