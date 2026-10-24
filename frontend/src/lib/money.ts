@@ -27,7 +27,33 @@ export function formatMoney(
     maximumFractionDigits: fractionDigits,
   });
   const decimal = fraction ? `${major}.${fraction}` : major;
-  return formatter.format(decimal as Intl.StringNumericLiteral);
+  return withSymbol(
+    formatter.formatToParts(decimal as Intl.StringNumericLiteral),
+    currency,
+  );
+}
+
+/** "$" alone is ambiguous: say whose dollar it is (docs/13-frontend-ux.md §3.3). */
+const DOLLAR_SYMBOLS: Record<string, string> = {
+  USD: "US$",
+  CAD: "CA$",
+  AUD: "A$",
+  SGD: "S$",
+};
+
+function withSymbol(parts: Intl.NumberFormatPart[], currency: string): string {
+  const symbol = DOLLAR_SYMBOLS[currency];
+  return parts
+    .map((part, index) => {
+      if (!symbol) return part.value;
+      if (part.type === "currency") return symbol;
+      // "SGD 121,000" becomes "S$121,000": no gap after a prefix symbol.
+      const afterSymbol = parts[index - 1]?.type === "currency";
+      return afterSymbol && part.type === "literal" && !part.value.trim()
+        ? ""
+        : part.value;
+    })
+    .join("");
 }
 
 /** The currency's minor-unit exponent (JPY 0, EUR 2), as Intl knows it. */
