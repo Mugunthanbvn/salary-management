@@ -69,3 +69,46 @@ def test_comp_chooses_base_or_total_for_the_salary_range(
     )
 
     assert _last_names(response.json()) == last_names
+
+
+@pytest.mark.parametrize(
+    ("params", "loc"),
+    [
+        ({"salary_min": 1}, "salary_min"),
+        ({"salary_max": 1, "currency": ["EUR", "USD"]}, "salary_max"),
+        ({"salary_min": 1, "salary_basis": "local", "country": ["DE", "US"]}, "salary_min"),
+        ({"sort": "current_base"}, "sort"),
+        ({"sort": "-current_total", "country": ["DE", "FR"]}, "sort"),
+    ],
+)
+def test_a_salary_range_or_sort_that_could_mix_currencies_is_refused(
+    as_role: Callable[[str], TestClient], params: dict[str, str | int | list[str]], loc: str
+) -> None:
+    response = as_role("HR_MANAGER").get(EMPLOYEES, params=params)
+
+    assert response.status_code == 422
+    error = response.json()["errors"][0]
+    assert (error["loc"], error["code"]) == (["query", loc], "currency_required")
+    assert "salary_basis=usd" in error["message"]
+
+
+def test_a_salary_range_whose_minimum_is_above_its_maximum_is_refused(
+    as_role: Callable[[str], TestClient],
+) -> None:
+    response = as_role("HR_MANAGER").get(
+        EMPLOYEES, params={"currency": "EUR", "salary_min": 2, "salary_max": 1}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"][0]["loc"] == ["query", "salary_min"]
+
+
+@pytest.mark.usefixtures("euro_salaries")
+def test_a_salary_sort_in_one_currency_orders_by_amount(
+    as_role: Callable[[str], TestClient],
+) -> None:
+    response = as_role("HR_MANAGER").get(
+        EMPLOYEES, params={"currency": "EUR", "sort": "-current_base"}
+    )
+
+    assert _last_names(response.json()) == ["High", "Mid", "Low"]
