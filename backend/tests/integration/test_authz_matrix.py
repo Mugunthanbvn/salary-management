@@ -100,6 +100,12 @@ def _in_germany(session: Session) -> dict[str, Any]:
     return {"params": {"country": "DE"}}
 
 
+def _a_cohort(session: Session) -> dict[str, Any]:
+    role = make_job_role(session)
+    make_country(session, "DE")
+    return {"params": {"job_role_id": role.id, "level": "L3", "country": "DE"}}
+
+
 MATRIX = [
     #                                          ANON VIEWER  HR  ADMIN
     Endpoint("POST", "/api/v1/auth/login", (200, 200, 200, 200), _valid_credentials),
@@ -121,6 +127,7 @@ MATRIX = [
     Endpoint("GET", "/api/v1/insights/department-cost", (401, 200, 200, 200)),
     Endpoint("GET", "/api/v1/insights/top-earners", (401, 403, 200, 200), _in_germany),
     Endpoint("GET", "/api/v1/insights/pay-equity", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/pay-equity/cohort", (401, 403, 200, 200), _a_cohort),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
