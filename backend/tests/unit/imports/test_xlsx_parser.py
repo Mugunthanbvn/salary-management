@@ -1,6 +1,6 @@
 """The XLSX parser reads values only and gives the same rows as the CSV parser (docs/11 5.1)."""
 
-from datetime import date, datetime
+from datetime import date, datetime, time
 from pathlib import Path
 
 import pytest
@@ -67,6 +67,7 @@ def test_the_xlsx_golden_file_parses_to_the_same_rows_as_the_csv_golden_file() -
         (datetime(2022, 4, 1, 0, 0), "2022-04-01"),
         (datetime(2022, 4, 1, 10, 30), "2022-04-01T10:30:00"),
         (" spaced ", " spaced "),
+        (time(10, 30), "10:30:00"),
     ],
 )
 def test_cells_become_text_without_float_drift(cell: object, text: str) -> None:
@@ -137,3 +138,20 @@ def test_more_xlsx_rows_than_the_cap_are_refused() -> None:
 
     with pytest.raises(TooManyRows):
         _parse(content, max_rows=2)
+
+
+def test_a_sheet_whose_xml_is_broken_is_refused() -> None:
+    content = replace_in_sheets(xlsx_bytes([FULL_HEADER, _employee()]), "</sheetData>", "<oops>")
+
+    with pytest.raises(UnreadableFile, match="not an Excel workbook"):
+        _parse(content)
+
+
+def test_a_workbook_with_a_damaged_sheet_entry_is_refused() -> None:
+    content = bytearray(xlsx_bytes([FULL_HEADER, _employee()]))
+    name = b"xl/worksheets/sheet1.xml"
+    start = content.index(name) + len(name)  # the compressed sheet data follows its name
+    content[start + 20 : start + 40] = bytes([0xFF]) * 20
+
+    with pytest.raises(UnreadableFile, match="not an Excel workbook"):
+        _parse(bytes(content))

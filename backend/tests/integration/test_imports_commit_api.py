@@ -8,6 +8,7 @@ import time_machine
 from fastapi import FastAPI
 from fastapi.testclient import TestClient
 from sqlalchemy import func, select
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
@@ -284,3 +285,27 @@ def test_a_failure_mid_commit_writes_nothing_and_marks_the_job_failed(
     assert actions == ["import.dry_run", "import.fail"]
     event = db_session.scalars(select(AuditEvent).where(AuditEvent.action == "import.fail")).one()
     assert event.diff == {"job_id": job.id, "failure_reason": "OSError"}
+
+
+def test_a_database_error_mid_commit_keeps_its_message_but_no_row_values(
+    hr: TestClient,
+    hr_user: User,
+    db_session: Session,
+    frozen_time: time_machine.Traveller,
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    job = make_dry_run(
+        db_session, hire(1, allowance_1_name="Meals", allowance_1_amount="100"), user=hr_user
+    )
+
+    def constraint_failed(*_args: object, **_kwargs: object) -> None:
+        driver_error = Exception("CHECK constraint failed")
+        raise IntegrityError("INSERT INTO salary_components", {"amount_minor": 1}, driver_error)
+
+    monkeypatch.setattr(salary_repository, "insert_components", constraint_failed)
+
+    result = _commit(hr, job)
+
+    assert result["http_status"] == 500
+    db_session.refresh(job)
+    assert job.failure_reason == "IntegrityError: CHECK constraint failed"

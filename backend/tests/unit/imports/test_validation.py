@@ -126,6 +126,10 @@ ROLES = "Customer Success Manager, Software Engineer"
     ("cells", "column", "code", "message"),
     [
         ({"employee_code": None}, "employee_code", "required", "employee_code is required"),
+        ({"job_role": None}, "job_role", "required", "job_role is required"),
+        ({"level": None}, "level", "required", "level is required"),
+        ({"employment_type": None}, "employment_type", "required", "is required"),
+        ({"hire_date": None}, "hire_date", "required", "hire_date is required"),
         ({"employee_code": "ACME-12"}, "employee_code", "invalid_format", "ACME- and six"),
         ({"first_name": "x" * 101}, "first_name", "invalid_format", "at most 100"),
         ({"last_name": None}, "last_name", "required", "last_name is required"),
@@ -303,4 +307,14 @@ def test_the_csv_and_xlsx_golden_files_give_identical_reports() -> None:
     assert [(e.row, e.column, e.code) for e in from_csv.errors] == [
         (5, "job_role", RowErrorCode.UNKNOWN_VALUE),
         (5, "base_salary", RowErrorCode.TOO_MANY_DECIMALS),
+    ]
+
+
+def test_a_row_without_a_country_reports_the_country_and_an_unknown_currency() -> None:
+    _, errors = _validate(_raw(country=None, currency="XYZ", base_salary="1000.555"))
+
+    # Too many decimals cannot be told without the country's currency: not reported.
+    assert [(e.column, e.code) for e in errors] == [
+        ("country", RowErrorCode.REQUIRED),
+        ("currency", RowErrorCode.UNKNOWN_VALUE),
     ]
