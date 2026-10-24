@@ -2,7 +2,11 @@
 
 import pytest
 
-from salary_api.domain.currency import SUPPORTED_CURRENCIES, minor_unit_exponent
+from salary_api.domain.currency import (
+    SUPPORTED_CURRENCIES,
+    UnknownCurrencyError,
+    minor_unit_exponent,
+)
 
 SEEDED_CURRENCY_EXPONENTS = {
     "USD": 2,
@@ -26,3 +30,9 @@ def test_each_seeded_currency_has_its_iso_4217_exponent(currency: str, exponent:
 
 def test_supported_currencies_are_exactly_the_seeded_ones() -> None:
     assert SEEDED_CURRENCY_EXPONENTS.keys() == SUPPORTED_CURRENCIES
+
+
+@pytest.mark.parametrize("currency", ["XYZ", "KWD", "usd", "", "US"])
+def test_an_unsupported_currency_code_is_an_error(currency: str) -> None:
+    with pytest.raises(UnknownCurrencyError, match="currency"):
+        minor_unit_exponent(currency)
