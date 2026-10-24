@@ -1,4 +1,4 @@
-import type { Me } from "@/lib/permissions";
+import { canAsk, type Me } from "@/lib/permissions";
 
 export type NavItem = { href: string; label: string };
 
@@ -7,11 +7,10 @@ export type NavItem = { href: string; label: string };
  * and the phone bottom bar. Ask appears only when the API has it on and the person may ask.
  */
 export function mainNavItems(me: Me): NavItem[] {
-  void me;
   return [
     { href: "/insights", label: "Insights" },
     { href: "/employees", label: "Employees" },
-    { href: "/ask", label: "Ask" },
+    ...(canAsk(me) ? [{ href: "/ask", label: "Ask" }] : []),
   ];
 }
 
