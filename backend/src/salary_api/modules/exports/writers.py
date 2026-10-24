@@ -27,6 +27,30 @@ def csv_bytes(header: Sequence[str], rows: Iterable[Sequence[CellValue]]) -> byt
     return (BOM + buffer.getvalue()).encode("utf-8")
 
 
+def xlsx_bytes(title: str, header: Sequence[str], rows: Iterable[Sequence[CellValue]]) -> bytes:
+    """A one-sheet workbook, written in openpyxl's streaming (write-only) mode."""
+    # Imported here, not at the top: openpyxl is slow to import (docs/19 section 6.3).
+    from openpyxl import Workbook  # noqa: PLC0415
+    from openpyxl.cell import WriteOnlyCell  # noqa: PLC0415
+
+    workbook = Workbook(write_only=True)
+    sheet = workbook.create_sheet(title)
+
+    def cell(value: CellValue) -> object:
+        if not isinstance(value, str):
+            return value  # numbers stay numbers; a date gets a date format
+        text = WriteOnlyCell(sheet, value=escape_formula(value))
+        text.data_type = "s"  # always a string, never a formula
+        return text
+
+    sheet.append([cell(name) for name in header])
+    for row in rows:
+        sheet.append([cell(value) for value in row])
+    buffer = io.BytesIO()
+    workbook.save(buffer)
+    return buffer.getvalue()
+
+
 def _csv_text(cell: CellValue) -> str:
     if cell is None:
         return ""

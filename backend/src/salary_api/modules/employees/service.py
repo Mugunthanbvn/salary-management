@@ -319,6 +319,17 @@ def list_employees(
     )
 
 
+def matching_employees(
+    session: Session, principal: Principal, query: EmployeeFilterQuery
+) -> Sequence[Employee]:
+    """Every employee the query matches, in its order, without paging (the export).
+
+    The same filters, sort and refusals as list_employees: what you see is what you export.
+    """
+    where, order = _filter_and_order(session, principal, query)
+    return repository.all_matching(session, where, order=order)
+
+
 def _filter_and_order(
     session: Session, principal: Principal, query: EmployeeFilterQuery
 ) -> tuple[repository.EmployeeFilter, list[repository.SortKey]]:

@@ -186,7 +186,9 @@ def test_hr_exports_an_xlsx_with_typed_and_neutralised_cells(
     as_role: Callable[[str], TestClient], db_session: Session, frozen_time: time_machine.Traveller
 ) -> None:
     _lena(db_session)
-    make_employee(db_session, employee_code="ACME-000002", first_name="=HYPERLINK(1)")
+    make_employee(
+        db_session, employee_code="ACME-000002", first_name="=HYPERLINK(1)", last_name="Zimmer"
+    )  # after Müller in the default sort
 
     response = as_role("HR_MANAGER").get(EXPORT, params={"format": "xlsx"})
 

@@ -462,12 +462,13 @@ Writes exactly one `salary.change` event: `salary_record_id`, `reason`, `effecti
 
 ### 6.8 `GET /employees/export`: `EXPORT`
 
-Accepts **all filters of §6.1** plus `format=csv|xlsx`. Streams a file:
+Accepts **all filters and the sort of §6.1** plus `format=csv|xlsx` (`csv` by default); `page` and `page_size` are refused (422): the whole filtered list is exported. The same service code builds the filters and sort as the list, with the same refusals (403 for salary filters or sorts without `SALARY_READ`, 422 for a salary comparison across currencies). Returns a file:
 
-- `Content-Disposition: attachment; filename="employees-2026-10-24.csv"`.
+- `text/csv; charset=utf-8` (UTF-8 with a BOM) or `application/vnd.openxmlformats-officedocument.spreadsheetml.sheet` (one sheet, `Employees`).
+- `Content-Disposition: attachment; filename="acme-employees-2026-10-24.csv"` (today's date, UTC).
 - Columns depend on permission: without `SALARY_READ`, salary columns are omitted entirely (not blank).
-- Every cell starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with `'` (formula-injection protection, [08-security-rbac.md](08-security-rbac.md) §7).
-- Writes `export.download` with the filters used and the row count.
+- Every text cell starting with `=`, `+`, `-`, `@`, tab or carriage return is prefixed with `'` (formula-injection protection, [08-security-rbac.md](08-security-rbac.md) §7).
+- Writes `export.download` with `format`, `filters` (the filters and sort in effect), `row_count` and `salary_included`.
 
 Full column list and format details: [11-import-export.md](11-import-export.md).
 

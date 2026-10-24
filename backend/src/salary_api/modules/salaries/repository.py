@@ -7,6 +7,7 @@ from sqlalchemy import func, insert, select
 from sqlalchemy.orm import Session, joinedload, selectinload
 
 from salary_api.core.db import in_chunks
+from salary_api.domain.enums import ComponentType
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
 
 
@@ -29,6 +30,26 @@ def insert_components(session: Session, rows: Sequence[Mapping[str, Any]]) -> No
     """Bulk INSERT of the components of records inserted in the same transaction."""
     for chunk in in_chunks(rows):
         session.execute(insert(SalaryComponent), chunk)
+
+
+def component_totals(
+    session: Session, record_ids: Sequence[int]
+) -> dict[int, dict[ComponentType, int]]:
+    """For each record that has components: the sum of its components of each type."""
+    totals: dict[int, dict[ComponentType, int]] = {}
+    for chunk in in_chunks(record_ids):
+        query = (
+            select(
+                SalaryComponent.salary_record_id,
+                SalaryComponent.type,
+                func.sum(SalaryComponent.amount_minor),
+            )
+            .where(SalaryComponent.salary_record_id.in_(chunk))
+            .group_by(SalaryComponent.salary_record_id, SalaryComponent.type)
+        )
+        for record_id, component_type, total in session.execute(query):
+            totals.setdefault(record_id, {})[component_type] = total
+    return totals
 
 
 def latest_record(session: Session, employee_id: int) -> SalaryRecord | None:

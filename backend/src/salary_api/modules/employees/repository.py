@@ -179,6 +179,13 @@ def page(
     return session.scalars(_sorted(where, order).offset(offset).limit(limit)).all()
 
 
+def all_matching(
+    session: Session, where: EmployeeFilter, *, order: Sequence[SortKey]
+) -> Sequence[Employee]:
+    """Every matching employee, sorted like a page, with role and department loaded."""
+    return session.scalars(_sorted(where, order)).all()
+
+
 def _sorted(where: EmployeeFilter, order: Sequence[SortKey]) -> Select[Employee]:
     """Matching employees with role and department, sorted by `order` and then by id."""
     order_by = [

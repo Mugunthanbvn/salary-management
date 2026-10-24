@@ -235,8 +235,8 @@ Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; comm
 
 - Applies **exactly the same filters** as `GET /api/v1/employees` (search, country, department, job role, level, status, employment type, currency, salary range). "What you see is what you export."
 - As on the list endpoint, **salary-range filters and sorting by salary need `SALARY_READ`**. A Viewer export that includes them is rejected with `403` (filtering by salary could reveal individual pay).
-- Sort order matches the list's current sort.
-- Max rows: the whole filtered set (≤ 10k). A 10k-row CSV is ~1 MB and XLSX ~600 KB, both within Vercel's 4.5 MB response cap.
+- Sort order matches the list's current sort (the same `sort` parameter).
+- Rows: the whole filtered set, with no paging (`page` is refused) and no cap of its own; at ACME's size (≈ 10k) a CSV is ~1 MB and an XLSX ~600 KB, both within Vercel's 4.5 MB response cap.
 - Filename: `acme-employees-YYYY-MM-DD.csv|xlsx`, via `Content-Disposition`.
 - CSV is written as **UTF-8 with BOM**, so Excel shows `Müller` and `José` correctly when the file is double-clicked.
 
@@ -251,11 +251,11 @@ Performance targets for a 10k-row import (parse + validate + dry-run < 5 s; comm
 | base_salary (major units) | ✅ | ❌ |
 | bonus_target, allowances_total | ✅ | ❌ |
 | total_comp (major units) | ✅ | ❌ |
-| base_salary_usd, total_comp_usd + `fx_as_of` | ✅ **(proposed)** | ❌ |
+| base_salary_usd, total_comp_usd + `fx_as_of` | ✅ (blank for a currency without a USD rate: never a guessed rate) | ❌ |
 
 - For Viewers, salary columns are **removed server-side**, not just hidden in the UI.
 - Money is exported as major-unit decimal strings with the currency in its own column, e.g. `52000.00` + `EUR` (JPY: `4500000`).
-- The export column order mirrors the import template where the two overlap **(proposed)**, so an export can be edited and become a future upsert file.
+- The export column order mirrors the import template where the two overlap, so an export can be edited and become a future upsert file: `employee_code, first_name, last_name, email, job_role, level, employment_type, country, hire_date, department, status`, then for `SALARY_READ` `currency, base_salary, bonus_target, allowances_total, total_comp, base_salary_usd, total_comp_usd, fx_as_of`. Amounts are the current salary, annual; `bonus_target` and `allowances_total` sum the current record's components of each type.
 
 ### 6.3 Formula-injection neutralisation (CSV and XLSX)
 
@@ -265,7 +265,8 @@ Rule (follows OWASP CSV Injection guidance): any **string** cell whose first cha
 
 - Applied to **all user-controlled text fields** (names, email, job role, allowance names) in both CSV and XLSX.
 - Numeric columns are written as numbers (XLSX) or plain numeric strings (CSV), so negative numbers aren't affected. Salaries are positive anyway.
-- XLSX: cells are written with an explicit string type, so openpyxl never interprets a leading `=` as a formula.
+- XLSX: cells are written with an explicit string type, so openpyxl never interprets a leading `=` as a formula. Amounts are number cells and dates date cells.
+- One function, `modules/exports/csv_safety.py` `escape_formula`, does it for both formats and is unit-tested on its own.
 - Tested with a fixture employee named `=1+1` and `@SUM(A1)` in both formats ([14-testing-strategy.md](14-testing-strategy.md)).
 
 ### 6.4 Audit

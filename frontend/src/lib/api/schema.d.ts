@@ -90,6 +90,23 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/employees/export": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Export the filtered employee list as CSV or XLSX (salary columns need SALARY_READ) */
+        get: operations["export_employees_api_v1_employees_export_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
     "/api/v1/employees/{employee_id}": {
         parameters: {
             query?: never;
@@ -1301,6 +1318,87 @@ export interface operations {
             };
             /** @description Conflict: `duplicate`, `version-conflict` (with `current_version`) or `invalid-state` */
             409: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    export_employees_api_v1_employees_export_get: {
+        parameters: {
+            query?: {
+                q?: string | null;
+                country?: string[];
+                department_id?: number[];
+                job_role_id?: number[];
+                level?: components["schemas"]["Level"][];
+                employment_type?: components["schemas"]["EmploymentType"][];
+                status?: components["schemas"]["EmployeeStatus"][];
+                currency?: string[];
+                salary_min?: number | null;
+                salary_max?: number | null;
+                salary_basis?: components["schemas"]["SalaryBasis"] | null;
+                comp?: components["schemas"]["Comp"] | null;
+                sort?: string | null;
+                format?: components["schemas"]["FileFormat"];
+            };
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description The file, as an attachment */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/vnd.openxmlformats-officedocument.spreadsheetml.sheet": string;
+                    "text/csv; charset=utf-8": string;
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
                 headers: {
                     [name: string]: unknown;
                 };
