@@ -185,7 +185,7 @@ Each skill is a `SKILL.md` with a trigger-style `description` (so Claude invokes
 ## 6. Reviewer subagent (`.claude/agents/reviewer.md`)
 
 - **Role:** read-only code reviewer giving an independent second opinion on a diff.
-- **Tools:** Read, Grep, Glob, and Bash limited to `git diff` / `git log` / `git show`. **No Edit or Write.**
+- **Tools:** Read, Grep, Glob, and Bash limited to `git diff` / `git log` / `git show`. **No Edit or Write.** The Bash limit is advisory (an instruction, not enforced, since the agent has Bash); the orchestrator reviews the agent's tool use.
 - **Input:** a branch or diff range (default `main...HEAD`).
 - **Checklist** (derived from CLAUDE.md and the rules):
   1. Was a test added before or with each behaviour (check commit order)? Are the tests meaningful, not just coverage padding?
