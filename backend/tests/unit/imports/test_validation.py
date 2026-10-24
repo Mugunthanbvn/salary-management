@@ -155,6 +155,12 @@ ROLES = "Customer Success Manager, Software Engineer"
         ({"base_salary": "€52000"}, "base_salary", "invalid_format", "like 52000.00"),
         ({"base_salary": "1e5"}, "base_salary", "invalid_format", "like 52000.00"),
         ({"base_salary": "0"}, "base_salary", "invalid_format", "more than 0"),
+        (
+            {"base_salary": "10000000000000"},
+            "base_salary",
+            "invalid_format",
+            "at most 999,999,999,999,999 minor units",
+        ),
         ({"base_salary": "-5"}, "base_salary", "invalid_format", "more than 0"),
         ({"base_salary": "52000.555"}, "base_salary", "too_many_decimals", "at most 2 decimals"),
         (
