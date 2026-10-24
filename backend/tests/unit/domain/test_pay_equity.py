@@ -13,10 +13,12 @@ from salary_api.domain.pay_equity import (
     CompaRatioSummary,
     EmployeePay,
     NoCompaRatioReason,
+    cohort_rollup,
     compa_ratio,
     department_rollup,
     flag,
 )
+from salary_api.domain.stats import Summary
 
 FULL_TIME = EmploymentType.FULL_TIME
 
@@ -183,6 +185,41 @@ def test_rollup_leaves_out_employees_without_a_compa_ratio() -> None:
     rollup = department_rollup([evaluated, part_time, no_band, contractor_only])
 
     assert [(row.department_id, row.ratios) for row in rollup] == [(1, ratios_of("1.00"))]
+
+
+def test_cohort_rollup_summarises_base_pay_and_ratios_per_cohort() -> None:
+    seniors = [paid_at(r, level=Level.L3) for r in ("1.10", "1.30")]
+    mids = [paid_at(r, level=Level.L2, department_id=d) for r, d in (("0.70", 1), ("0.90", 2))]
+
+    rollup = cohort_rollup(seniors + mids)
+
+    assert [(row.cohort, row.currency) for row in rollup] == [
+        (CohortKey(job_role_id=10, level=Level.L2, country_code="DE"), "EUR"),
+        (CohortKey(job_role_id=10, level=Level.L3, country_code="DE"), "EUR"),
+    ]
+    assert rollup[0].base == Summary.of([70000000, 90000000])
+    assert rollup[0].ratios == ratios_of("0.70", "0.90")
+    assert rollup[1].ratios == ratios_of("1.10", "1.30")
+
+
+def test_cohort_rollup_leaves_out_employees_without_a_compa_ratio() -> None:
+    evaluated = paid_at("1.00")
+    part_time = paid_at("0.50", employment_type=EmploymentType.PART_TIME)
+    unbanded_cohort = make_pay(job_role_id=99, band_mid=None)
+
+    rollup = cohort_rollup([evaluated, part_time, unbanded_cohort])
+
+    assert [(row.cohort.job_role_id, row.base.count, row.ratios.count) for row in rollup] == [
+        (10, 1, 1)
+    ]
+
+
+def test_cohort_rollup_refuses_a_cohort_with_mixed_currencies() -> None:
+    euro = paid_at("1.00")
+    dollar = make_pay(base=Money(10000000, "USD"), band_mid=Money(10000000, "USD"))
+
+    with pytest.raises(CurrencyMismatchError):
+        cohort_rollup([euro, dollar])
 
 
 @pytest.mark.parametrize(
