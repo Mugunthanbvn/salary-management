@@ -85,6 +85,16 @@ async function ask(question = "Are we underpaying anyone in Germany?") {
 }
 
 describe("AskChat", () => {
+  it("shows focus as a thicker blue underline, not a box around the field", () => {
+    render(<AskChat />);
+
+    expect(screen.getByLabelText("Ask a question about pay")).toHaveClass(
+      "focus-visible:outline-none",
+      "focus-visible:border-b-[3px]",
+      "focus-visible:border-blue-pen",
+    );
+  });
+
   it("shows that it is working while the answer is on its way", async () => {
     server.use(
       http.post(ASK_URL, async () => {
