@@ -87,6 +87,8 @@ from salary_api.modules.reference import service as reference_service
 from salary_api.modules.reference.models import PayBand
 from salary_api.modules.reference.schemas import Department, JobRoleRef
 
+# --- Pay statistics: overview, departments, job titles, department cost, comparisons
+
 
 def overview(session: Session, principal: Principal, query: InsightQuery) -> Overview:
     """Headcount, payroll in USD and pay by country (docs/09 section 3.1)."""
@@ -139,6 +141,35 @@ def by_department(session: Session, principal: Principal, query: InsightQuery) -
     )
 
 
+def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -> ByJobTitle:
+    """Pay statistics per job role in one country, optionally per level (docs/09 3.3)."""
+    countries = [query.country]
+    scope = _scope(session, principal, countries)
+    rows = repository.amounts_by_job_role(session, _where(query, countries), query.comp)
+    split = query.split_by_level
+    roles = _groups(
+        ((role_id, title, level if split else None), currency, amount)
+        for role_id, title, level, currency, amount in rows
+    )
+    # Each role's total is a breakdown of its own: it is visible without the split.
+    hidden = scope.audience.hidden_groups(
+        [role.count for role in roles], within=_partitions([role.key[0] for role in roles])
+    )
+    return ByJobTitle(
+        population=_population(query, countries, query.comp),
+        currency=scope.currency,
+        split_by_level=split,
+        groups=[
+            JobTitleStats(
+                job_role=JobRoleRef(id=role.key[0], title=role.key[1]),
+                level=role.key[2],
+                stats=scope.stats(role.members, hidden=index in hidden),
+            )
+            for index, role in enumerate(roles)
+        ],
+    )
+
+
 def department_cost(session: Session, principal: Principal, query: InsightQuery) -> DepartmentCosts:
     """What each department's people are paid in total, and its share (docs/09 3.5)."""
     scope = _scope(session, principal, query.country)
@@ -188,6 +219,66 @@ def _share(part: int | None, whole: int | None) -> str | None:
     return str(round_share(Decimal(part) / Decimal(whole)))
 
 
+def compare_groups(
+    session: Session,
+    principal: Principal,
+    a: InsightQuery,
+    b: InsightQuery,
+    metric: CompareMetric,
+) -> Comparison:
+    """One metric of population `a` against population `b`, with the difference computed
+    here so the Ask model never does arithmetic (docs/10 section 4).
+
+    Both sides are in their shared currency, else in USD. Each side is suppressed for the
+    caller first; the difference uses only what is left (privacy rule b, docs/09 2.8).
+    """
+    audience = _Audience.of(principal)
+    markets = _markets(session, [*a.country, *b.country])
+    currencies = {markets.currency_of_population(query.country) for query in (a, b)}
+    scope = _Scope(
+        audience=audience,
+        currency=currencies.pop() if len(currencies) == 1 else USD,
+        convert=_Converter(markets.rates),
+    )
+    value_a, a_hidden = _visible_metric(session, scope, a, metric)
+    value_b, b_hidden = _visible_metric(session, scope, b, metric)
+    difference = None if value_a is None or value_b is None else value_a - value_b
+    return Comparison(
+        metric=metric,
+        currency=None if metric == CompareMetric.HEADCOUNT else scope.currency,
+        fx_as_of=scope.convert.fx_as_of,
+        a=value_a,
+        b=value_b,
+        difference=difference,
+        pct_difference=_share(difference, value_b),
+        a_suppressed=a_hidden,
+        b_suppressed=b_hidden,
+    )
+
+
+def _visible_metric(
+    session: Session, scope: "_Scope", query: InsightQuery, metric: CompareMetric
+) -> tuple[int | None, bool]:
+    """The metric of one population as the caller may see it, and whether it is hidden."""
+    rows = repository.amounts_by_country(session, _where(query, query.country), query.comp)
+    members = [(currency, amount) for _country, currency, amount in rows]
+    hidden = scope.audience.hides(len(members))
+    stats = scope.stats(members, hidden=hidden)  # already suppressed for this caller
+    total = None if hidden or not members else sum(scope.convert.all(scope.currency, members))
+    visible = {
+        CompareMetric.MEDIAN: stats.median,
+        CompareMetric.MEAN: stats.mean,
+        CompareMetric.P25: stats.p25,
+        CompareMetric.P75: stats.p75,
+        CompareMetric.TOTAL_COST: total,
+        CompareMetric.HEADCOUNT: stats.count,
+    }
+    return visible[metric], hidden
+
+
+# --- Pay equity against bands: cohorts, departments, one cohort's members
+
+
 def pay_equity(
     session: Session, principal: Principal, query: PayEquityQuery
 ) -> PayEquityCohorts | PayEquityDepartments:
@@ -196,15 +287,12 @@ def pay_equity(
     Only full-time employees with a band get a ratio; the summary counts the others.
     """
     if query.view == PayEquityView.DEPARTMENTS and len(query.country) != 1:
-        message = "The departments view compares departments within one country: "
+        message = (
+            "The departments view compares departments within one country: "
+            "give exactly one country."
+        )
         raise ValidationFailed(
-            [
-                {
-                    "loc": ["query", "country"],
-                    "code": "required",
-                    "message": message + "give exactly one country.",
-                }
-            ]
+            [{"loc": ["query", "country"], "code": "required", "message": message}]
         )
     audience = _Audience.of(principal)
     _markets(session, query.country)  # refuses an unknown country
@@ -455,6 +543,9 @@ def _band(band: PayBand) -> Band:
     return Band(min=band.min_minor, mid=band.mid_minor, max=band.max_minor, currency=band.currency)
 
 
+# --- Individuals' pay: SALARY_READ only, and every view is audited
+
+
 def top_earners(session: Session, principal: Principal, query: TopEarnersQuery) -> TopEarners:
     """The highest or lowest paid people in one country (docs/09 section 3.6).
 
@@ -518,90 +609,7 @@ def _audit_individuals_view(
     session.commit()
 
 
-def compare_groups(
-    session: Session,
-    principal: Principal,
-    a: InsightQuery,
-    b: InsightQuery,
-    metric: CompareMetric,
-) -> Comparison:
-    """One metric of population `a` against population `b`, with the difference computed
-    here so the Ask model never does arithmetic (docs/10 section 4).
-
-    Both sides are in their shared currency, else in USD. Each side is suppressed for the
-    caller first; the difference uses only what is left (privacy rule b, docs/09 2.8).
-    """
-    audience = _Audience.of(principal)
-    markets = _markets(session, [*a.country, *b.country])
-    currencies = {markets.currency_of_population(query.country) for query in (a, b)}
-    scope = _Scope(
-        audience=audience,
-        currency=currencies.pop() if len(currencies) == 1 else USD,
-        convert=_Converter(markets.rates),
-    )
-    value_a, a_hidden = _visible_metric(session, scope, a, metric)
-    value_b, b_hidden = _visible_metric(session, scope, b, metric)
-    difference = None if value_a is None or value_b is None else value_a - value_b
-    return Comparison(
-        metric=metric,
-        currency=None if metric == CompareMetric.HEADCOUNT else scope.currency,
-        fx_as_of=scope.convert.fx_as_of,
-        a=value_a,
-        b=value_b,
-        difference=difference,
-        pct_difference=_share(difference, value_b),
-        a_suppressed=a_hidden,
-        b_suppressed=b_hidden,
-    )
-
-
-def _visible_metric(
-    session: Session, scope: "_Scope", query: InsightQuery, metric: CompareMetric
-) -> tuple[int | None, bool]:
-    """The metric of one population as the caller may see it, and whether it is hidden."""
-    rows = repository.amounts_by_country(session, _where(query, query.country), query.comp)
-    members = [(currency, amount) for _country, currency, amount in rows]
-    hidden = scope.audience.hides(len(members))
-    stats = scope.stats(members, hidden=hidden)  # already suppressed for this caller
-    total = None if hidden or not members else sum(scope.convert.all(scope.currency, members))
-    visible = {
-        CompareMetric.MEDIAN: stats.median,
-        CompareMetric.MEAN: stats.mean,
-        CompareMetric.P25: stats.p25,
-        CompareMetric.P75: stats.p75,
-        CompareMetric.TOTAL_COST: total,
-        CompareMetric.HEADCOUNT: stats.count,
-    }
-    return visible[metric], hidden
-
-
-def by_job_title(session: Session, principal: Principal, query: JobTitleQuery) -> ByJobTitle:
-    """Pay statistics per job role in one country, optionally per level (docs/09 3.3)."""
-    countries = [query.country]
-    scope = _scope(session, principal, countries)
-    rows = repository.amounts_by_job_role(session, _where(query, countries), query.comp)
-    split = query.split_by_level
-    roles = _groups(
-        ((role_id, title, level if split else None), currency, amount)
-        for role_id, title, level, currency, amount in rows
-    )
-    # Each role's total is a breakdown of its own: it is visible without the split.
-    hidden = scope.audience.hidden_groups(
-        [role.count for role in roles], within=_partitions([role.key[0] for role in roles])
-    )
-    return ByJobTitle(
-        population=_population(query, countries, query.comp),
-        currency=scope.currency,
-        split_by_level=split,
-        groups=[
-            JobTitleStats(
-                job_role=JobRoleRef(id=role.key[0], title=role.key[1]),
-                level=role.key[2],
-                stats=scope.stats(role.members, hidden=index in hidden),
-            )
-            for index, role in enumerate(roles)
-        ],
-    )
+# --- Privacy: the small-group rule and complementary suppression (docs/09 section 2.8)
 
 
 @dataclass(frozen=True, slots=True)
@@ -650,6 +658,9 @@ def _partitions[K](parents: Sequence[K]) -> list[list[int]]:
     for index, parent in enumerate(parents):
         indexes.setdefault(parent, []).append(index)
     return list(indexes.values())
+
+
+# --- Currency: one local currency, else USD with each amount converted (docs/09 2.5-2.6)
 
 
 @dataclass(frozen=True, slots=True)
@@ -777,6 +788,9 @@ def _one_currency(members: Iterable[tuple[str, int]]) -> str:
     if currencies:
         raise CurrencyMismatchError(first, currencies.pop())
     return first
+
+
+# --- Response shapes
 
 
 def _stats(
