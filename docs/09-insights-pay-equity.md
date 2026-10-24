@@ -147,8 +147,9 @@ Every insight requires the `INSIGHTS_READ` permission unless stated otherwise. A
 |---|---|---|
 | Headcount | `count` of the population | — |
 | Total annual payroll | Σ of each employee's amount converted to USD | USD |
-| By-country table | Per country: count, min, p25, median, mean, p75, max | Local currency **plus** USD equivalent of each statistic |
-| Headcount by country / department | `count` per key | — |
+| By-country table | Per country: count, min, p25, median, mean, p75, max | Local currency **plus** the same statistics in USD (each salary converted first) |
+| Population stats | count, min, p25, median, mean, p75, max over everyone | The population's one currency, else USD |
+| Headcount by country | `count` per country (`by_country[].local.count`); headcount by department is `GET /insights/by-department` | — |
 
 Notes: DE and FR both use EUR, but they are still separate rows, because country is the grouping key, not currency.
 
@@ -185,8 +186,9 @@ Notes: DE and FR both use EUR, but they are still separate rows, because country
 **Answers:** "How much do we spend on salaries per department?"
 
 - Σ of each employee's amount converted to USD, per department (optionally per country).
-- Output also includes `share_of_total` (Decimal, 4 dp) and `headcount`.
-- Always USD unless a single-country filter is applied, in which case the local currency is returned with a USD equivalent.
+- Output also includes `share_of_total` (Decimal string, 4 dp, half-even) and `headcount` per department, and the `total` / `total_usd` with the population `headcount`.
+- Always USD unless the country filter names one currency's countries, in which case the local currency is returned (`cost`) with a USD equivalent (`cost_usd`).
+- `share_of_total` comes from the values after suppression: `null` when the department or the total is hidden (§2.8).
 
 ### 3.6 Top / bottom earners: `GET /api/v1/insights/top-earners`
 
@@ -271,13 +273,12 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
 ```json
 {
   "view": "departments",
-  "country": "DE",
-  "currency": "EUR",
+  "country_code": "DE",
   "groups": [
-    { "key": { "department": "Customer Success" }, "count": 41, "median_compa_ratio": "0.92", "mean_compa_ratio": "0.93", "pct_below_band": "0.29", "underpaid_count": 12, "overpaid_count": 0, "suppressed": false, "below_threshold": true },
-    { "key": { "department": "Engineering" }, "count": 287, "median_compa_ratio": "1.00", "mean_compa_ratio": "1.01", "pct_below_band": "0.04", "underpaid_count": 11, "overpaid_count": 9, "suppressed": false, "below_threshold": false }
+    { "department": { "id": 4, "name": "Customer Success" }, "count": 41, "median_compa_ratio": "0.92", "mean_compa_ratio": "0.93", "pct_below_band": "0.29", "underpaid_count": 12, "overpaid_count": 0, "below_threshold": true, "suppressed": false },
+    { "department": { "id": 2, "name": "Engineering" }, "count": 287, "median_compa_ratio": "1.00", "mean_compa_ratio": "1.01", "pct_below_band": "0.04", "underpaid_count": 11, "overpaid_count": 9, "below_threshold": false, "suppressed": false }
   ],
-  "summary": { "employees_evaluated": 800, "employees_without_band": 0, "employees_flagged_underpaid": 41, "employees_flagged_overpaid": 17 }
+  "summary": { "employees_evaluated": 800, "employees_without_band": 0, "employees_not_full_time": 0, "employees_flagged_underpaid": 41, "employees_flagged_overpaid": 17, "suppressed": false }
 }
 ```
 *(Numbers illustrative.)*
@@ -289,18 +290,17 @@ Visibility: summaries and rollups need `INSIGHTS_READ`. For a Viewer, any group 
   "view": "cohorts",
   "cohorts": [
     {
-      "key": { "country": "DE", "job_role": "Customer Success Manager", "level": "L2" },
-      "count": 18,
-      "currency": "EUR",
-      "p25": {...}, "median": {...}, "p75": {...},
-      "band": { "min": {...}, "mid": {...}, "max": {...} },
+      "job_role": { "id": 17, "title": "Customer Success Manager" }, "level": "L2", "country_code": "DE",
+      "department": { "id": 4, "name": "Customer Success" },
+      "stats": { "count": 18, "min": 3900000, "p25": 4300000, "median": 4700000, "mean": 4650000, "p75": 4900000, "max": 5400000, "currency": "EUR", "suppressed": false },
+      "band": { "min": 4176000, "mid": 5220000, "max": 6264000, "currency": "EUR" },
       "median_compa_ratio": "0.91",
       "underpaid_count": 5,
       "overpaid_count": 0,
       "suppressed": false
     }
   ],
-  "summary": { "cohorts_evaluated": 412, "employees_without_band": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61 }
+  "summary": { "employees_evaluated": 9012, "employees_without_band": 0, "employees_not_full_time": 0, "employees_flagged_underpaid": 168, "employees_flagged_overpaid": 61, "suppressed": false }
 }
 ```
 
