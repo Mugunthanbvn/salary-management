@@ -36,13 +36,20 @@ class Settings(BaseSettings):
 
     @model_validator(mode="after")
     def _refuse_unsafe_production_values(self) -> Self:
-        if self.app_env == "production" and _is_weak_secret(self.jwt_secret.get_secret_value()):
-            msg = (
-                f"JWT_SECRET must be at least {MIN_SECRET_BYTES} random bytes, "
-                "not a placeholder, when APP_ENV=production"
-            )
-            raise ValueError(msg)
+        if self.app_env == "production" and (problems := _production_problems(self)):
+            raise ValueError("Unsafe settings for APP_ENV=production: " + "; ".join(problems))
         return self
+
+
+def _production_problems(settings: Settings) -> list[str]:
+    problems: list[str] = []
+    if _is_weak_secret(settings.jwt_secret.get_secret_value()):
+        problems.append(
+            f"JWT_SECRET must be at least {MIN_SECRET_BYTES} random bytes, not a placeholder"
+        )
+    if not settings.cookie_secure:
+        problems.append("COOKIE_SECURE must be true")
+    return problems
 
 
 def _is_weak_secret(secret: str) -> bool:
