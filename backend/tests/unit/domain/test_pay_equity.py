@@ -142,17 +142,24 @@ def paid_at(ratio: str, **overrides: Any) -> EmployeePay:
     return make_pay(base=base, band_mid=Money(100000000, "EUR"), **overrides)
 
 
-def test_rollup_is_the_median_compa_ratio_per_department_and_country() -> None:
-    engineering = [paid_at(r, department_id=1) for r in ("0.95", "1.05", "1.00")]
-    customer_success = [paid_at(r, department_id=3) for r in ("0.90", "0.94", "0.92")]
+def ratios_of(*ratios: str) -> CompaRatioSummary:
+    return CompaRatioSummary.of(Decimal(ratio) for ratio in ratios)
+
+
+def test_rollup_summarises_compa_ratios_per_department_and_country() -> None:
+    engineering = [paid_at(r, department_id=1) for r in ("0.95", "1.25", "1.00")]
+    customer_success = [paid_at(r, department_id=3) for r in ("0.75", "0.94", "0.92")]
 
     rollup = department_rollup(customer_success + engineering)
 
-    assert [(row.department_id, row.country_code, row.count) for row in rollup] == [
-        (1, "DE", 3),
-        (3, "DE", 3),
+    assert [(row.department_id, row.country_code, row.ratios) for row in rollup] == [
+        (1, "DE", ratios_of("0.95", "1.25", "1.00")),
+        (3, "DE", ratios_of("0.75", "0.94", "0.92")),
     ]
-    assert [row.median_compa_ratio for row in rollup] == [Decimal("1.00"), Decimal("0.92")]
+    assert [(row.ratios.underpaid_count, row.ratios.overpaid_count) for row in rollup] == [
+        (0, 1),
+        (1, 0),
+    ]
 
 
 def test_rollup_keeps_countries_of_one_department_apart() -> None:
@@ -161,7 +168,7 @@ def test_rollup_keeps_countries_of_one_department_apart() -> None:
 
     rollup = department_rollup([france, germany])
 
-    assert [(row.country_code, row.median_compa_ratio) for row in rollup] == [
+    assert [(row.country_code, row.ratios.median_compa_ratio) for row in rollup] == [
         ("DE", Decimal("0.90")),
         ("FR", Decimal("1.10")),
     ]
@@ -175,9 +182,7 @@ def test_rollup_leaves_out_employees_without_a_compa_ratio() -> None:
 
     rollup = department_rollup([evaluated, part_time, no_band, contractor_only])
 
-    assert [(row.department_id, row.count, row.median_compa_ratio) for row in rollup] == [
-        (1, 1, Decimal("1.00"))
-    ]
+    assert [(row.department_id, row.ratios) for row in rollup] == [(1, ratios_of("1.00"))]
 
 
 @pytest.mark.parametrize(
