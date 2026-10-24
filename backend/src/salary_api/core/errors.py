@@ -47,6 +47,50 @@ class ProblemError(Exception):
         self.extra = extra
 
 
+class Unauthenticated(ProblemError):
+    """401: missing, invalid or expired token, or an inactive user."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(401, "unauthenticated", "Not authenticated", detail, **extra)
+
+
+class Forbidden(ProblemError):
+    """403: the caller lacks the required permission."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(403, "forbidden", "Forbidden", detail, **extra)
+
+
+class NotFound(ProblemError):
+    """404: unknown resource, or one the caller may not see."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(404, "not-found", "Not found", detail, **extra)
+
+
+class VersionConflict(ProblemError):
+    """409: optimistic lock failure; the body carries `current_version`."""
+
+    def __init__(self, detail: str, *, current_version: int) -> None:
+        super().__init__(
+            409, "version-conflict", "Version conflict", detail, current_version=current_version
+        )
+
+
+class Duplicate(ProblemError):
+    """409: a unique value (employee_code, email) is already taken."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(409, "duplicate", "Duplicate", detail, **extra)
+
+
+class InvalidState(ProblemError):
+    """409: the resource is in the wrong state for this action."""
+
+    def __init__(self, detail: str | None = None, **extra: Any) -> None:
+        super().__init__(409, "invalid-state", "Invalid state", detail, **extra)
+
+
 class FieldError(TypedDict):
     loc: list[str | int]
     code: str
