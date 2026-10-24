@@ -199,7 +199,7 @@ Indexes: `uq_users_email`.
 |---|---|---|---|---|
 | `code` | CHAR(2) | no | PK | ISO 3166-1 alpha-2 (`US`, `IN`, `DE`, ...) |
 | `name` | VARCHAR(80) | no | | Display name |
-| `default_currency` | CHAR(3) | no | CHECK value is a supported ISO 4217 code (validated in the service) | Every salary of an employee in this country uses this currency (enforced by the salary service). Salaries in another currency (expat pay) are out of scope for v1 |
+| `default_currency` | CHAR(3) | no | CHECK IN (the supported ISO 4217 codes of `domain/currency.py`) | Every salary of an employee in this country uses this currency (enforced by the salary service). Salaries in another currency (expat pay) are out of scope for v1 |
 | `is_active` | BOOLEAN | no | default `true` | Inactive countries are hidden from forms and import |
 
 Seeded with 10 countries ([12-seed-data.md](12-seed-data.md)). Admins can edit `name`, `default_currency` and `is_active` (`REFERENCE_ADMIN`).
@@ -222,7 +222,7 @@ The **controlled list of job titles**. Forms and imports validate against it so 
 | `id` | INTEGER | no | PK | |
 | `title` | VARCHAR(80) **(proposed)** | no | UNIQUE | e.g. `Software Engineer` |
 | `department_id` | INTEGER | no | FK → `departments.id` | A role belongs to exactly one department |
-| `family` | VARCHAR(30) **(proposed)** | no | CHECK IN (family list) | Pay family used by seed band multipliers, e.g. `ENGINEERING`, `SALES`, `G_AND_A` (final list in [12-seed-data.md](12-seed-data.md)) |
+| `family` | VARCHAR(30) | no | CHECK IN (family list) | Pay family used by seed band multipliers: `ENGINEERING`, `PRODUCT`, `DESIGN`, `SALES`, `CUSTOMER_SUCCESS`, `MARKETING`, `OPERATIONS`, `FINANCE`, `PEOPLE`, `LEGAL` ([12-seed-data.md](12-seed-data.md) §3; `JobFamily` in `modules/reference/models.py`) |
 
 Indexes: `uq_job_roles_title`, `ix_job_roles_department_id`. 35 seeded rows ([12-seed-data.md](12-seed-data.md) §3). No admin edit UI in scope.
 
@@ -233,10 +233,10 @@ Department is derived through `job_role → department`; `employees` does not st
 | Column | Type | Null | Constraint / default | Notes |
 |---|---|---|---|---|
 | `id` | INTEGER | no | PK | Internal |
-| `employee_code` | VARCHAR(12) | no | UNIQUE; format `ACME-\d{6}` (validated in service) | Human-facing ID used for search and import duplicate detection |
+| `employee_code` | VARCHAR(12) | no | UNIQUE; format `ACME-` + six ASCII digits (validated in the API) | Human-facing ID used for search and import duplicate detection. When a create leaves it out, it is one more than the highest code in use |
 | `first_name` | VARCHAR(100) | no | | Unicode (e.g. `José`, `Müller`, `佐藤`) |
 | `last_name` | VARCHAR(100) | no | | |
-| `email` | VARCHAR(254) | no | UNIQUE | Work email, stored lowercased; seed uses the reserved `acme.example` domain |
+| `email` | VARCHAR(254) | no | UNIQUE | Work email, stored trimmed and lowercased (the model normalises every value, as for `users`), so uniqueness ignores case; seed uses the reserved `acme.example` domain |
 | `search_text` | VARCHAR(600) | no | | Derived, see §6.4 |
 | `job_role_id` | INTEGER | no | FK → `job_roles.id` | |
 | `level` | VARCHAR(2) | no | CHECK IN (`L1`..`L6`) | L1 Associate · L2 Mid · L3 Senior · L4 Lead/Staff · L5 Principal · L6 Director |
@@ -249,7 +249,7 @@ Department is derived through `job_role → department`; `employees` does not st
 | `current_base_minor` | BIGINT | no | CHECK `> 0` | Denormalized from the current salary record |
 | `current_total_minor` | BIGINT | no | CHECK `>= current_base_minor` | base + sum(components) |
 | `current_salary_record_id` | INTEGER | yes* | FK → `salary_records.id` | *Nullable only for the instant inside the creating transaction (the employee row must exist before its first salary record). The service guarantees it is set before commit; an integration test asserts no committed employee has it null |
-| `version` | INTEGER | no | default `1` | Optimistic locking: every update does `WHERE id=? AND version=?` and increments it ([ADR 0013](adr/0013-soft-delete-optimistic-locking.md)) |
+| `version` | INTEGER | no | default `1` | Optimistic locking: every update does `WHERE id=? AND version=?` (SQLAlchemy `version_id_col`; the service sets the next version) and increments it ([ADR 0013](adr/0013-soft-delete-optimistic-locking.md)). `employees/locking.py` turns a stale version into `409 version-conflict` |
 | `created_at`, `updated_at` | TIMESTAMP tz | no | | |
 
 Indexes (see [19-performance.md](19-performance.md) for the reasoning):
@@ -299,7 +299,7 @@ Allowances and bonus targets attached to one salary record ([ADR 0010](adr/0010-
 | `id` | INTEGER | no | PK | |
 | `salary_record_id` | INTEGER | no | FK → `salary_records.id` | Same currency as the parent record (enforced in the service) |
 | `type` | VARCHAR(20) | no | CHECK IN (`ALLOWANCE`, `BONUS_TARGET`) | |
-| `name` | VARCHAR(60) **(proposed)** | no | | e.g. `HRA`, `Special allowance`, `Meal`, `Transport`, `Target bonus` |
+| `name` | VARCHAR(60) | no | | 1–60 characters, e.g. `HRA`, `Special allowance`, `Meal`, `Transport`, `Target bonus`. The API takes at most 20 components per record |
 | `amount_minor` | BIGINT | no | CHECK `>= 0` | Annual amount. The UI may let users enter a bonus as a % of base; the API stores the resulting amount |
 
 Unique: `uq_salary_components_record_type_name` on `(salary_record_id, type, name)`.
@@ -433,11 +433,13 @@ employees.job_role_id, level       = new_record.job_role_id, level   (if changed
 employees.version                  = version + 1
 ```
 
+The salary service (`modules/salaries/service.py`, `_make_current`) is the only writer of these columns. It sets the `current_salary_record` relationship, not only the id, so a session that already loaded the old record sees the new one.
+
 An integration test asserts the invariant for every employee after the seed and after random sequences of changes: the denormalized columns equal the latest salary record.
 
 ### 6.3 Termination and reactivation
 
-- Terminate: `status=TERMINATED`, `termination_date` set (defaults to today, must be ≥ `hire_date`). Salary history is kept.
+- Terminate: `status=TERMINATED`, `termination_date` set (defaults to today; any date ≥ `hire_date`, so a known last day may be recorded ahead). Salary history is kept. A terminated employee gets no salary change until reactivated.
 - Reactivate: `status=ACTIVE`, `termination_date=NULL`. Both bump `version` and write an audit event.
 - Insights include only `ACTIVE` employees by default.
 

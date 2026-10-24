@@ -122,7 +122,7 @@ Each endpoint lists the permission it requires (see [08-security-rbac.md](08-sec
 
 ### 1.7 Masking for users without `SALARY_READ` (VIEWER)
 
-- Individual salary fields (`current_base`, `current_total`, `components`) are returned as `null`, and the item carries `"salary_masked": true`.
+- Individual salary fields (`current_base`, `current_total`, and the detail's `current_salary` with its components) are returned as `null`, and the item carries `"salary_masked": true`. The employee service masks, so exports and Ask tools that call it get the same result.
 - Endpoints that exist only to reveal individual pay (salary history, top earners, cohort member lists) return **403**.
 - Filtering or sorting by individual salary returns **403**. Otherwise repeated range queries could reveal one person's pay.
 - Aggregates are allowed, but any group with fewer than **5** people is suppressed: values and `count` are `null`, `"suppressed": true` (the small-group rule, [ADR 0009](adr/0009-permission-rbac-small-group-rule.md)).
@@ -238,7 +238,7 @@ One call for every dropdown and for validating filters. Small and cacheable per 
 {
   "countries": [ { "code": "DE", "name": "Germany", "default_currency": "EUR", "is_active": true } ],
   "departments": [ { "id": 4, "name": "Customer Success" } ],
-  "job_roles": [ { "id": 17, "title": "Customer Success Manager", "department_id": 4, "family": "G_AND_A" } ],
+  "job_roles": [ { "id": 17, "title": "Customer Success Manager", "department_id": 4, "family": "CUSTOMER_SUCCESS" } ],
   "levels": [ { "code": "L1", "label": "Associate" }, { "code": "L3", "label": "Senior" } ],
   "employment_types": ["FULL_TIME", "PART_TIME", "CONTRACTOR"],
   "currencies": [ { "code": "JPY", "exponent": 0 }, { "code": "EUR", "exponent": 2 } ],
@@ -246,7 +246,11 @@ One call for every dropdown and for validating filters. Small and cacheable per 
 }
 ```
 
+Countries are listed by name, active or not (`is_active` lets forms hide inactive ones); departments by name; job roles by title; `family` is one of the ten families of [12-seed-data.md](12-seed-data.md) §3; levels, employment types and reasons in glossary order; currencies by code.
+
 ### `GET /countries`: `EMPLOYEE_READ` · `PATCH /countries/{code}`: `REFERENCE_ADMIN`
+
+`GET` returns a JSON array of every country, `{ code, name, default_currency, is_active }`, by name. `PATCH` is cut from v1:
 
 ```json
 // PATCH request (all optional)
@@ -345,11 +349,26 @@ Creates the employee **and** its `HIRE` salary record in one transaction.
 }
 ```
 
-`201` returns the employee detail (as §6.3) with a `Location` header. Errors: 409 `duplicate` (code/email), 422 (unknown role, inactive country, hire date in the future, too many decimals for the currency).
+`201` returns the employee detail (as §6.3) with a `Location: /api/v1/employees/{id}` header. Writes exactly one `employee.create` event (the created fields; the salary only as `salary_record_id`).
+
+- `employee_code` matches `ACME-` and six ASCII digits; when omitted it is one more than the highest code in use.
+- `email` is stored trimmed and lowercased; names are 1–100 characters.
+- Amounts are JSON **integers** of minor units: `5400000.0`, `"5400000"` and fractions are refused, not converted. `base_minor` is 1 to `MAX_AMOUNT_MINOR` (10¹⁵ − 1); a component is 0 to `MAX_AMOUNT_MINOR`. At most 20 components, each `type` + `name` once.
+
+Errors: 409 `duplicate` (code, or email compared case-insensitively); 422 `validation` with every broken rule in one `errors[]`: `not_found` (unknown `job_role_id` or `country_code`), `inactive` (country), `future_date` (`hire_date` after today), `currency_mismatch` (`salary.currency` is not the country's), and the field errors above.
 
 ### 6.3 `GET /employees/{id}`: `EMPLOYEE_READ`
 
-Returns the list item fields plus `current_salary` (record id, effective date, components) and `termination_date`. Masked as in §1.7 for users without `SALARY_READ`.
+Returns the list item fields plus `termination_date` and `current_salary`:
+
+```json
+"current_salary": {
+  "id": 90212, "effective_date": "2023-04-01", "reason": "PROMOTION",
+  "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount": { "amount_minor": 86400000, "currency": "INR" } } ]
+}
+```
+
+Masked as in §1.7 for users without `SALARY_READ`: `current_base`, `current_total` **and the whole `current_salary`** are `null` (its date and reason are individual pay events too). 404 `not-found` for an unknown id. The path takes integer ids only (`/employees/{employee_id:int}`), so `/employees/export` (§6.8) is never read as an id.
 
 ### 6.4 `PATCH /employees/{id}`: `EMPLOYEE_WRITE`
 
@@ -361,9 +380,11 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
 ```
 
 - `version` is **required**: the value the client last read.
-- `200` returns the updated employee with `version: 8`.
-- `409 version-conflict` if the stored version differs, with `current_version`. The UI shows "This record changed, reload" ([13-frontend-ux.md](13-frontend-ux.md)).
-- Writes `employee.update` with `{field: [old, new]}`.
+- A field left out keeps its value; `null` is refused (422). Any other field (salary, role, level, country, status) is an unknown field → 422.
+- `200` returns the updated employee with `version: 8`. A PATCH that changes nothing returns the employee unchanged: no new version, no event.
+- `409 version-conflict` if the stored version differs, with `current_version`; also when another request commits between this one's read and write (the UPDATE says `WHERE version = <read version>`). The UI shows "This record changed, reload" ([13-frontend-ux.md](13-frontend-ux.md)).
+- `409 duplicate` for an email another employee uses.
+- Writes `employee.update` with `{field: [old, new]}` for the fields that changed.
 
 ### 6.5 `POST /employees/{id}/terminate` · `POST /employees/{id}/reactivate`: `EMPLOYEE_WRITE`
 
@@ -374,7 +395,7 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
 { "version": 9 }
 ```
 
-200 with the updated employee. 409 `invalid-state` if already in the target state; 409 `version-conflict`; 422 if `termination_date < hire_date`.
+200 with the updated employee (`version` + 1). `termination_date` defaults to today and may be any date on or after the hire date; `note` (≤ 500 characters) is kept in the audit event only. Terminate writes `employee.terminate` with `status` and `termination_date` as `[old, new]` plus `note`; reactivate writes `employee.reactivate` the same way and clears the date. 409 `invalid-state` if already in the target state; 409 `version-conflict`; 422 `before_hire_date` if `termination_date < hire_date`.
 
 ### 6.6 `GET /employees/{id}/salary-history`: `SALARY_READ`
 
@@ -387,7 +408,7 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
       "job_role": { "id": 3, "title": "Software Engineer" }, "level": "L2",
       "base":  { "amount_minor": 180000000, "currency": "INR" },
       "total": { "amount_minor": 270000000, "currency": "INR" },
-      "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount_minor": 72000000 } ],
+      "components": [ { "type": "ALLOWANCE", "name": "HRA", "amount": { "amount_minor": 72000000, "currency": "INR" } } ],
       "base_change_pct": null,
       "changed_by": null, "note": null, "created_at": "2026-10-20T10:00:00Z"
     },
@@ -402,7 +423,7 @@ Profile fields only (names, email, employment type). **Salary, role, level and c
 }
 ```
 
-Records are ordered by `(effective_date, id)`. `base_change_pct` is a decimal string computed in `domain/` (and `null` when the currency changed).
+Records are ordered by `(effective_date, id)`, each with the role and level of that time. `base_change_pct` is the change of base from the previous record in percent, a decimal string with two places rounded half-even (`domain/salary_change.py`), `null` for the first record and when the currency changed. `changed_by` is `null` for seeded history. Component amounts are money objects in the record's currency. 403 without `SALARY_READ`, checked by the router and again by the service; 404 for an unknown employee.
 
 ### 6.7 `POST /employees/{id}/salary-changes`: `SALARY_WRITE`
 
@@ -422,13 +443,22 @@ Records are ordered by `(effective_date, id)`. `base_change_pct` is a decimal st
 }
 ```
 
-Rules (from [06-data-model.md](06-data-model.md) §4.6):
-- `effective_date` ≤ today, ≥ `hire_date`, ≥ the latest existing effective date.
-- `PROMOTION` requires a higher `level` or a different `job_role_id` (422 otherwise).
-- The employee must be `ACTIVE` (409 `invalid-state`).
-- `components` replaces the component set for the new record. Components are **not** inherited implicitly; the UI pre-fills them from the current record.
+Rules (from [06-data-model.md](06-data-model.md) §4.6), each broken one an entry of one 422:
+- `effective_date` ≤ today (`future_date`), ≥ `hire_date` (`before_hire_date`), ≥ the latest existing effective date (`before_latest_record`). The same date as the latest record is allowed; the new record (greater id) becomes current.
+- `PROMOTION` requires a higher `level` or a different `job_role_id` (`not_a_promotion`). An unknown `job_role_id` is `not_found`.
+- A new `country_code` must be a known (`not_found`), active (`inactive`) country. The salary is always in the (new) country's currency; a different `currency` is `currency_mismatch`.
+- The employee must be `ACTIVE` (409 `invalid-state`); `version` must be current (409 `version-conflict`).
+- `components` replaces the component set for the new record. Components are **not** inherited implicitly; the UI pre-fills them from the current record. Amounts follow §6.2.
+- The role, level and country move with the change, and the record keeps the role and level as a snapshot.
 
-201 returns the new record and the updated employee `version`. Writes `salary.change`.
+201 returns the new record (the §6.6 shape) and the employee's new version:
+
+```json
+{ "record": { "id": 90213, "effective_date": "2026-10-01", "reason": "PROMOTION", "level": "L4", "base_change_pct": "20.37", "...": "..." },
+  "employee_version": 10 }
+```
+
+Writes exactly one `salary.change` event: `salary_record_id`, `reason`, `effective_date`, `base_minor: [old, new]`, and `[old, new]` for `job_role_id`, `level`, `country_code` and `currency` when they change.
 
 ### 6.8 `GET /employees/export`: `EXPORT`
 
