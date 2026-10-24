@@ -88,6 +88,8 @@ def _production_problems(settings: Settings) -> list[str]:
         problems.append("COOKIE_SECURE must be true")
     if _is_local_sqlite(settings.database_url):
         problems.append("DATABASE_URL must be a hosted database, not a local or in-memory SQLite")
+    if settings.cors_origins:
+        problems.append("CORS_ORIGINS must be empty (the browser uses the same-origin rewrite)")
     return problems
 
 
