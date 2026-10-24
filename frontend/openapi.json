@@ -1,6 +1,79 @@
 {
   "components": {
     "schemas": {
+      "Country": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "default_currency": {
+            "title": "Default Currency",
+            "type": "string"
+          },
+          "is_active": {
+            "title": "Is Active",
+            "type": "boolean"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "name",
+          "default_currency",
+          "is_active"
+        ],
+        "title": "Country",
+        "type": "object"
+      },
+      "CurrencyOption": {
+        "properties": {
+          "code": {
+            "title": "Code",
+            "type": "string"
+          },
+          "exponent": {
+            "title": "Exponent",
+            "type": "integer"
+          }
+        },
+        "required": [
+          "code",
+          "exponent"
+        ],
+        "title": "CurrencyOption",
+        "type": "object"
+      },
+      "Department": {
+        "properties": {
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "name": {
+            "title": "Name",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "name"
+        ],
+        "title": "Department",
+        "type": "object"
+      },
+      "EmploymentType": {
+        "enum": [
+          "FULL_TIME",
+          "PART_TIME",
+          "CONTRACTOR"
+        ],
+        "title": "EmploymentType",
+        "type": "string"
+      },
       "Features": {
         "description": "Optional features. `ask` is false when no LLM_API_KEY is configured.",
         "properties": {
@@ -72,6 +145,80 @@
           "version"
         ],
         "title": "HealthResponse",
+        "type": "object"
+      },
+      "JobFamily": {
+        "description": "The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).",
+        "enum": [
+          "ENGINEERING",
+          "PRODUCT",
+          "DESIGN",
+          "SALES",
+          "CUSTOMER_SUCCESS",
+          "MARKETING",
+          "OPERATIONS",
+          "FINANCE",
+          "PEOPLE",
+          "LEGAL"
+        ],
+        "title": "JobFamily",
+        "type": "string"
+      },
+      "JobRole": {
+        "properties": {
+          "department_id": {
+            "title": "Department Id",
+            "type": "integer"
+          },
+          "family": {
+            "$ref": "#/components/schemas/JobFamily"
+          },
+          "id": {
+            "title": "Id",
+            "type": "integer"
+          },
+          "title": {
+            "title": "Title",
+            "type": "string"
+          }
+        },
+        "required": [
+          "id",
+          "title",
+          "department_id",
+          "family"
+        ],
+        "title": "JobRole",
+        "type": "object"
+      },
+      "Level": {
+        "description": "Job level: L1 Associate, L2 Mid, L3 Senior, L4 Lead/Staff, L5 Principal, L6 Director.",
+        "enum": [
+          "L1",
+          "L2",
+          "L3",
+          "L4",
+          "L5",
+          "L6"
+        ],
+        "title": "Level",
+        "type": "string"
+      },
+      "LevelOption": {
+        "properties": {
+          "code": {
+            "$ref": "#/components/schemas/Level"
+          },
+          "label": {
+            "title": "Label",
+            "type": "string"
+          }
+        },
+        "required": [
+          "code",
+          "label"
+        ],
+        "title": "LevelOption",
         "type": "object"
       },
       "LoginRequest": {
@@ -212,6 +359,71 @@
         "title": "Problem",
         "type": "object"
       },
+      "ReferenceData": {
+        "description": "Every dropdown value, and what filters are validated against (docs/07 section 5).",
+        "properties": {
+          "countries": {
+            "items": {
+              "$ref": "#/components/schemas/Country"
+            },
+            "title": "Countries",
+            "type": "array"
+          },
+          "currencies": {
+            "items": {
+              "$ref": "#/components/schemas/CurrencyOption"
+            },
+            "title": "Currencies",
+            "type": "array"
+          },
+          "departments": {
+            "items": {
+              "$ref": "#/components/schemas/Department"
+            },
+            "title": "Departments",
+            "type": "array"
+          },
+          "employment_types": {
+            "items": {
+              "$ref": "#/components/schemas/EmploymentType"
+            },
+            "title": "Employment Types",
+            "type": "array"
+          },
+          "job_roles": {
+            "items": {
+              "$ref": "#/components/schemas/JobRole"
+            },
+            "title": "Job Roles",
+            "type": "array"
+          },
+          "levels": {
+            "items": {
+              "$ref": "#/components/schemas/LevelOption"
+            },
+            "title": "Levels",
+            "type": "array"
+          },
+          "salary_change_reasons": {
+            "items": {
+              "$ref": "#/components/schemas/SalaryReason"
+            },
+            "title": "Salary Change Reasons",
+            "type": "array"
+          }
+        },
+        "required": [
+          "countries",
+          "departments",
+          "job_roles",
+          "levels",
+          "employment_types",
+          "currencies",
+          "salary_change_reasons"
+        ],
+        "title": "ReferenceData",
+        "type": "object"
+      },
       "Role": {
         "enum": [
           "ADMIN",
@@ -219,6 +431,18 @@
           "VIEWER"
         ],
         "title": "Role",
+        "type": "string"
+      },
+      "SalaryReason": {
+        "description": "Why a salary record was written.",
+        "enum": [
+          "HIRE",
+          "PROMOTION",
+          "MERIT",
+          "MARKET_ADJUSTMENT",
+          "CORRECTION"
+        ],
+        "title": "SalaryReason",
         "type": "string"
       },
       "SessionUser": {
@@ -597,6 +821,85 @@
         "summary": "Health check (public)",
         "tags": [
           "health"
+        ]
+      }
+    },
+    "/api/v1/reference": {
+      "get": {
+        "operationId": "reference_api_v1_reference_get",
+        "responses": {
+          "200": {
+            "content": {
+              "application/json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ReferenceData"
+                }
+              }
+            },
+            "description": "Successful Response"
+          },
+          "401": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Not authenticated: no valid session, or the user is inactive"
+          },
+          "403": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Forbidden: a required permission is missing"
+          },
+          "422": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/ValidationProblem"
+                }
+              }
+            },
+            "description": "Validation failed"
+          },
+          "4XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Client error"
+          },
+          "5XX": {
+            "content": {
+              "application/problem+json": {
+                "schema": {
+                  "$ref": "#/components/schemas/Problem"
+                }
+              }
+            },
+            "description": "Server error"
+          }
+        },
+        "security": [
+          {
+            "SessionCookie": []
+          },
+          {
+            "BearerToken": []
+          }
+        ],
+        "summary": "Reference data for forms and filters",
+        "tags": [
+          "reference"
         ]
       }
     }

@@ -72,10 +72,57 @@ export interface paths {
         patch?: never;
         trace?: never;
     };
+    "/api/v1/reference": {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        /** Reference data for forms and filters */
+        get: operations["reference_api_v1_reference_get"];
+        put?: never;
+        post?: never;
+        delete?: never;
+        options?: never;
+        head?: never;
+        patch?: never;
+        trace?: never;
+    };
 }
 export type webhooks = Record<string, never>;
 export interface components {
     schemas: {
+        /** Country */
+        Country: {
+            /** Code */
+            code: string;
+            /** Default Currency */
+            default_currency: string;
+            /** Is Active */
+            is_active: boolean;
+            /** Name */
+            name: string;
+        };
+        /** CurrencyOption */
+        CurrencyOption: {
+            /** Code */
+            code: string;
+            /** Exponent */
+            exponent: number;
+        };
+        /** Department */
+        Department: {
+            /** Id */
+            id: number;
+            /** Name */
+            name: string;
+        };
+        /**
+         * EmploymentType
+         * @enum {string}
+         */
+        EmploymentType: "FULL_TIME" | "PART_TIME" | "CONTRACTOR";
         /**
          * Features
          * @description Optional features. `ask` is false when no LLM_API_KEY is configured.
@@ -109,6 +156,34 @@ export interface components {
             status: "ok";
             /** Version */
             version: string;
+        };
+        /**
+         * JobFamily
+         * @description The pay family of a job role; the seed's band multipliers use it (docs/12 section 3).
+         * @enum {string}
+         */
+        JobFamily: "ENGINEERING" | "PRODUCT" | "DESIGN" | "SALES" | "CUSTOMER_SUCCESS" | "MARKETING" | "OPERATIONS" | "FINANCE" | "PEOPLE" | "LEGAL";
+        /** JobRole */
+        JobRole: {
+            /** Department Id */
+            department_id: number;
+            family: components["schemas"]["JobFamily"];
+            /** Id */
+            id: number;
+            /** Title */
+            title: string;
+        };
+        /**
+         * Level
+         * @description Job level: L1 Associate, L2 Mid, L3 Senior, L4 Lead/Staff, L5 Principal, L6 Director.
+         * @enum {string}
+         */
+        Level: "L1" | "L2" | "L3" | "L4" | "L5" | "L6";
+        /** LevelOption */
+        LevelOption: {
+            code: components["schemas"]["Level"];
+            /** Label */
+            label: string;
         };
         /** LoginRequest */
         LoginRequest: {
@@ -159,10 +234,36 @@ export interface components {
             [key: string]: unknown;
         };
         /**
+         * ReferenceData
+         * @description Every dropdown value, and what filters are validated against (docs/07 section 5).
+         */
+        ReferenceData: {
+            /** Countries */
+            countries: components["schemas"]["Country"][];
+            /** Currencies */
+            currencies: components["schemas"]["CurrencyOption"][];
+            /** Departments */
+            departments: components["schemas"]["Department"][];
+            /** Employment Types */
+            employment_types: components["schemas"]["EmploymentType"][];
+            /** Job Roles */
+            job_roles: components["schemas"]["JobRole"][];
+            /** Levels */
+            levels: components["schemas"]["LevelOption"][];
+            /** Salary Change Reasons */
+            salary_change_reasons: components["schemas"]["SalaryReason"][];
+        };
+        /**
          * Role
          * @enum {string}
          */
         Role: "ADMIN" | "HR_MANAGER" | "VIEWER";
+        /**
+         * SalaryReason
+         * @description Why a salary record was written.
+         * @enum {string}
+         */
+        SalaryReason: "HIRE" | "PROMOTION" | "MERIT" | "MARKET_ADJUSTMENT" | "CORRECTION";
         /** SessionUser */
         SessionUser: {
             /** Email */
@@ -401,6 +502,71 @@ export interface operations {
                 };
                 content: {
                     "application/json": components["schemas"]["HealthResponse"];
+                };
+            };
+            /** @description Validation failed */
+            422: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["ValidationProblem"];
+                };
+            };
+            /** @description Client error */
+            "4XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Server error */
+            "5XX": {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+        };
+    };
+    reference_api_v1_reference_get: {
+        parameters: {
+            query?: never;
+            header?: never;
+            path?: never;
+            cookie?: never;
+        };
+        requestBody?: never;
+        responses: {
+            /** @description Successful Response */
+            200: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/json": components["schemas"]["ReferenceData"];
+                };
+            };
+            /** @description Not authenticated: no valid session, or the user is inactive */
+            401: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
+                };
+            };
+            /** @description Forbidden: a required permission is missing */
+            403: {
+                headers: {
+                    [name: string]: unknown;
+                };
+                content: {
+                    "application/problem+json": components["schemas"]["Problem"];
                 };
             };
             /** @description Validation failed */
