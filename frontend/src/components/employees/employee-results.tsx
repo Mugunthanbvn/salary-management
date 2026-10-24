@@ -287,12 +287,16 @@ function ResultsTable({ items, reference, state, showPay }: ListProps) {
   const style = (id: string) => COLUMN_STYLES[id as keyof typeof COLUMN_STYLES];
 
   return (
-    <div data-slot="results-table" className="hidden overflow-x-auto sm:block">
+    <div
+      data-slot="results-table"
+      // Only the rows scroll: the box is about a screen tall and the header row is pinned.
+      className="hidden max-h-[calc(100dvh-8rem)] overflow-auto sm:block"
+    >
       <Table>
         <TableCaption className="sr-only">Employees</TableCaption>
         <TableHeader>
           {table.getHeaderGroups().map((group) => (
-            <tr key={group.id} className="border-b-2 border-ink">
+            <tr key={group.id}>
               {group.headers.map((header) => (
                 <TableHead
                   key={header.id}

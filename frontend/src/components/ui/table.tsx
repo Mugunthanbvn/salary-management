@@ -37,7 +37,9 @@ function TableHead({ className, ...props }: React.ComponentProps<"th">) {
     <th
       data-slot="table-head"
       className={cn(
-        "pb-2.5 text-left align-bottom text-[13px] font-normal text-ink-2",
+        // Pinned to the top of a scrolling table box. The 2 px ink rule is drawn inside the
+        // cell, because a collapsed row border scrolls away with the rows.
+        "sticky top-0 z-10 bg-paper pt-2 pb-2.5 text-left align-bottom text-[13px] font-normal text-ink-2 shadow-[inset_0_-2px_0_var(--color-ink)]",
         className,
       )}
       {...props}
