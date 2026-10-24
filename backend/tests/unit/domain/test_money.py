@@ -4,9 +4,12 @@ import dataclasses
 from decimal import Decimal
 
 import pytest
+from hypothesis import given
+from hypothesis import strategies as st
 
 from salary_api.domain.currency import UnknownCurrencyError
 from salary_api.domain.money import InvalidAmountError, Money, TooManyDecimalsError
+from tests.unit.domain.strategies import currencies, major_amounts
 
 
 def test_money_holds_integer_minor_units_and_a_currency() -> None:
@@ -85,3 +88,36 @@ def test_from_major_rejects_floats_and_other_non_text_numbers(major: object) -> 
 def test_from_major_rejects_text_that_is_not_a_finite_number(major: str | Decimal) -> None:
     with pytest.raises(InvalidAmountError, match="not a number"):
         Money.from_major(major, "USD")
+
+
+@pytest.mark.parametrize(
+    ("money", "major"),
+    [
+        (Money(123456, "USD"), "1234.56"),
+        (Money(1234, "JPY"), "1234"),
+        (Money(5, "EUR"), "0.05"),
+        (Money(-1250, "GBP"), "-12.50"),
+        (Money(120000000, "INR"), "1200000.00"),
+    ],
+)
+def test_to_major_returns_the_exact_decimal_in_major_units(money: Money, major: str) -> None:
+    result = money.to_major()
+
+    assert isinstance(result, Decimal)
+    assert str(result) == major
+
+
+@given(amount_minor=st.integers(), currency=currencies)
+def test_from_major_of_to_major_round_trips_every_amount(amount_minor: int, currency: str) -> None:
+    money = Money(amount_minor, currency)
+
+    assert Money.from_major(money.to_major(), currency) == money
+
+
+@given(major_amounts())
+def test_to_major_of_from_major_round_trips_every_valid_major_amount(
+    amount_and_currency: tuple[Decimal, str],
+) -> None:
+    major, currency = amount_and_currency
+
+    assert Money.from_major(major, currency).to_major() == major
