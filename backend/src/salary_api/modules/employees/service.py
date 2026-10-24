@@ -227,7 +227,7 @@ def list_employees(
     order = _sort_keys(query.sort)
     _refuse_salary_query_without_salary_read(principal, query, order)
     _check_salary_comparison(query, order)
-    usd_rates = _usd_rates_for(session, query)
+    usd_rates = _usd_rates_for(session, query, order)
     if usd_rates:
         order = _by_usd_value(order, usd_rates)
     where = repository.EmployeeFilter(
@@ -293,10 +293,14 @@ def _by_usd_value(
     ]
 
 
-def _usd_rates_for(session: Session, query: EmployeeListQuery) -> dict[str, FxRate]:
-    """With salary_basis=usd: the rate of every currency the list can hold (the `currency`
-    filter, else every supported currency). A missing rate is a configuration error."""
-    if query.salary_basis != SalaryBasis.USD:
+def _usd_rates_for(
+    session: Session, query: EmployeeListQuery, order: list[repository.SortKey]
+) -> dict[str, FxRate]:
+    """When salaries are compared in USD: the rate of every currency the list can hold (the
+    `currency` filter, else every supported currency). A missing rate is a configuration
+    error. Without a salary range or sort nothing is compared, so no rate is needed."""
+    compared = query.salary_min is not None or query.salary_max is not None or _salary_sorted(order)
+    if query.salary_basis != SalaryBasis.USD or not compared:
         return {}
     rates = reference_service.usd_rates(session)
     currencies = [
@@ -316,8 +320,7 @@ def _refuse_salary_query_without_salary_read(
         value is not None
         for value in (query.salary_min, query.salary_max, query.salary_basis, query.comp)
     )
-    salary_sort = any(key.field in repository.SALARY_SORT_FIELDS for key in order)
-    if (salary_filter or salary_sort) and not can_see_salaries(principal):
+    if (salary_filter or _salary_sorted(order)) and not can_see_salaries(principal):
         raise Forbidden("Filtering or sorting by salary requires SALARY_READ.")
 
 
@@ -341,13 +344,16 @@ def _check_salary_comparison(query: EmployeeListQuery, order: list[repository.So
             "Salaries in different currencies cannot be compared: choose one currency "
             "(or one country), or use salary_basis=usd."
         )
-        salary_sorted = any(key.field in repository.SALARY_SORT_FIELDS for key in order)
-        for field in ranged[:1] + (["sort"] if salary_sorted else []):
+        for field in ranged[:1] + (["sort"] if _salary_sorted(order) else []):
             errors.append(
                 {"loc": ["query", field], "code": "currency_required", "message": message}
             )
     if errors:
         raise ValidationFailed(errors)
+
+
+def _salary_sorted(order: list[repository.SortKey]) -> bool:
+    return any(key.field in repository.SALARY_SORT_FIELDS for key in order)
 
 
 def _sort_keys(sort: str | None) -> list[repository.SortKey]:
