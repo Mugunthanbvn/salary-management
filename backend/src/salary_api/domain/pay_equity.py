@@ -8,7 +8,8 @@ from dataclasses import dataclass
 from decimal import Decimal
 from enum import StrEnum
 
-from salary_api.domain.enums import EmploymentType
+from salary_api.domain.constants import PAY_EQUITY_HIGH, PAY_EQUITY_LOW
+from salary_api.domain.enums import EmploymentType, PayEquityFlag
 from salary_api.domain.money import CurrencyMismatchError, Money
 
 
@@ -43,3 +44,15 @@ def compa_ratio(base: Money, band_mid: Money | None, employment_type: Employment
     if band_mid.currency != base.currency:
         raise CurrencyMismatchError(base.currency, band_mid.currency)
     return CompaRatio(Decimal(base.amount_minor) / Decimal(band_mid.amount_minor))
+
+
+def flag(ratio: Decimal) -> PayEquityFlag:
+    """UNDERPAID below 0.80, OVERPAID above 1.20, IN_BAND between them (edges included).
+
+    Pass the unrounded ratio: 0.79999 is UNDERPAID even though it displays as 0.80.
+    """
+    if ratio < PAY_EQUITY_LOW:
+        return PayEquityFlag.UNDERPAID
+    if ratio > PAY_EQUITY_HIGH:
+        return PayEquityFlag.OVERPAID
+    return PayEquityFlag.IN_BAND
