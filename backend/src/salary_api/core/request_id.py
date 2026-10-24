@@ -25,6 +25,7 @@ class RequestIdMiddleware:
             return
 
         request_id = _incoming_request_id(scope) or str(uuid4())
+        scope.setdefault("state", {})["request_id"] = request_id  # read by error handlers
         structlog.contextvars.clear_contextvars()
         structlog.contextvars.bind_contextvars(request_id=request_id)
 

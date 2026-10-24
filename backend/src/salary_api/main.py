@@ -8,6 +8,7 @@ from fastapi import FastAPI
 from salary_api import __version__
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine, create_session_factory
+from salary_api.core.errors import install_problem_handlers
 from salary_api.core.logging import configure_logging
 from salary_api.core.request_id import RequestIdMiddleware
 from salary_api.modules.health.router import router as health_router
@@ -37,6 +38,7 @@ def create_app(settings: Settings | None = None) -> FastAPI:
     app.state.session_factory = create_session_factory(engine)
 
     app.add_middleware(RequestIdMiddleware)
+    install_problem_handlers(app)
     app.include_router(health_router, prefix=API_PREFIX)
     return app
 
