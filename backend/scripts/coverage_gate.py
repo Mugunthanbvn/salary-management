@@ -9,9 +9,15 @@ import sys
 
 from coverage import Coverage
 from coverage.exceptions import NoDataError
+from coverage.files import GlobMatcher
 
 GATED_FILES = ["*/salary_api/domain/*.py", "*/salary_api/modules/*/service.py"]
 FAIL_UNDER = 90.0
+
+
+def is_gated(path: str) -> bool:
+    """Whether a source file counts towards the gate (the matcher coverage uses for include)."""
+    return GlobMatcher(GATED_FILES).match(path)
 
 
 def main() -> int:
