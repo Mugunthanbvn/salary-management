@@ -22,7 +22,11 @@ from sqlalchemy.orm import Session
 from sqlalchemy.pool import NullPool
 
 from salary_api.core.config import Settings
-from salary_api.core.db import create_db_engine, create_session_factory
+from salary_api.core.db import (
+    create_db_engine,
+    create_session_factory,
+    foreign_keys_off_for_migrations,
+)
 from tests.conftest import rolled_back_session
 from tests.factories import make_settings
 
@@ -139,3 +143,26 @@ def test_production_engine_builds_from_a_turso_url_without_connecting() -> None:
     assert (engine.dialect.name, engine.dialect.driver) == ("sqlite", "libsql")
     assert engine.url.host == "salary-prod-acme.turso.io"
     assert isinstance(engine.pool, NullPool)
+
+
+@pytest.mark.sqlite_only
+def test_foreign_keys_are_off_for_migrations_and_back_on_afterwards(tmp_path: Path) -> None:
+    engine = create_db_engine(make_settings(database_url=f"sqlite:///{tmp_path / 'app.db'}"))
+
+    with engine.connect() as connection:
+        with foreign_keys_off_for_migrations(connection), connection.begin():
+            during = connection.exec_driver_sql("PRAGMA foreign_keys").scalar()
+        with connection.begin():
+            after = connection.exec_driver_sql("PRAGMA foreign_keys").scalar()
+
+    assert (during, after) == (0, 1)
+    engine.dispose()
+
+
+@pytest.mark.sqlite_only
+def test_app_sessions_enforce_foreign_keys_after_the_test_schema_is_migrated(
+    db_session: Session,
+) -> None:
+    foreign_keys = db_session.connection().exec_driver_sql("PRAGMA foreign_keys").scalar()
+
+    assert foreign_keys == 1
