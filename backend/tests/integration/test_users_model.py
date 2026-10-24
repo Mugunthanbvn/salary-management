@@ -68,4 +68,4 @@ def test_the_database_rejects_a_role_outside_the_glossary(db_session: Session) -
     }
 
     with pytest.raises(IntegrityError, match="CHECK"):
-        db_session.execute(insert(User.__table__).values(**row))
+        db_session.execute(insert(User).values(**row))
