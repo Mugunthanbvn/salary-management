@@ -17,3 +17,15 @@ def test_valid_incoming_request_id_is_echoed(client: TestClient, request_id: str
     response = client.get("/api/v1/health", headers={"X-Request-ID": request_id})
 
     assert response.headers["X-Request-ID"] == request_id
+
+
+@pytest.mark.parametrize(
+    "request_id",
+    ["has space", "semi;colon", "slash/path", "<script>", "A" * 129],
+)
+def test_malformed_incoming_request_id_is_replaced_with_a_new_one(
+    client: TestClient, request_id: str
+) -> None:
+    response = client.get("/api/v1/health", headers={"X-Request-ID": request_id})
+
+    assert UUID4.match(response.headers["X-Request-ID"])
