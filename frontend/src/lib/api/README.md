@@ -11,7 +11,6 @@ come only from `schema.d.ts` (`components["schemas"]["MeResponse"]`, `paths`).
 | `me.ts`      | Server Components                 | `getMe()`: the signed-in person (`GET /auth/me`), cached per request; 401 → `/login?next=<page>` (page from proxy.ts's `x-pathname` header), other problems throw                 |
 | `problem.ts` | anywhere                          | `toProblem(response, error)` → `ProblemError` with `slug`, `title`, `status`, `detail`, `errors`, `requestId`, `body`                                                             |
 | `origin.ts`  | server and config                 | `API_ORIGIN`, never sent to the browser                                                                                                                                           |
-| `health.ts`  | server                            | `getApiHealth()`: is the API up (B1)                                                                                                                                              |
 
 ```ts
 const api = await serverApi();
