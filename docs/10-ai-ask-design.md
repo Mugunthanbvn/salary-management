@@ -105,7 +105,7 @@ sequenceDiagram
 
 - **History** is held **client-side only** (React state for the page session) and sent as the last ≤ 6 turns. It is not persisted server-side, so there is no conversation storage to secure.
 - **Waiting UX:** a spinner with "Thinking…" (no streaming in v1; see [13-frontend-ux.md](13-frontend-ux.md)).
-- **Step limit:** at most **4** model round-trips. If the limit is hit, the service returns the best partial answer with the caveat "I couldn't complete this analysis; try narrowing the question".
+- **Step limit:** at most **4** tool steps, plus one answer call (the repair retry counts against this budget and is sent without tools), at most 5 tool calls per model reply (more get a `too_many_calls` tool error), and no new tool step after 60 s. If the limit is hit, the service returns the best partial answer with the caveat "I couldn't complete this analysis; try narrowing the question".
 
 ---
 
@@ -251,6 +251,8 @@ Handling:
 ---
 
 ## 9. Audit
+
+> **Built (B9 review):** two events per question. `ask.query` (`diff`: question cut to 200 chars, provider, model) is committed **before the first model call**, so a burst of parallel questions is counted; the limit is then checked again counting only earlier events (like the login limit). `ask.answer` (`entity_id` = the `ask.query` id; `diff`: tools, steps, latency_ms, outcome) records how it ended, including on unexpected errors. No transaction is open during a model call (on SQLite every transaction holds the write lock). The example below shows the fields of both together.
 
 Every ask writes `audit_events`:
 

@@ -29,7 +29,8 @@ class AuditAction(StrEnum):
     IMPORT_FAIL = "import.fail"
     EXPORT_DOWNLOAD = "export.download"
     INSIGHTS_INDIVIDUALS_VIEW = "insights.individuals_view"
-    ASK_QUERY = "ask.query"
+    ASK_QUERY = "ask.query"  # recorded before the model is called; the limit counts it
+    ASK_ANSWER = "ask.answer"  # the outcome of that question
 
 
 # Keyword-only, one argument per column: easy to read at every call site.

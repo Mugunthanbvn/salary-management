@@ -14,7 +14,7 @@ Tool results go back to the model as `tool` messages: data, never instructions.
 
 import json
 import time
-from collections.abc import Callable, Iterator, Mapping
+from collections.abc import Callable, Mapping
 from dataclasses import dataclass, field, replace
 from decimal import Decimal, InvalidOperation
 from enum import StrEnum
@@ -76,7 +76,9 @@ class ToolResult:
     content: str  # JSON: {"ok": true, "data": ...} or {"ok": false, "error": {code, message}}
     summary: str
     dashboard_link: str | None
-    numbers: frozenset[str]  # every number in `data`, for checking the answer's figures
+    # For checking the answer's figures: (amount, currency) pairs and the other numbers.
+    amounts: frozenset[tuple[str, str]]
+    numbers: frozenset[str]
     duration_ms: int = 0
 
 
@@ -103,9 +105,9 @@ class _Args(BaseModel):
 class Filters(_Args):
     """Who a figure covers. Defaults: full-time, active employees, base pay."""
 
-    country: str | None = None
-    department: str | None = None
-    job_role: str | None = None
+    country: str | None = Field(default=None, max_length=100)
+    department: str | None = Field(default=None, max_length=100)
+    job_role: str | None = Field(default=None, max_length=100)
     level: Level | None = None
     employment_type: list[EmploymentType] = Field(
         default_factory=lambda: [EmploymentType.FULL_TIME]
@@ -525,35 +527,50 @@ class ToolExecutor:
         args = _parse(call.arguments)
         tool = _BY_NAME.get(call.name)
         if tool is None:
-            return _error(call.name, args or {}, "unknown_tool", f"There is no tool {call.name!r}.")
+            return _error(call.name, "unknown_tool", f"There is no tool {call.name!r}.")
         if not _allowed(self._principal, tool):  # layer 2: before anything is fetched
-            return _forbidden(call.name, args or {})
+            return _forbidden(call.name)
         if args is None:
-            return _error(call.name, {}, "invalid_arguments", "Arguments must be a JSON object.")
+            return _error(call.name, "invalid_arguments", "Arguments must be a JSON object.")
         return self._run(tool, args)
 
-    def _run(self, tool: Tool, args: dict[str, Any]) -> ToolResult:
+    def _run(self, tool: Tool, raw: dict[str, Any]) -> ToolResult:
         try:
-            output = tool.run(
-                self._session, self._principal, self._reference, tool.args.model_validate(args)
-            )
-        except (ValidationError, ToolArgumentError, ProblemError) as error:
+            args = tool.args.model_validate(raw)
+        except ValidationError as error:
+            return _error(tool.name, "invalid_arguments", _message(error))
+        shown = _shown_args(args)
+        try:
+            output = tool.run(self._session, self._principal, self._reference, args)
+        except (ToolArgumentError, ProblemError) as error:
             if isinstance(error, Forbidden):
-                return _forbidden(tool.name, args)
-            return _error(tool.name, args, "invalid_arguments", _message(error))
+                return _forbidden(tool.name, shown)
+            return _error(tool.name, "invalid_arguments", _message(error), shown)
         except Exception as error:  # a broken tool must not break the answer
+            self._session.rollback()  # so the rest of the question can still write
             _logger.error("ask_tool_failed", tool=tool.name, error_type=type(error).__name__)
-            return _error(tool.name, args, "tool_failed", "The tool failed. Try another way.")
+            return _error(tool.name, "tool_failed", "The tool failed. Try another way.", shown)
         content = json.dumps({"ok": True, "data": output.data}, separators=(",", ":"))
+        amounts, numbers = _grounding(output.data)
         return ToolResult(
             name=tool.name,
-            args=args,
+            args=shown,
             ok=True,
             content=content,
             summary=output.summary,
             dashboard_link=output.dashboard_link,
-            numbers=frozenset(_numbers(output.data)),
+            amounts=frozenset(amounts),
+            numbers=frozenset(numbers),
         )
+
+
+MAX_SHOWN_ARGS_CHARS: Final = 1000
+
+
+def _shown_args(args: _Args) -> dict[str, Any]:
+    """The validated arguments the model set, for "How I got this"; {} if oversized."""
+    shown = args.model_dump(mode="json", exclude_unset=True)
+    return shown if len(json.dumps(shown)) <= MAX_SHOWN_ARGS_CHARS else {}
 
 
 def _parse(arguments: str) -> dict[str, Any] | None:
@@ -577,44 +594,70 @@ def _message(error: ValidationError | ToolArgumentError | ProblemError) -> str:
     )
 
 
-def _error(name: str, args: dict[str, Any], code: str, message: str) -> ToolResult:
-    content = json.dumps({"ok": False, "error": {"code": code, "message": message}})
+def tool_error(code: str, message: str) -> str:
+    """The content of a tool message that reports an error to the model."""
+    return json.dumps({"ok": False, "error": {"code": code, "message": message}})
+
+
+def _error(name: str, code: str, message: str, args: dict[str, Any] | None = None) -> ToolResult:
     return ToolResult(
         name=name,
-        args=args,
+        args=args or {},
         ok=False,
-        content=content,
+        content=tool_error(code, message),
         summary=f"Error: {message}",
         dashboard_link=None,
+        amounts=frozenset(),
         numbers=frozenset(),
     )
 
 
-def _forbidden(name: str, args: dict[str, Any]) -> ToolResult:
+def _forbidden(name: str, args: dict[str, Any] | None = None) -> ToolResult:
     result = _error(
         name,
-        args,
         "forbidden",
         "The user's role cannot see individual pay. Offer an aggregate instead.",
+        args,
     )
     return replace(result, summary="Refused: not allowed for this role")
 
 
-def _numbers(value: object) -> Iterator[str]:
-    """Every number in a tool result, normalised (6000000, 0.93), ints and decimal strings."""
-    if isinstance(value, bool):
-        return
-    if isinstance(value, int | float):
-        yield normalise_number(str(value))
-    elif isinstance(value, str):
-        if (number := _as_number(value)) is not None:
-            yield number
-    elif isinstance(value, dict):
-        for item in cast("dict[str, object]", value).values():
-            yield from _numbers(item)
-    elif isinstance(value, list):
-        for item in cast("list[object]", value):
-            yield from _numbers(item)
+def _is_count(key: str) -> bool:
+    """Integer fields that count people, even inside an object that has a currency."""
+    return key in {"n", "headcount"} or key.endswith("count") or key.startswith("employees_")
+
+
+def _grounding(value: object) -> tuple[set[tuple[str, str]], set[str]]:
+    """The amounts (normalised minor units, currency) and the other numbers of a tool result.
+
+    An integer is an amount when its object has a `currency` (a Money, a Stats, a Band, a
+    Comparison) and it is not a count; every other integer and decimal string is a number.
+    """
+    amounts: set[tuple[str, str]] = set()
+    numbers: set[str] = set()
+
+    def walk(item: object) -> None:
+        if isinstance(item, dict):
+            fields = cast("dict[str, object]", item)
+            currency = fields.get("currency")
+            for key, field_value in fields.items():
+                if isinstance(field_value, int) and not isinstance(field_value, bool):
+                    number = normalise_number(str(field_value))
+                    if isinstance(currency, str) and not _is_count(key):
+                        amounts.add((number, currency))
+                    else:
+                        numbers.add(number)
+                elif isinstance(field_value, str):
+                    if (number := _as_number(field_value)) is not None:
+                        numbers.add(number)
+                else:
+                    walk(field_value)
+        elif isinstance(item, list):
+            for element in cast("list[object]", item):
+                walk(element)
+
+    walk(value)
+    return amounts, numbers
 
 
 def _as_number(text: str) -> str | None:

@@ -71,7 +71,8 @@ Dotted, lowercase, `<entity>.<verb>`. The rate limiters count these exact string
 | `import.fail` | commit rolled back | ✅ |
 | `export.download` | export generated | ✅ |
 | `insights.individuals_view` | top earners or pay-equity cohort drill-down viewed | ✅ |
-| `ask.query` | Ask question answered or failed | ✅ (if Ask is built) |
+| `ask.query` | Ask question received, recorded before the model is called (the per-user limit counts these) | ✅ (if Ask is built) |
+| `ask.answer` | the outcome of that question (`entity_id` = its `ask.query` id): tools, steps, latency, outcome | ✅ (if Ask is built) |
 | `fx.update`, `reference.country.update`, `user.create`, `user.update` | admin actions | cut from v1 |
 
 ## 5. Errors (RFC 9457 problem+json)

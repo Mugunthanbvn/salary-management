@@ -324,10 +324,14 @@ def test_fx_rates_lists_the_snapshot_with_its_date(db_session: Session) -> None:
     ).items()
 
 
-def test_a_tool_result_lists_the_numbers_it_returned(db_session: Session) -> None:
+def test_a_tool_result_lists_its_amounts_with_currency_and_its_other_numbers(
+    db_session: Session,
+) -> None:
     for _ in range(5):
         make_employee(db_session, country="DE", base_minor=6_000_000)
 
     result = _run(db_session, Role.HR_MANAGER, "get_pay_overview", {"filters": {"country": "DE"}})
 
-    assert {"5", "6000000"} <= result.numbers
+    assert ("6000000", "EUR") in result.amounts
+    assert "5" in result.numbers
+    assert "6000000" not in result.numbers
