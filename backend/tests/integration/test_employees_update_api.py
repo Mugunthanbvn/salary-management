@@ -3,16 +3,20 @@
 from collections.abc import Callable
 
 import pytest
+from fastapi import FastAPI
 from fastapi.testclient import TestClient
-from sqlalchemy import update
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session
 
+from salary_api.core.config import Settings
 from salary_api.core.errors import VersionConflict
 from salary_api.core.permissions import Principal, Role
+from salary_api.modules.audit.models import AuditEvent
 from salary_api.modules.employees import service
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.employees.schemas import EmployeeUpdate
-from tests.factories import make_employee
+from tests.conftest import signed_in_client
+from tests.factories import make_employee, make_user
 
 EMPLOYEES = "/api/v1/employees"
 PROBLEMS = "https://acme.example/problems/"
@@ -147,3 +151,45 @@ def test_patch_may_resend_the_employee_s_own_email(
     )
 
     assert response.status_code == 200
+
+
+def test_patch_writes_one_employee_update_event_with_old_and_new_values(
+    app: FastAPI, client: TestClient, db_session: Session, settings: Settings
+) -> None:
+    hr = make_user(db_session, role="HR_MANAGER")
+    employee = make_employee(db_session, first_name="Priya", last_name="Sharma")
+
+    signed_in_client(app, hr, settings).patch(
+        f"{EMPLOYEES}/{employee.id}",
+        json={
+            "version": 1,
+            "first_name": "Priyanka",
+            "last_name": "Sharma",  # unchanged: not in the diff
+            "employment_type": "PART_TIME",
+        },
+    )
+
+    event = db_session.scalars(select(AuditEvent)).one()
+    assert (event.action, event.actor_id, event.entity, event.entity_id) == (
+        "employee.update",
+        hr.id,
+        "employee",
+        str(employee.id),
+    )
+    assert event.diff == {
+        "first_name": ["Priya", "Priyanka"],
+        "employment_type": ["FULL_TIME", "PART_TIME"],
+    }
+
+
+def test_a_patch_that_changes_nothing_writes_nothing_and_keeps_the_version(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    employee = make_employee(db_session, first_name="Priya")
+
+    response = as_role("HR_MANAGER").patch(
+        f"{EMPLOYEES}/{employee.id}", json={"version": 1, "first_name": "Priya"}
+    )
+
+    assert (response.status_code, response.json()["version"]) == (200, 1)
+    assert db_session.scalars(select(AuditEvent)).all() == []
