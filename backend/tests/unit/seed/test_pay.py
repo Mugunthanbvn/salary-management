@@ -6,7 +6,8 @@ from decimal import Decimal
 
 import pytest
 
-from salary_api.domain.enums import ComponentType, EmploymentType, Level
+from salary_api.domain.enums import ComponentType, EmploymentType, Level, PayEquityFlag
+from salary_api.domain.pay_equity import flag
 from salary_api.seed import seed_config as config
 from salary_api.seed.pay import (
     Band,
@@ -19,7 +20,9 @@ from salary_api.seed.pay import (
     round_to_unit,
     rounding_unit_minor,
 )
+from salary_api.seed.seed_config import CountrySpec
 
+BOUNDS = (Decimal("0.89"), Decimal("1.12"))
 COUNTRY = {country.code: country for country in config.COUNTRIES}
 ROLE = {role.title: role for department in config.DEPARTMENTS for role in department.roles}
 FULL_TIME, PART_TIME, CONTRACTOR = (
@@ -93,20 +96,66 @@ def test_uniform_draws_stay_in_range_with_four_decimals() -> None:
 def test_the_same_seed_gives_the_same_draws() -> None:
     first, second = random.Random(7), random.Random(7)
 
-    assert [draw_noise(first, 0.12) for _ in range(5)] == [
-        draw_noise(second, 0.12) for _ in range(5)
+    assert [draw_noise(first, 0.06, BOUNDS) for _ in range(5)] == [
+        draw_noise(second, 0.06, BOUNDS) for _ in range(5)
     ]
 
 
-def test_pay_noise_is_log_normal_with_median_one_and_spread_about_twelve_percent() -> None:
+def test_pay_noise_is_log_normal_with_median_one_and_spread_about_six_percent() -> None:
     rng = random.Random(42)
 
-    noise = [draw_noise(rng, 0.12) for _ in range(4000)]
+    noise = [draw_noise(rng, 0.06, BOUNDS) for _ in range(4000)]
 
-    assert all(isinstance(value, Decimal) and value > 0 for value in noise)
-    assert Decimal("0.98") < statistics.median(noise) < Decimal("1.02")
+    assert all(isinstance(value, Decimal) for value in noise)
+    assert Decimal("0.99") < statistics.median(noise) < Decimal("1.01")
     spread = statistics.stdev(float(value.ln()) for value in noise)
-    assert 0.11 < spread < 0.13
+    assert 0.05 < spread < 0.06  # 0.06, a little less after truncation
+
+
+def test_pay_noise_never_leaves_its_bounds() -> None:
+    rng = random.Random(3)
+
+    noise = [draw_noise(rng, 0.06, BOUNDS) for _ in range(4000)]
+
+    assert min(noise) >= Decimal("0.89")
+    assert max(noise) <= Decimal("1.12")
+
+
+def _every_band() -> list[tuple[CountrySpec, str, Decimal, int]]:
+    """(country, department, unrounded reference, band mid) for all 1,360 bands."""
+    return [
+        (
+            country,
+            department.name,
+            reference_minor(level, role, country),
+            band_for(level, role, country).mid_minor,
+        )
+        for country in config.COUNTRIES
+        for department in config.DEPARTMENTS
+        for role in department.roles
+        for level in role.levels
+    ]
+
+
+def test_noise_alone_never_flags_a_full_timer_in_any_band() -> None:
+    low, high = config.PAY_NOISE_BOUNDS
+
+    for country, _, reference, mid in _every_band():
+        unit = rounding_unit_minor(country)
+        lowest = Decimal(round_to_unit(reference * low, unit)) / mid
+        highest = Decimal(round_to_unit(reference * high, unit)) / mid
+        assert flag(lowest) == flag(highest) == PayEquityFlag.IN_BAND
+
+
+def test_the_german_customer_success_gap_alone_flags_nobody() -> None:
+    low, _ = config.PAY_NOISE_BOUNDS
+
+    for country, department, reference, mid in _every_band():
+        if (country.code, department) == ("DE", "Customer Success"):
+            unit = rounding_unit_minor(country)
+            base = round_to_unit(reference * low, unit)
+            gapped = round_to_unit(base * config.PAY_GAP_FACTOR, unit)
+            assert flag(Decimal(gapped) / mid) == PayEquityFlag.IN_BAND
 
 
 def test_an_indian_full_timer_gets_hra_special_allowance_and_a_bonus_target() -> None:

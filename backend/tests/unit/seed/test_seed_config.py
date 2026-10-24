@@ -174,6 +174,11 @@ def test_the_fx_snapshot_has_a_rate_for_every_seeded_currency() -> None:
     ) == (config.FX_AS_OF, config.FX_SOURCE)
 
 
+def test_pay_noise_is_narrow_and_bounded_so_only_the_story_stands_out() -> None:
+    assert config.PAY_NOISE_SIGMA == 0.06
+    assert (Decimal("0.89"), Decimal("1.12")) == config.PAY_NOISE_BOUNDS
+
+
 def test_dates_are_fixed_never_today() -> None:
     assert date(2026, 10, 1) == config.ANCHOR_DATE
     assert date(2026, 1, 1) == config.BAND_EFFECTIVE_FROM

@@ -8,12 +8,13 @@ from datetime import date
 from sqlalchemy import Connection, and_, select
 from sqlalchemy.orm import Session
 
-from salary_api.domain.enums import EmployeeStatus
+from salary_api.domain.enums import EmployeeStatus, PayEquityFlag
 from salary_api.domain.money import Money
-from salary_api.domain.pay_equity import EmployeePay
+from salary_api.domain.pay_equity import EmployeePay, compa_ratio, department_rollup, flag
 from salary_api.modules.employees.models import Employee
 from salary_api.modules.reference.models import JobRole, PayBand
 from salary_api.modules.salaries.models import SalaryComponent, SalaryRecord
+from salary_api.seed.generator import Dataset
 
 SEED_TODAY = date(2026, 10, 1)
 
@@ -76,6 +77,41 @@ def history_checksum(connection: Connection) -> str:
 def _sha256_of_sorted_lines(lines: Iterable[str]) -> str:
     text = "".join(f"{line}\n" for line in sorted(lines))
     return hashlib.sha256(text.encode()).hexdigest()
+
+
+def dataset_flags(dataset: Dataset) -> tuple[dict[int, PayEquityFlag], list[tuple[str, str]]]:
+    """For a generated dataset: the pay-equity flag of every flagged active employee (by ID),
+    and the (department, country) pairs whose median compa-ratio is below threshold."""
+    department_of = {role.id: role.department_id for role in dataset.job_roles}
+    names = {department.id: department.name for department in dataset.departments}
+    mids = {(b.job_role_id, b.level, b.country_code): b.mid_minor for b in dataset.pay_bands}
+    pays: list[EmployeePay] = []
+    flags: dict[int, PayEquityFlag] = {}
+    for employee in dataset.employees:
+        if employee.status != EmployeeStatus.ACTIVE:
+            continue
+        pay = EmployeePay(
+            department_id=department_of[employee.job_role_id],
+            job_role_id=employee.job_role_id,
+            level=employee.level,
+            country_code=employee.country_code,
+            employment_type=employee.employment_type,
+            base=Money(employee.current_base_minor, employee.currency),
+            band_mid=Money(
+                mids[employee.job_role_id, employee.level, employee.country_code],
+                employee.currency,
+            ),
+        )
+        pays.append(pay)
+        ratio = compa_ratio(pay.base, pay.band_mid, pay.employment_type).value
+        if ratio is not None and flag(ratio) != PayEquityFlag.IN_BAND:
+            flags[employee.id] = flag(ratio)
+    below = sorted(
+        (names[rollup.department_id], rollup.country_code)
+        for rollup in department_rollup(pays)
+        if rollup.below_threshold
+    )
+    return flags, below
 
 
 def active_employee_pay(session: Session) -> list[tuple[Employee, EmployeePay]]:

@@ -23,7 +23,12 @@ from salary_api.seed.generator import Dataset, generate
 from salary_api.seed.loader import load, migrate
 from salary_api.seed.users import demo_users
 from tests.factories import FAST_PASSWORD_HASHER, make_seed_settings, make_settings
-from tests.seed_checks import active_employee_pay, employee_checksum, history_checksum
+from tests.seed_checks import (
+    active_employee_pay,
+    dataset_flags,
+    employee_checksum,
+    history_checksum,
+)
 
 GOLDEN_10K = "b40ac43181867ca39528d16b0899337cafbd9b1608c43b72f8a2330e47801bef"
 GOLDEN_HISTORY_10K = "d18072582a9a507ae1c13ebb44727d87414d70439459dc4728c379bfefe89ad4"
@@ -188,20 +193,26 @@ def test_german_customer_success_has_a_median_compa_ratio_of_about_0_92(session:
     assert Decimal("0.90") <= team.ratios.median_compa_ratio <= Decimal("0.94")
 
 
-def test_german_customer_success_is_the_only_german_department_below_threshold(
+def test_german_customer_success_is_the_only_team_below_threshold_in_any_country(
     session: Session,
 ) -> None:
     names = {id_: name for id_, name in session.execute(select(Department.id, Department.name))}
 
     rollups = department_rollup(pay for _, pay in active_employee_pay(session))
 
-    below = [
-        names[r.department_id] for r in rollups if r.country_code == "DE" and r.below_threshold
-    ]
-    assert below == ["Customer Success"]
+    below = [(names[r.department_id], r.country_code) for r in rollups if r.below_threshold]
+    assert below == [("Customer Success", "DE")]
 
 
-def test_planted_outliers_are_flagged_underpaid_or_overpaid(
+def test_without_the_story_nobody_is_flagged_and_no_team_is_below_threshold() -> None:
+    clean = generate(seed=42, employees=10_000, story=False)
+
+    flags, below = dataset_flags(clean)
+
+    assert (flags, below) == ({}, [])
+
+
+def test_the_flagged_employees_are_exactly_the_planted_outliers(
     session: Session, dataset: Dataset
 ) -> None:
     flags: dict[int, PayEquityFlag] = {}
@@ -210,13 +221,9 @@ def test_planted_outliers_are_flagged_underpaid_or_overpaid(
         if ratio is not None:
             flags[employee.id] = flag(ratio)
 
-    planted = defaultdict(set)
-    for employee_id in dataset.story.underpaid_ids:
-        planted[PayEquityFlag.UNDERPAID].add(flags[employee_id])
-    for employee_id in dataset.story.overpaid_ids:
-        planted[PayEquityFlag.OVERPAID].add(flags[employee_id])
+    flagged = defaultdict(set)
+    for employee_id, employee_flag in flags.items():
+        flagged[employee_flag].add(employee_id)
 
-    assert planted == {
-        PayEquityFlag.UNDERPAID: {PayEquityFlag.UNDERPAID},
-        PayEquityFlag.OVERPAID: {PayEquityFlag.OVERPAID},
-    }
+    assert flagged[PayEquityFlag.UNDERPAID] == set(dataset.story.underpaid_ids)
+    assert flagged[PayEquityFlag.OVERPAID] == set(dataset.story.overpaid_ids)

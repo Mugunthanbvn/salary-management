@@ -14,6 +14,7 @@ from salary_api.domain.pay_equity import compa_ratio, flag
 from salary_api.domain.rounding import round_half_even
 from salary_api.seed.generator import Dataset, generate
 from salary_api.seed.rows import EmployeeRow
+from tests.seed_checks import dataset_flags
 
 EMPLOYEES = 1000
 
@@ -124,6 +125,25 @@ def test_the_story_scales_whole_histories_without_changing_their_events() -> Non
         return history
 
     assert events(planted) == events(clean)
+
+
+def test_without_the_story_nobody_is_flagged_and_no_department_is_below_threshold() -> None:
+    flags, below = dataset_flags(_dataset(story=False))
+
+    assert (flags, below) == ({}, [])
+
+
+def test_with_the_story_the_flagged_employees_are_exactly_the_planted_outliers() -> None:
+    dataset = _dataset(story=True)
+
+    flags, _ = dataset_flags(dataset)
+
+    assert {i for i, f in flags.items() if f == PayEquityFlag.UNDERPAID} == set(
+        dataset.story.underpaid_ids
+    )
+    assert {i for i, f in flags.items() if f == PayEquityFlag.OVERPAID} == set(
+        dataset.story.overpaid_ids
+    )
 
 
 def test_without_the_story_nothing_is_planted() -> None:
