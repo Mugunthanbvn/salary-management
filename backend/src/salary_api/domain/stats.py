@@ -3,8 +3,16 @@
 The repository fetches the amounts for one group in one currency; these functions do the maths.
 """
 
-from collections.abc import Iterable
+import math
+from collections.abc import Iterable, Sequence
 from dataclasses import dataclass
+from decimal import Decimal
+
+from salary_api.domain.rounding import divide_half_even, round_half_even
+
+P25 = Decimal("0.25")
+P50 = Decimal("0.5")
+P75 = Decimal("0.75")
 
 
 @dataclass(frozen=True, slots=True)
@@ -27,18 +35,32 @@ class Summary:
 
 
 def summarize(amounts: Iterable[int]) -> Summary | InsufficientData:
-    """Count, min, max, sum, mean, median, P25 and P75 of `amounts`, in their minor units."""
+    """Count, min, max, sum, mean, median, P25 and P75 of `amounts`, in their minor units.
+
+    Mean and percentiles are rounded half-even to the minor unit. The order of `amounts`
+    does not matter.
+    """
     ordered = sorted(amounts)
     if not ordered:
         return InsufficientData()
-    only = ordered[0]
+    total = sum(ordered)
     return Summary(
         count=len(ordered),
         min=ordered[0],
-        p25=only,
-        median=only,
-        mean=only,
-        p75=only,
+        p25=round_half_even(_percentile(ordered, P25)),
+        median=round_half_even(_percentile(ordered, P50)),
+        mean=divide_half_even(total, len(ordered)),
+        p75=round_half_even(_percentile(ordered, P75)),
         max=ordered[-1],
-        sum=sum(ordered),
+        sum=total,
     )
+
+
+def _percentile(ordered: Sequence[int], p: Decimal) -> Decimal:
+    """Linear interpolation between closest ranks (NumPy "linear", SQL PERCENTILE_CONT).
+
+    `ordered` is sorted and not empty. The result is exact, not rounded.
+    """
+    h = (len(ordered) - 1) * p
+    lo, hi = math.floor(h), math.ceil(h)
+    return ordered[lo] + (h - lo) * (ordered[hi] - ordered[lo])

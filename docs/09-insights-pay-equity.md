@@ -93,7 +93,7 @@ These are implemented as **pure functions** in `domain/stats.py`, unit-tested wi
 | `count` | Number of employees in the group after filters |
 | `min`, `max` | Smallest and largest amount |
 | `sum` | Σ amounts (integer; same currency only, or USD) |
-| `mean` | `sum / count` in `Decimal`, rounded **half-even** to the minor unit |
+| `mean` | `sum / count`, rounded **half-even** to the minor unit, in exact integer arithmetic (`domain/rounding.py`; never float) |
 | `median` | `percentile(0.5)` |
 | `p25`, `p75` | `percentile(0.25)`, `percentile(0.75)` |
 | `percentile(p)` | **Linear interpolation between closest ranks**, the same as NumPy's default (`method="linear"`) and SQL `PERCENTILE_CONT`. For sorted values `x[0..n-1]`: `h = (n − 1) × p`, `lo = floor(h)`, `hi = ceil(h)`, `result = x[lo] + (h − lo) × (x[hi] − x[lo])`, computed in `Decimal` and rounded half-even to the minor unit |
