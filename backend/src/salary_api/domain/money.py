@@ -7,8 +7,8 @@ import re
 from collections.abc import Mapping
 from dataclasses import dataclass
 from datetime import date
-from decimal import Decimal
-from typing import Self
+from decimal import ROUND_CEILING, ROUND_FLOOR, Decimal
+from typing import Final, Self
 
 from salary_api.domain.constants import MAX_AMOUNT_DIGITS, MAX_AMOUNT_MINOR
 from salary_api.domain.currency import USD, minor_unit_exponent
@@ -148,6 +148,67 @@ def to_usd(money: Money, rates: Mapping[str, FxRate]) -> UsdAmount:
     shift = minor_unit_exponent(USD) - minor_unit_exponent(money.currency)
     usd_minor = round_half_even(Decimal(money.amount_minor).scaleb(shift) * rate.rate_to_usd)
     return UsdAmount(Money(usd_minor, USD), rate.as_of)
+
+
+USD_SORT_SCALE: Final = 10**6
+"""Sort factors keep six decimals of US cents per local minor unit."""
+
+_INT64_MAX: Final = 2**63 - 1
+_HALF: Final = Decimal("0.5")
+
+
+def min_local_amount(usd_minor: int, rate: FxRate) -> int:
+    """The smallest amount (minor units of `rate.currency`, at least 0) worth `usd_minor` or more.
+
+    "Worth" means what `to_usd` gives, half-even rounding included, so a USD salary range
+    becomes an exact local range: amount >= min_local_amount(usd_min, rate).
+    """
+    estimate = (Decimal(usd_minor) - _HALF) / _usd_minor_per_minor(rate)
+    amount = max(0, int(estimate.to_integral_value(rounding=ROUND_CEILING)))
+    while amount > 0 and _worth(amount - 1, rate) >= usd_minor:
+        amount -= 1
+    while _worth(amount, rate) < usd_minor:
+        amount += 1
+    return amount
+
+
+def max_local_amount(usd_minor: int, rate: FxRate) -> int:
+    """The largest amount (minor units of `rate.currency`) worth `usd_minor` or less (see above)."""
+    estimate = (Decimal(usd_minor) + _HALF) / _usd_minor_per_minor(rate)
+    amount = int(estimate.to_integral_value(rounding=ROUND_FLOOR))
+    while _worth(amount + 1, rate) <= usd_minor:
+        amount += 1
+    while amount > 0 and _worth(amount, rate) > usd_minor:
+        amount -= 1
+    return amount
+
+
+@dataclass(frozen=True, slots=True)
+class UsdSortKey:
+    """`min(amount_minor, cap) * factor` orders amounts of different currencies by USD value.
+
+    `factor` is US cents per local minor unit times USD_SORT_SCALE, rounded half-even: exact
+    for rates with up to six decimals (eight for JPY). Amounts above `cap` (over $92 billion at
+    a rate of 1) count as `cap`, so the key always fits a signed 64-bit integer. The key only
+    orders rows; USD figures shown to users still come from `to_usd`.
+    """
+
+    factor: int
+    cap: int
+
+
+def usd_sort_key(rate: FxRate) -> UsdSortKey:
+    factor = max(1, round_half_even(_usd_minor_per_minor(rate) * USD_SORT_SCALE))
+    return UsdSortKey(factor=factor, cap=_INT64_MAX // factor)
+
+
+def _usd_minor_per_minor(rate: FxRate) -> Decimal:
+    """US cents per minor unit of `rate.currency` (e.g. 0.67 for one yen at 0.0067)."""
+    return rate.rate_to_usd.scaleb(minor_unit_exponent(USD) - minor_unit_exponent(rate.currency))
+
+
+def _worth(amount_minor: int, rate: FxRate) -> int:
+    return to_usd(Money(amount_minor, rate.currency), {rate.currency: rate}).amount.amount_minor
 
 
 def _parse_major(amount: str | Decimal) -> Decimal:
