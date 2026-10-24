@@ -32,3 +32,13 @@ def test_an_employee_with_no_band_has_no_compa_ratio_and_reason_no_band() -> Non
 
     assert result == CompaRatio(None, NoCompaRatioReason.NO_BAND)
     assert NoCompaRatioReason.NO_BAND == "no_band"
+
+
+@pytest.mark.parametrize("employment_type", [EmploymentType.PART_TIME, EmploymentType.CONTRACTOR])
+@pytest.mark.parametrize("band_mid", [Money(5000000, "EUR"), None])
+def test_only_full_time_employees_get_a_compa_ratio(
+    employment_type: EmploymentType, band_mid: Money | None
+) -> None:
+    result = compa_ratio(Money(2300000, "EUR"), band_mid, employment_type)
+
+    assert result == CompaRatio(None, NoCompaRatioReason.NOT_FULL_TIME)
