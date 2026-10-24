@@ -89,6 +89,17 @@ guard 2 Write /tmp/wt/backend/../frontend/openapi.json
 guard 2 Edit /tmp/wt/frontend/src/lib/api/./schema.d.ts
 expect "block-protected-files: sed fallback blocks a worktree schema.d.ts" 2 block-protected-files.sh \
   "$(json Edit file_path /tmp/wt/frontend/src/lib/api/schema.d.ts)" "$repo" "$tmp/bin-sed"
+# Read of any .env* except .env.example is blocked; other protected files stay readable (finding 6)
+guard 2 Read .env.development.local
+expect_err "Read message says secrets are not readable" "secrets files are not readable by agents"
+guard 2 Read backend/.env
+guard 2 Read /tmp/wt/frontend/.env.production.local
+guard 2 Edit frontend/.env.development.local
+guard 0 Read backend/.env.example
+guard 0 Read backend/uv.lock
+guard 0 Read frontend/pnpm-lock.yaml
+guard 0 Read frontend/src/lib/api/schema.d.ts
+guard 0 Read frontend/openapi.json
 guard 0 Edit frontend/src/lib/api/client.ts
 guard 0 Write docs/openapi.json
 guard 0 Edit frontend/../docs/schema.d.ts
@@ -272,6 +283,8 @@ cfg() {
 }
 cfg "guard-bash.sh runs on Bash before the tool" \
   'any(m["matcher"] == "Bash" and any("guard-bash.sh" in h["command"] for h in m["hooks"]) for m in s["hooks"]["PreToolUse"])'
+cfg "block-protected-files.sh runs on Read, Edit, MultiEdit and Write" \
+  'any({"Read", "Edit", "MultiEdit", "Write"} <= set(m["matcher"].split("|")) and any("block-protected-files.sh" in h["command"] for h in m["hooks"]) for m in s["hooks"]["PreToolUse"])'
 
 echo
 printf '%d passed, %d failed, %d skipped\n' "$pass" "$fail" "$skip"
