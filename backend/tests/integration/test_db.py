@@ -3,12 +3,13 @@
 from pathlib import Path
 
 import pytest
-from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, event, insert
+from sqlalchemy import Column, ForeignKey, Integer, MetaData, Table, event, func, insert, select
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.pool import NullPool
 
 from salary_api.core.config import Settings
 from salary_api.core.db import create_db_engine
+from tests.conftest import rolled_back_session
 from tests.factories import make_settings
 
 
@@ -67,4 +68,19 @@ def test_database_auth_token_is_passed_to_the_driver_as_a_connect_argument() -> 
         pass
 
     assert driver_kwargs["auth_token"] == "turso-token"
+    engine.dispose()
+
+
+def test_writes_committed_inside_a_rolled_back_session_are_undone() -> None:
+    engine = create_db_engine(make_settings())
+    metadata = MetaData()
+    notes = Table("notes", metadata, Column("id", Integer, primary_key=True))
+    metadata.create_all(engine)
+
+    with rolled_back_session(engine) as session:
+        session.execute(insert(notes).values(id=1))
+        session.commit()
+
+    with engine.connect() as connection:
+        assert connection.execute(select(func.count()).select_from(notes)).scalar() == 0
     engine.dispose()
