@@ -1,5 +1,5 @@
 import { render, screen, within } from "@testing-library/react";
-import { describe, expect, it, vi } from "vitest";
+import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import type { Me } from "@/lib/permissions";
 import { makeMe } from "@/test/fixtures";
@@ -13,6 +13,10 @@ vi.mock("next/navigation", () => ({
   usePathname: () => route.pathname,
   useRouter: () => ({ refresh: vi.fn() }),
 }));
+
+beforeEach(() => {
+  route.pathname = "/insights";
+});
 
 function renderShell(me: Me) {
   return render(
@@ -54,6 +58,21 @@ describe("main navigation", () => {
 
     for (const nav of mainNavs()) {
       expect(within(nav).queryByRole("link", { name: "Ask" })).toBeNull();
+    }
+  });
+
+  it("marks the section of the current page, also on its sub-pages", () => {
+    route.pathname = "/insights/pay-equity";
+
+    renderShell(makeMe());
+
+    for (const nav of mainNavs()) {
+      expect(
+        within(nav).getByRole("link", { name: "Insights" }),
+      ).toHaveAttribute("aria-current", "page");
+      expect(
+        within(nav).getByRole("link", { name: "Employees" }),
+      ).not.toHaveAttribute("aria-current");
     }
   });
 });
