@@ -37,6 +37,8 @@ def create_app(settings: Settings | None = None) -> FastAPI:
         version=__version__,
         openapi_url=f"{API_PREFIX}/openapi.json",
         docs_url=f"{API_PREFIX}/docs",
+        # No OAuth2 flow to redirect back to; FastAPI would serve it outside API_PREFIX.
+        swagger_ui_oauth2_redirect_url=None,
         redoc_url=None,
         responses=PROBLEM_RESPONSES,
         lifespan=lifespan,
