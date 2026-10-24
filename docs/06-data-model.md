@@ -288,7 +288,7 @@ Indexes: `ix_salary_records_employee_effective` on `(employee_id, effective_date
 
 **Ordering rule:** the current record is the one with the greatest `(effective_date, id)`. Because future dates are rejected, the latest record is always the current one, which is what makes the denormalization in §6.2 safe.
 
-**Immutability:** repositories expose no update or delete for this table. A wrong entry is fixed by appending a `CORRECTION` record.
+**Immutability:** repositories expose no update or delete for this table or `salary_components`. A wrong entry is fixed by appending a `CORRECTION` record. As with `audit_events`, the `core/append_only.py` decorator makes the ORM refuse to update or delete a loaded row, and a Session refuse bulk `UPDATE`/`DELETE` statements on both tables (`AppendOnlyError`). Bulk inserts are allowed.
 
 ### 4.7 `salary_components`
 

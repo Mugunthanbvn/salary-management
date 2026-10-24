@@ -1,12 +1,16 @@
 from datetime import datetime
-from typing import Any, NoReturn
+from typing import Any
 
-from sqlalchemy import JSON, Connection, Delete, ForeignKey, Index, String, Update, event
-from sqlalchemy.orm import Mapped, Mapper, ORMExecuteState, Session, mapped_column
+from sqlalchemy import JSON, ForeignKey, Index, String
+from sqlalchemy.orm import Mapped, mapped_column
 
+from salary_api.core.append_only import AppendOnlyError, append_only
 from salary_api.core.models import Base, UtcDateTime
 
+__all__ = ["AppendOnlyError", "AuditEvent"]
 
+
+@append_only
 class AuditEvent(Base):
     """One audited action (docs/06-data-model.md section 4.9). Rows are never changed."""
 
@@ -29,29 +33,3 @@ class AuditEvent(Base):
     diff: Mapped[dict[str, Any] | None] = mapped_column(JSON)
     request_id: Mapped[str | None] = mapped_column(String(128))  # the middleware accepts 128
     at: Mapped[datetime] = mapped_column(UtcDateTime, index=True)
-
-
-class AppendOnlyError(Exception):
-    """Audit events are never changed or deleted through the application."""
-
-
-@event.listens_for(AuditEvent, "before_update")
-def refuse_update(
-    _mapper: Mapper[AuditEvent], _connection: Connection, _target: AuditEvent
-) -> NoReturn:
-    raise AppendOnlyError("Audit events cannot be changed.")
-
-
-@event.listens_for(AuditEvent, "before_delete")
-def refuse_delete(
-    _mapper: Mapper[AuditEvent], _connection: Connection, _target: AuditEvent
-) -> NoReturn:
-    raise AppendOnlyError("Audit events cannot be deleted.")
-
-
-@event.listens_for(Session, "do_orm_execute")
-def refuse_bulk_changes(execute_state: ORMExecuteState) -> None:
-    """Also refuse `session.execute(update(AuditEvent))` and `delete(...)`, ORM or table form."""
-    statement = execute_state.statement
-    if isinstance(statement, Update | Delete) and statement.table.compare(AuditEvent.__table__):
-        raise AppendOnlyError("Audit events cannot be changed or deleted.")
