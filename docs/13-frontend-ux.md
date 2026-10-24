@@ -76,11 +76,11 @@ Paging defaults: **page size 25**, options 25 / 50 / 100 (max 100) ([07-api-spec
 | Rule | Detail |
 |---|---|
 | Source | The API returns `{ amount_minor, currency }`. The UI never receives floats |
-| Formatter | One utility, `formatMoney(amountMinor, currency, { period, compact })`, that uses `Intl.NumberFormat` with `style: "currency"` and the **currency's minor-unit exponent** (JPY 0, others 2) |
+| Formatter | One utility in `lib/money.ts`, `formatMoney(amountMinor, currency, { period, compact, minorUnits, locale })`, that uses `Intl.NumberFormat` with `style: "currency"` and the **currency's minor-unit exponent** (JPY 0, others 2, read from `Intl`). Minor units that are all zero are left out, as in the design (`€54,000`, but `€4,500.50`); `minorUnits: "always"` keeps them for columns that must line up. It refuses a `number` that is not a safe integer |
 | No float maths | Conversion to a display number uses `BigInt`/string arithmetic for the major/minor split. Monthly display is (annual ÷ 12), rounded half-even at the minor unit, **display only** |
 | Currency always visible | Every amount shows its currency (code or symbol + code where ambiguous, e.g. `$` for USD vs CAD vs AUD → `US$`, `CA$`, `A$`) |
 | USD conversions | Shown as a secondary value, e.g. `€52,000 · ≈ US$56,160`, with a tooltip: "FX as of 2026-10-01 (illustrative)" |
-| Locale | Number grouping follows the user's browser locale by default. **(Proposed)** India-specific lakh grouping (`₹22,20,000`) when the currency is INR, via the `en-IN` locale |
+| Locale | A **fixed** locale, so server-rendered and hydrated text are identical: `en-US` grouping by default, and Indian lakh grouping (`₹22,20,000`) for INR via `en-IN`. The `locale` option overrides it. Ratios, percentages and counts use `formatRatio`, `formatPercent` and `formatCount` in `lib/numbers.ts` (decimal strings in, half-even) |
 | Tabular figures | All numeric table cells use `font-variant-numeric: tabular-nums` and right alignment, so digits line up |
 | Compact mode | Charts and KPI tiles may use compact notation (`€1.2M`); tables always show full values |
 
@@ -334,7 +334,7 @@ Rules that apply everywhere:
 ## 11. Open questions
 
 - Top bar vs sidebar navigation: decided in the design phase (proposed: top bar).
-- INR lakh grouping via the `en-IN` locale: **(proposed)**.
+- INR lakh grouping via the `en-IN` locale: **decided**, built into `formatMoney` (§3.3).
 - "Link to newly imported employees" after an import: **(proposed)**.
 - Role and level required on Promotion: **(proposed)**.
 - Axe checks in Playwright: **(proposed)**.
