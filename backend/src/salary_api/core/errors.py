@@ -46,6 +46,7 @@ class ProblemError(Exception):
         self.title = title
         self.detail = detail
         self.extra = extra
+        self.headers: dict[str, str] = {}
 
 
 class Unauthenticated(ProblemError):
@@ -106,6 +107,14 @@ class ValidationFailed(ProblemError):
         super().__init__(
             422, "validation", "Validation failed", detail or f"{count} invalid.", errors=errors
         )
+
+
+class RateLimited(ProblemError):
+    """429: too many attempts. Always sends `Retry-After` (seconds)."""
+
+    def __init__(self, detail: str, *, retry_after_seconds: int) -> None:
+        super().__init__(429, "rate-limited", "Too many requests", detail)
+        self.headers["Retry-After"] = str(retry_after_seconds)
 
 
 class ServiceUnavailable(ProblemError):
@@ -204,7 +213,7 @@ def _from_request_validation_error(exc: RequestValidationError) -> ValidationFai
 def install_problem_handlers(app: FastAPI) -> None:
     @app.exception_handler(ProblemError)
     async def handle_problem_error(request: Request, exc: ProblemError) -> JSONResponse:
-        return problem_response(request, exc)
+        return problem_response(request, exc, exc.headers)
 
     @app.exception_handler(StarletteHTTPException)
     async def handle_http_exception(request: Request, exc: StarletteHTTPException) -> JSONResponse:

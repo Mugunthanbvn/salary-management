@@ -9,7 +9,6 @@ from datetime import timedelta
 import pytest
 import time_machine
 from fastapi.testclient import TestClient
-from httpx import Response
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
@@ -30,7 +29,7 @@ def _fail_logins(
         traveller.shift(timedelta(minutes=1))
 
 
-def _login(client: TestClient, email: str = EMAIL) -> Response:
+def _login(client: TestClient, email: str = EMAIL):
     return client.post(LOGIN, json={"email": email, "password": DEFAULT_PASSWORD})
 
 

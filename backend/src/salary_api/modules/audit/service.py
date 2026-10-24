@@ -1,6 +1,7 @@
 """Write audit events. Callers own the transaction: nothing here commits."""
 
-from collections.abc import Mapping
+from collections.abc import Mapping, Sequence
+from datetime import datetime
 from enum import StrEnum
 from typing import Any
 
@@ -57,3 +58,8 @@ def record_event(  # noqa: PLR0913
     )
     repository.add(session, event)
     return event
+
+
+def events_since(session: Session, *, action: AuditAction, since: datetime) -> Sequence[AuditEvent]:
+    """Events of one action strictly after `since`, oldest first (rate limits count these)."""
+    return repository.list_since(session, action=action, since=since)

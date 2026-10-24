@@ -1,19 +1,24 @@
 import hashlib
+import math
 from dataclasses import dataclass
+from datetime import datetime, timedelta
 
 from sqlalchemy.orm import Session
 
 from salary_api.core.config import Settings
-from salary_api.core.errors import Unauthenticated
+from salary_api.core.errors import RateLimited, Unauthenticated
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, permissions_for
 from salary_api.core.security import PasswordHasher, create_access_token
-from salary_api.modules.audit.service import AuditAction, record_event
+from salary_api.modules.audit.service import AuditAction, events_since, record_event
 from salary_api.modules.auth.schemas import LoginRequest, LoginResponse, SessionUser
 from salary_api.modules.users import repository as users
 from salary_api.modules.users.models import User
 
 INVALID_CREDENTIALS = "Invalid email or password"
+# docs/glossary.md section 3: 5 failures per email in 15 minutes → 429.
+LOGIN_FAILURE_LIMIT = 5
+LOGIN_FAILURE_WINDOW = timedelta(minutes=15)
 
 
 @dataclass(frozen=True, slots=True)
@@ -25,8 +30,12 @@ class SignedIn:
 def login(
     session: Session, credentials: LoginRequest, *, settings: Settings, hasher: PasswordHasher
 ) -> SignedIn:
-    """Check the credentials and audit the attempt; commits either way."""
+    """Check the credentials and audit the attempt; commits either way.
+
+    Refused with 429, before any password check, while the email is over the failure limit.
+    """
     email = credentials.email
+    _refuse_while_over_failure_limit(session, email_hash(email), now=utc_now())
     user = users.get_by_email(session, email)
     # Always one password check, so an unknown email takes as long as a known one.
     password_ok = hasher.verify(
@@ -56,6 +65,25 @@ def login(
 def email_hash(email: str) -> str:
     """SHA-256 (hex) of the normalised email: failed logins are counted by it, never by email."""
     return hashlib.sha256(email.encode()).hexdigest()
+
+
+def _refuse_while_over_failure_limit(session: Session, hashed_email: str, *, now: datetime) -> None:
+    """Counted from audit events, so the limit holds across serverless instances."""
+    failures = [
+        event.at
+        for event in events_since(
+            session, action=AuditAction.AUTH_LOGIN_FAILED, since=now - LOGIN_FAILURE_WINDOW
+        )
+        if event.diff is not None and event.diff.get("email_hash") == hashed_email
+    ]
+    if len(failures) < LOGIN_FAILURE_LIMIT:
+        return
+    # The limit lifts when the oldest of the last LOGIN_FAILURE_LIMIT failures leaves the window.
+    lifts_at = failures[-LOGIN_FAILURE_LIMIT] + LOGIN_FAILURE_WINDOW
+    raise RateLimited(
+        "Too many failed sign-in attempts. Try again later.",
+        retry_after_seconds=math.ceil((lifts_at - now).total_seconds()),
+    )
 
 
 def _record_failed_login(session: Session, *, email: str, user: User | None) -> None:
