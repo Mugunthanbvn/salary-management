@@ -151,17 +151,7 @@ def update_employee(
     employee.search_text = employee_search_text(
         employee.first_name, employee.last_name, employee.employee_code, employee.email
     )
-    employee.version += 1
-    record_event(
-        session,
-        actor_id=principal.user_id,
-        action=AuditAction.EMPLOYEE_UPDATE,
-        entity=ENTITY,
-        entity_id=employee_id,
-        diff=changes,
-    )
-    _commit_versioned(session, employee_id)
-    return get_employee(session, principal, employee_id)
+    return _commit_change(session, principal, employee, AuditAction.EMPLOYEE_UPDATE, changes)
 
 
 def terminate_employee(
@@ -182,17 +172,7 @@ def terminate_employee(
         diff["note"] = request.note
     employee.status = EmployeeStatus.TERMINATED
     employee.termination_date = termination_date
-    employee.version += 1
-    record_event(
-        session,
-        actor_id=principal.user_id,
-        action=AuditAction.EMPLOYEE_TERMINATE,
-        entity=ENTITY,
-        entity_id=employee_id,
-        diff=diff,
-    )
-    _commit_versioned(session, employee_id)
-    return get_employee(session, principal, employee_id)
+    return _commit_change(session, principal, employee, AuditAction.EMPLOYEE_TERMINATE, diff)
 
 
 def reactivate_employee(
@@ -207,17 +187,28 @@ def reactivate_employee(
     }
     employee.status = EmployeeStatus.ACTIVE
     employee.termination_date = None
+    return _commit_change(session, principal, employee, AuditAction.EMPLOYEE_REACTIVATE, diff)
+
+
+def _commit_change(
+    session: Session,
+    principal: Principal,
+    employee: Employee,
+    action: AuditAction,
+    diff: Mapping[str, Any],
+) -> EmployeeDetail:
+    """Bump the version, audit the change and commit both together."""
     employee.version += 1
     record_event(
         session,
         actor_id=principal.user_id,
-        action=AuditAction.EMPLOYEE_REACTIVATE,
+        action=action,
         entity=ENTITY,
-        entity_id=employee_id,
+        entity_id=employee.id,
         diff=diff,
     )
-    _commit_versioned(session, employee_id)
-    return get_employee(session, principal, employee_id)
+    _commit_versioned(session, employee.id)
+    return get_employee(session, principal, employee.id)
 
 
 def _require_status(employee: Employee, status: EmployeeStatus) -> None:
