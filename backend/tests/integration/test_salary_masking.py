@@ -65,7 +65,7 @@ def test_the_service_masks_salaries_for_callers_without_salary_read(
     assert (detail.current_salary is None, detail.salary_masked) == (masked, masked)
 
 
-SALARY_QUERIES = [
+SALARY_QUERIES: list[dict[str, str | int]] = [
     {"salary_min": 1},
     {"salary_max": 9_000_000},
     {"salary_basis": "usd"},
@@ -78,7 +78,7 @@ SALARY_QUERIES = [
 
 @pytest.mark.parametrize("params", SALARY_QUERIES)
 def test_viewer_cannot_filter_or_sort_by_salary(
-    as_role: Callable[[str], TestClient], params: dict[str, object]
+    as_role: Callable[[str], TestClient], params: dict[str, str | int]
 ) -> None:
     response = as_role("VIEWER").get(EMPLOYEES, params=params | {"currency": "EUR"})
 
@@ -88,7 +88,7 @@ def test_viewer_cannot_filter_or_sort_by_salary(
 
 @pytest.mark.parametrize("params", SALARY_QUERIES)
 def test_hr_may_filter_and_sort_by_salary(
-    as_role: Callable[[str], TestClient], params: dict[str, object]
+    as_role: Callable[[str], TestClient], params: dict[str, str | int]
 ) -> None:
     response = as_role("HR_MANAGER").get(EMPLOYEES, params=params | {"currency": "EUR"})
 
