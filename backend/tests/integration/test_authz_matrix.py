@@ -111,6 +111,7 @@ MATRIX = [
     Endpoint("POST", f"{EMPLOYEE}/salary-changes", (401, 403, 201, 201), _salary_change),
     Endpoint("GET", f"{EMPLOYEE}/salary-history", (401, 403, 200, 200), _salary_history),
     Endpoint("GET", "/api/v1/insights/overview", (401, 200, 200, 200)),
+    Endpoint("GET", "/api/v1/insights/by-department", (401, 200, 200, 200)),
 ]
 
 # Routes that need no row: no permission and no data behind them. Every other route of
