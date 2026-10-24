@@ -170,7 +170,7 @@ Rules: when a group mixes currencies, the section header shows a **"USD"** badge
 | Area | Content |
 |---|---|
 | Toolbar | Search box (name, employee code, email; debounced 300 ms; searches from 2 characters, the API's minimum; **case- and accent-insensitive**: `muller` finds `Müller` and `jose` finds `José`, via the backend's lowercased, accent-stripped `search_text`); filters: country, department, job role, level, employment type, status, currency (popover buttons on a desktop, a "Filters (n)" sheet with removable chips on a phone); "Sort by" (name, employee code, hire date, country, level and, with `SALARY_READ`, base or total pay). **Pay range and pay sorts** (`SALARY_READ` only) are enabled only when the API can compare pay: one country, one currency, or "Compare pay in: US dollars" (`salary_basis=usd`); otherwise they are disabled with a short hint and never sent. **For Viewers, the pay range, pay sorts and pay toggles are not shown** (the API rejects them with `403`) |
-| Actions | **Add employee** (`EMPLOYEE_WRITE` + `SALARY_WRITE`) · **Import from Excel** (`IMPORT`). Export is added with the import/export screens (B7) |
+| Actions | **Add employee** (`EMPLOYEE_WRITE` + `SALARY_WRITE`) · **Import from Excel** (`IMPORT`) · **Export** (`EXPORT`): a menu with CSV and Excel (.xlsx), labelled "Export (no salary data)" without `SALARY_READ`; it downloads `GET /employees/export` with the list's query minus `page`/`page_size`, and shows the API's problem in a toast on a non-2xx |
 | Table (server-side paging and sort; a plain table, nothing is sorted or paged in the browser) | Name (employee code below) · Job role and level · Department (from 768 px) · Country · Type (from 1024 px) · **one pay column** (`SALARY_READ` only): base or total, a year or a month, following the Base/Total and Annual/Monthly toggles · Hired (from 1024 px). Below 640 px the rows become a card list |
 | Row | Click the name → detail. Terminated rows are greyed and say "Terminated" in words |
 | Footer | "Showing 26–50 of 9,700" · rows per page 25/50/100 (desktop only) · Previous / Next |
@@ -203,15 +203,16 @@ Needs `EMPLOYEE_WRITE` **and** `SALARY_WRITE` (like `POST /employees`), otherwis
 
 ### 4.7 Import (`/employees/import`)
 
-A three-step flow ([11-import-export.md](11-import-export.md)):
+A three-step flow ([11-import-export.md](11-import-export.md)), shown as "1. Upload · 2. Check · 3. Import" above the title. Everything after the server's `IMPORT` check runs in the browser: the upload and the commit are client `fetch` calls through the `/api` rewrite. The dry-run's id stays in the URL (`?job=31`), so a refresh or a shared link reopens it with `GET /imports/{id}`.
 
-1. **Upload**: drag-and-drop or file picker (CSV/XLSX, ≤ 4 MB); "Download template (CSV | XLSX)"; short instructions ("Use 'CSV UTF-8' when saving from Excel").
-2. **Review (dry-run)**:
-   - Summary: rows, valid, errors; counts by country; total base by currency.
-   - With errors: an errors table (row · column · problem · value, with "did you mean" suggestions), filterable by error type, plus a **"Download error report"** button. The commit button is disabled and the user is prompted to fix the file and re-upload.
-   - With no errors: a preview table of the first 50 rows, and a "Ready to import 248 employees" call-to-action.
-   - An expiry note: "This preview expires in 24 hours".
-3. **Done**: "248 employees imported", with a link to the employee list filtered to the new codes **(proposed)**, or the failure message with nothing written ("No changes were made").
+1. **Upload** ("What should the file look like?" · "Which file do you want to check?"): CSV and Excel template links; short instructions ("CSV UTF-8 (Comma delimited)", 4 MB, 10,000 rows); a file picker that is also a drop zone on a desktop. Choosing a file checks it at once. Refusals are said in plain words: a header mismatch lists the `expected_headers`; an unreadable file repeats the API's detail; 413, 415 and `too_many_rows` say what to do.
+2. **Check (dry-run)**:
+   - Title and summary sentence: "3 rows need fixing" / "Ready to import 3 employees"; "q4-new-hires.csv has 248 rows. **245 are ready to import.**" Counts come from the API (`row_count`, `valid_count`, `error_count`). Counts by country and total base by currency are **not** shown: the API doesn't return them and the UI does no money arithmetic.
+   - **What needs fixing?**: the problems grouped by spreadsheet row, the refused value ringed in red pen and the API's message (with its "did you mean") as an italic margin note; a table from 640 px, one card per row below it. **Download the list of problems** saves a CSV made in the browser from the JSON. (Filtering by error type is not built.)
+   - **Who will be added?**: the preview rows (the API's first 50), base and total pay a year, formatted with `lib/money.ts`.
+   - Footer: "Import 245 employees" (disabled while `error_count > 0`), "Upload the fixed file", and "This check is kept until 25 Oct 2026, 10:45 UTC."
+   - A refused commit is shown above the footer: `409 duplicate` lists the `conflicts` rows the same way; `409 invalid-state` and `500 import-failed` repeat the API's detail (with the request ID). Each disables Import and offers "Upload the file again".
+3. **Import**: an "Imported 248 employees" toast, "248 employees imported" and a link to the employee list (a list filtered to the new codes stays **proposed**: the list API has no code filter). A `?job=` of a check that has ended says so: "This file was imported" (with the time), "This check has expired" or "This import failed" (nothing saved).
 
 ### 4.8 Ask about pay (`/ask`)
 
