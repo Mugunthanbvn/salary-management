@@ -42,4 +42,18 @@ describe("main navigation", () => {
       ]);
     }
   });
+
+  it.each([
+    { why: "Ask is switched off", me: makeMe({ features: { ask: false } }) },
+    {
+      why: "the person lacks the ASK permission",
+      me: makeMe({ permissions: ["EMPLOYEE_READ", "INSIGHTS_READ"] }),
+    },
+  ])("hides Ask when $why", ({ me }) => {
+    renderShell(me);
+
+    for (const nav of mainNavs()) {
+      expect(within(nav).queryByRole("link", { name: "Ask" })).toBeNull();
+    }
+  });
 });
