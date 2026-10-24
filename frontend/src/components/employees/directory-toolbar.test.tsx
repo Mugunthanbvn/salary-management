@@ -40,11 +40,9 @@ describe("search", () => {
     await userEvent.type(screen.getByRole("searchbox"), "mül");
 
     await waitFor(() => expect(onUrlUpdate).toHaveBeenCalled());
+    expect(onUrlUpdate).toHaveBeenCalledTimes(1);
     // nuqs keeps non-ASCII letters readable in the URL.
     expect(lastQuery(onUrlUpdate)).toBe("?q=mül");
-    // The search and the page land together, in one update, not as two server renders.
-    await new Promise((resolve) => setTimeout(resolve, 400));
-    expect(onUrlUpdate).toHaveBeenCalledTimes(1);
   });
 
   it("writes the search and page 1 in a single URL update", async () => {
