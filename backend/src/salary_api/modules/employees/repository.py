@@ -1,7 +1,7 @@
 from collections.abc import Mapping, Sequence
 from dataclasses import dataclass
 
-from sqlalchemy import ColumnElement, Select, func, select
+from sqlalchemy import ColumnElement, Select, and_, false, func, or_, select
 from sqlalchemy.orm import QueryableAttribute, Session, contains_eager, joinedload
 
 from salary_api.core.schemas import Comp
@@ -75,12 +75,23 @@ AMOUNT_COLUMNS: Mapping[Comp, QueryableAttribute[int]] = {
 
 
 @dataclass(frozen=True, slots=True)
-class SalaryRange:
-    """Inclusive bounds in minor units, for rows the other filters keep to one currency."""
+class Bounds:
+    """Inclusive bounds in minor units of one currency; None means unbounded."""
 
-    comp: Comp
     minimum: int | None = None
     maximum: int | None = None
+
+
+@dataclass(frozen=True, slots=True)
+class SalaryRange:
+    """A salary range on base or total.
+
+    `bounds` is one pair for rows the other filters keep to one currency, or one pair per
+    currency (a USD range converted to each currency); a currency without bounds never matches.
+    """
+
+    comp: Comp
+    bounds: Bounds | Mapping[str, Bounds]
 
 
 @dataclass(frozen=True, slots=True)
@@ -147,16 +158,28 @@ def _conditions(where: EmployeeFilter) -> list[ColumnElement[bool]]:
         # LIKE '%term%' with % and _ in the term escaped, so they match themselves.
         candidates.append(Employee.search_text.contains(where.search, autoescape=True))
     if where.salary is not None:
-        candidates += _within(where.salary)
+        candidates += _salary_conditions(where.salary)
     return [condition for condition in candidates if condition is not None]
 
 
-def _within(salary: SalaryRange) -> list[ColumnElement[bool] | None]:
+def _salary_conditions(salary: SalaryRange) -> list[ColumnElement[bool]]:
     column = AMOUNT_COLUMNS[salary.comp]
-    return [
-        None if salary.minimum is None else column >= salary.minimum,
-        None if salary.maximum is None else column <= salary.maximum,
+    if isinstance(salary.bounds, Bounds):
+        return _within(column, salary.bounds)
+    per_currency = [
+        and_(Employee.currency == currency, *_within(column, bounds))
+        for currency, bounds in salary.bounds.items()
     ]
+    return [or_(false(), *per_currency)]
+
+
+def _within(column: QueryableAttribute[int], bounds: Bounds) -> list[ColumnElement[bool]]:
+    conditions: list[ColumnElement[bool]] = []
+    if bounds.minimum is not None:
+        conditions.append(column >= bounds.minimum)
+    if bounds.maximum is not None:
+        conditions.append(column <= bounds.maximum)
+    return conditions
 
 
 def _any_of[T](column: QueryableAttribute[T], values: Sequence[T]) -> ColumnElement[bool] | None:

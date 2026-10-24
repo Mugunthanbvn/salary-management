@@ -4,6 +4,7 @@ Masking lives here, not in the router: the Ask tools and exports call these func
 directly with the caller's Principal (docs/08-security-rbac.md section 3.3).
 """
 
+from collections.abc import Mapping
 from datetime import date
 from typing import Any
 
@@ -13,6 +14,8 @@ from salary_api.core.errors import Duplicate, FieldError, Forbidden, NotFound, V
 from salary_api.core.models import utc_now
 from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Comp, Money, SalaryBasis
+from salary_api.domain.currency import SUPPORTED_CURRENCIES
+from salary_api.domain.money import FxRate, FxRateMissingError, max_local_amount, min_local_amount
 from salary_api.domain.money import Money as DomainMoney
 from salary_api.domain.search import employee_search_text, fold
 from salary_api.modules.audit.service import AuditAction, record_event
@@ -27,6 +30,7 @@ from salary_api.modules.employees.schemas import (
     EmployeePage,
 )
 from salary_api.modules.reference import repository as reference
+from salary_api.modules.reference import service as reference_service
 from salary_api.modules.reference.models import Country
 from salary_api.modules.reference.schemas import Department, JobRoleRef
 from salary_api.modules.salaries import service as salaries
@@ -118,6 +122,7 @@ def list_employees(
     order = _sort_keys(query.sort)
     _refuse_salary_query_without_salary_read(principal, query, order)
     _check_salary_comparison(query, order)
+    usd_rates = _usd_rates_for(session, query)
     where = repository.EmployeeFilter(
         search=fold(query.q) if query.q else None,
         countries=query.country,
@@ -127,7 +132,7 @@ def list_employees(
         employment_types=query.employment_type,
         statuses=query.status,
         currencies=query.currency,
-        salary=_salary_range(query),
+        salary=_salary_range(query, usd_rates),
     )
     employees = repository.page(
         session,
@@ -148,12 +153,41 @@ def list_employees(
     )
 
 
-def _salary_range(query: EmployeeListQuery) -> repository.SalaryRange | None:
-    if query.salary_min is None and query.salary_max is None:
+def _salary_range(
+    query: EmployeeListQuery, usd_rates: Mapping[str, FxRate]
+) -> repository.SalaryRange | None:
+    """The salary range in local minor units: as given, or converted from USD per currency."""
+    minimum, maximum = query.salary_min, query.salary_max
+    if minimum is None and maximum is None:
         return None
+    comp = query.comp or Comp.BASE
+    if query.salary_basis != SalaryBasis.USD:
+        return repository.SalaryRange(comp, repository.Bounds(minimum, maximum))
     return repository.SalaryRange(
-        comp=query.comp or Comp.BASE, minimum=query.salary_min, maximum=query.salary_max
+        comp,
+        {
+            currency: repository.Bounds(
+                None if minimum is None else min_local_amount(minimum, rate),
+                None if maximum is None else max_local_amount(maximum, rate),
+            )
+            for currency, rate in usd_rates.items()
+        },
     )
+
+
+def _usd_rates_for(session: Session, query: EmployeeListQuery) -> dict[str, FxRate]:
+    """With salary_basis=usd: the rate of every currency the list can hold (the `currency`
+    filter, else every supported currency). A missing rate is a configuration error."""
+    if query.salary_basis != SalaryBasis.USD:
+        return {}
+    rates = reference_service.usd_rates(session)
+    currencies = [
+        c for c in query.currency or sorted(SUPPORTED_CURRENCIES) if c in SUPPORTED_CURRENCIES
+    ]
+    missing = [currency for currency in currencies if currency not in rates]
+    if missing:
+        raise FxRateMissingError(missing[0])
+    return {currency: rates[currency] for currency in currencies}
 
 
 def _refuse_salary_query_without_salary_read(

@@ -1,5 +1,8 @@
+from decimal import Decimal
+
 from sqlalchemy.orm import Session
 
+from salary_api.domain import money
 from salary_api.domain.currency import SUPPORTED_CURRENCIES, minor_unit_exponent
 from salary_api.domain.enums import EmploymentType, Level, SalaryReason
 from salary_api.modules.reference import repository, schemas
@@ -42,3 +45,11 @@ def _country(country: Country) -> schemas.Country:
         default_currency=country.default_currency,
         is_active=country.is_active,
     )
+
+
+def usd_rates(session: Session) -> dict[str, money.FxRate]:
+    """The current USD rate of each currency that has one, as dated Decimal rates (ADR 0005)."""
+    return {
+        row.currency: money.FxRate(row.currency, Decimal(row.rate_to_usd), row.as_of)
+        for row in repository.list_fx_rates(session)
+    }

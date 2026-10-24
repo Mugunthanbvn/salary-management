@@ -14,7 +14,7 @@ from salary_api.core.errors import Forbidden
 from salary_api.core.permissions import Principal, Role
 from salary_api.modules.employees import service
 from salary_api.modules.employees.schemas import EmployeeListQuery
-from tests.factories import make_employee
+from tests.factories import make_employee, make_fx_rates
 from tests.integration.test_authz_matrix import MATRIX, Endpoint
 
 EMPLOYEES = "/api/v1/employees"
@@ -90,8 +90,10 @@ def test_viewer_cannot_filter_or_sort_by_salary(
 
 @pytest.mark.parametrize("params", SALARY_QUERIES)
 def test_hr_may_filter_and_sort_by_salary(
-    as_role: Callable[[str], TestClient], params: dict[str, str | int]
+    as_role: Callable[[str], TestClient], db_session: Session, params: dict[str, str | int]
 ) -> None:
+    make_fx_rates(db_session)  # salary_basis=usd converts with them
+
     response = as_role("HR_MANAGER").get(EMPLOYEES, params=params | {"currency": "EUR"})
 
     assert response.status_code == 200
