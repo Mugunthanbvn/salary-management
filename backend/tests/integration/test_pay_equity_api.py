@@ -12,7 +12,13 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from salary_api.modules.reference.models import JobFamily, JobRole
-from tests.factories import make_department, make_employee, make_job_role, make_pay_band
+from tests.factories import (
+    make_country,
+    make_department,
+    make_employee,
+    make_job_role,
+    make_pay_band,
+)
 
 PAY_EQUITY = "/api/v1/insights/pay-equity"
 
@@ -195,3 +201,116 @@ def test_pay_equity_follows_the_population_filters(
     body = as_role("HR_MANAGER").get(PAY_EQUITY, params={"country": "FR"}).json()
 
     assert _cohort_keys(body) == [("Customer Success Manager", "L2", "FR")]
+
+
+@pytest.fixture
+def departments_in_germany(db_session: Session) -> tuple[JobRole, JobRole]:
+    """Customer Success paid about 8 % under band; Engineering on band, one person over."""
+    csm = _csm(db_session)
+    engineer = make_job_role(db_session, "Software Engineer")
+    make_pay_band(db_session, job_role=csm, level="L2", mid_minor=5_000_000)
+    make_pay_band(db_session, job_role=engineer, level="L3", mid_minor=6_000_000)
+    # Ratios 0.78, 0.90, 0.92, 0.92, 0.93, 0.94.
+    for base in (3_900_000, 4_500_000, 4_600_000, 4_600_000, 4_650_000, 4_700_000):
+        make_employee(db_session, job_role=csm, level="L2", base_minor=base)
+    # Ratios 0.95, 1.00, 1.00, 1.05, 1.25.
+    for base in (5_700_000, 6_000_000, 6_000_000, 6_300_000, 7_500_000):
+        make_employee(db_session, job_role=engineer, level="L3", base_minor=base)
+    make_pay_band(db_session, job_role=csm, level="L2", country="FR", mid_minor=5_000_000)
+    make_employee(db_session, country="FR", job_role=csm, level="L2", base_minor=5_000_000)
+    return csm, engineer
+
+
+@pytest.mark.usefixtures("frozen_time")
+def test_the_department_view_shows_a_team_paid_below_band(
+    as_role: Callable[[str], TestClient], departments_in_germany: tuple[JobRole, JobRole]
+) -> None:
+    csm, engineer = departments_in_germany
+
+    response = as_role("HR_MANAGER").get(
+        PAY_EQUITY, params={"view": "departments", "country": "DE"}
+    )
+
+    assert response.status_code == 200
+    body = response.json()
+    assert (body["view"], body["country_code"]) == ("departments", "DE")
+    assert body["groups"] == [
+        {
+            "department": {"id": csm.department_id, "name": "Customer Success"},
+            "count": 6,
+            "median_compa_ratio": "0.92",
+            "mean_compa_ratio": "0.90",
+            "pct_below_band": "0.17",
+            "underpaid_count": 1,
+            "overpaid_count": 0,
+            "below_threshold": True,
+            "suppressed": False,
+        },
+        {
+            "department": {"id": engineer.department_id, "name": "Engineering"},
+            "count": 5,
+            "median_compa_ratio": "1.00",
+            "mean_compa_ratio": "1.05",
+            "pct_below_band": "0.00",
+            "underpaid_count": 0,
+            "overpaid_count": 1,
+            "below_threshold": False,
+            "suppressed": False,
+        },
+    ]
+    assert body["summary"]["employees_evaluated"] == 11  # France is not in the view
+
+
+@pytest.mark.parametrize("countries", [[], ["DE", "FR"]])
+def test_the_department_view_needs_exactly_one_country(
+    as_role: Callable[[str], TestClient], db_session: Session, countries: list[str]
+) -> None:
+    make_country(db_session, "DE")
+    make_country(db_session, "FR")
+
+    response = as_role("HR_MANAGER").get(
+        PAY_EQUITY, params={"view": "departments", "country": countries}
+    )
+
+    assert response.status_code == 422
+    assert response.json()["errors"] == [
+        {
+            "loc": ["query", "country"],
+            "code": "required",
+            "message": "The departments view compares departments within one country: "
+            "give exactly one country.",
+        }
+    ]
+
+
+@pytest.mark.usefixtures("frozen_time")
+def test_viewer_sees_a_small_department_hidden_with_its_complement(
+    as_role: Callable[[str], TestClient], db_session: Session
+) -> None:
+    sizes = {"Customer Success": 3, "Engineering": 6, "Sales": 10}
+    for department, size in sizes.items():
+        role = make_job_role(
+            db_session,
+            f"{department} role",
+            department=make_department(db_session, department),
+            family=JobFamily.SALES,
+        )
+        make_pay_band(db_session, job_role=role, level="L3", mid_minor=6_000_000)
+        for _ in range(size):
+            make_employee(db_session, job_role=role, level="L3", base_minor=6_000_000)
+
+    body = as_role("VIEWER").get(PAY_EQUITY, params={"view": "departments", "country": "DE"}).json()
+
+    hidden = {
+        "count": None,
+        "median_compa_ratio": None,
+        "mean_compa_ratio": None,
+        "pct_below_band": None,
+        "underpaid_count": None,
+        "overpaid_count": None,
+        "below_threshold": None,
+        "suppressed": True,
+    }
+    shown = [{key: group[key] for key in hidden} for group in body["groups"]]
+    assert shown[:2] == [hidden, hidden]
+    assert (shown[2]["count"], shown[2]["median_compa_ratio"]) == (10, "1.00")
