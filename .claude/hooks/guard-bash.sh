@@ -145,6 +145,44 @@ def check_command(words, depth):
         blocks.append(f"'{prog}' fetches from the network in the shell. Use the web tools instead, so research stays visible.")
     elif prog in ("vercel", "turso"):
         asks.append(f"'{prog}' is a deploy or cloud database CLI; the user confirms it first.")
+    elif prog == "git":
+        check_git(args)
+
+
+GIT_VALUE_OPTS = {"-C", "-c", "--git-dir", "--work-tree", "--namespace", "--exec-path"}
+PUSH_DANGER = {"--force", "--force-with-lease", "--force-if-includes", "--mirror", "--delete", "--prune"}
+PUSH_VALUE_OPTS = {"--push-option", "--repo", "--receive-pack", "--exec"}
+
+
+def check_git(args):
+    """Block git push that rewrites or deletes remote history, wherever the flag is."""
+    i = 0
+    while i < len(args) and args[i].startswith("-"):
+        i += 2 if args[i] in GIT_VALUE_OPTS else 1
+    if i >= len(args) or args[i] != "push":
+        return
+    rest, j = args[i + 1:], 0
+    while j < len(rest):
+        arg = rest[j]
+        j += 1
+        if arg.startswith("--"):
+            name = arg.split("=", 1)[0]
+            if name in PUSH_DANGER:
+                bad = arg
+            else:
+                j += 1 if name in PUSH_VALUE_OPTS and "=" not in arg else 0
+                continue
+        elif arg.startswith("-") and len(arg) > 1:
+            if "f" not in arg[1:] and "d" not in arg[1:]:
+                j += 1 if arg.endswith("o") else 0  # -o <push option>
+                continue
+            bad = arg
+        elif arg.startswith(("+", ":")):
+            bad = arg  # +refspec forces, :ref deletes
+        else:
+            continue
+        blocks.append(f"'git push ... {bad}' rewrites or deletes remote history. Push normally "
+                      "(git push [-u] origin <branch>); never force-push or delete remote branches.")
 
 
 def analyse(text, depth=0):
