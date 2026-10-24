@@ -8,13 +8,18 @@ from collections.abc import Mapping
 from http import HTTPStatus
 from typing import Any, TypedDict
 
+import structlog
 from fastapi import FastAPI, Request
 from fastapi.exceptions import RequestValidationError
 from fastapi.responses import JSONResponse
 from starlette.exceptions import HTTPException as StarletteHTTPException
 
+from salary_api.core.request_id import REQUEST_ID_HEADER
+
 PROBLEM_JSON = "application/problem+json"
 PROBLEM_TYPE_BASE = "https://acme.example/problems/"
+
+_logger = structlog.get_logger(__name__)
 
 # Statuses whose meaning is a single glossary slug, for errors raised by the framework.
 _SLUG_AND_TITLE_FOR_STATUS: dict[int, tuple[str, str]] = {
@@ -68,10 +73,18 @@ def problem_response(
     }
     if problem.detail is not None:
         body["detail"] = problem.detail
+    request_id: str | None = getattr(request.state, "request_id", None)
     body["instance"] = request.url.path
-    body["request_id"] = getattr(request.state, "request_id", None)
+    body["request_id"] = request_id
     body.update(problem.extra)
-    return JSONResponse(body, status_code=problem.status, media_type=PROBLEM_JSON, headers=headers)
+    # Set here too, because a 500 is sent from outside the request id middleware.
+    response_headers = {
+        **(headers or {}),
+        **({REQUEST_ID_HEADER: request_id} if request_id else {}),
+    }
+    return JSONResponse(
+        body, status_code=problem.status, media_type=PROBLEM_JSON, headers=response_headers
+    )
 
 
 def _from_http_exception(exc: StarletteHTTPException) -> ProblemError:
@@ -99,3 +112,9 @@ def install_problem_handlers(app: FastAPI) -> None:
         request: Request, exc: RequestValidationError
     ) -> JSONResponse:
         return problem_response(request, _from_request_validation_error(exc))
+
+    @app.exception_handler(Exception)
+    async def handle_unexpected_error(request: Request, exc: Exception) -> JSONResponse:
+        _logger.error("unhandled_error", path=request.url.path, exc_info=exc)
+        problem = ProblemError(500, None, "Internal Server Error", "An unexpected error occurred.")
+        return problem_response(request, problem)
