@@ -32,5 +32,5 @@ def make_settings(**overrides: Any) -> Settings:
 
 def settings_from_environment() -> Settings:
     """Settings read only from environment variables (use with monkeypatch.setenv)."""
-    from_environment_only: dict[str, Any] = {}
+    from_environment_only: dict[str, Any] = {}  # pyright: the subclass re-types __init__
     return _SettingsWithoutEnvFile(**from_environment_only)
