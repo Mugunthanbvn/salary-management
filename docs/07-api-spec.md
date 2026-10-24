@@ -514,7 +514,7 @@ Errors: 413 `payload-too-large`; 415 `unsupported-media-type` (not `.csv`/`.xlsx
 
 ### 7.3 `GET /imports/{id}`: `IMPORT`
 
-Returns the stored job (same shape). Only the creator or an ADMIN can see it (404 otherwise).
+Returns the stored job (same shape as §7.2). Only its creator, or a caller with `USER_ADMIN` (the administrator's permission), can see it; anyone else gets 404 `not-found`, as for an unknown id. A `DRY_RUN` job past `expires_at` is shown with `status: "EXPIRED"` (the read writes nothing). `preview` is empty once the job has ended.
 
 ### 7.4 `POST /imports/{id}/commit`: `IMPORT`
 

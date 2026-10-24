@@ -33,7 +33,7 @@ ACME's HR team **manages salaries in Excel today** (problem statement). Two cons
 |---|---|---|
 | Download template | `IMPORT` | HR_MANAGER, ADMIN |
 | Upload → dry-run | `IMPORT` | HR_MANAGER, ADMIN |
-| Commit a dry-run | `IMPORT` (and must be the job's creator or an `ADMIN`) | HR_MANAGER, ADMIN |
+| See or commit a dry-run | `IMPORT`, and be the job's creator or hold `USER_ADMIN` (the administrator's permission); anyone else gets `404` | HR_MANAGER, ADMIN |
 | Export employees **with** salary columns | `EXPORT` + `SALARY_READ` | HR_MANAGER, ADMIN |
 | Export employees **without** salary columns | `EXPORT` | VIEWER (salary columns stripped) |
 

@@ -115,7 +115,7 @@ A dry-run with row errors is **not** an error response: `POST /imports` returns 
 | Import job | `id` (int), `status`, `format`, `filename`, `row_count`, `valid_count`, `error_count`, `errors[]`, `preview[]`, `expires_at` |
 | Import row error | `{ row, column, code, message, value }`; codes `required`, `invalid_format`, `unknown_value` (the message lists the allowed values), `too_many_decimals`, `duplicate_in_file`, `duplicate_in_db`, plus `future_date`, `before_hire_date` and `currency_mismatch`, as `POST /employees` names the same rules |
 | Import commit response | `{ id, status: "COMMITTED", inserted }` |
-| Import commit allowed for | the job's creator or an `ADMIN` |
+| Import job visible to (read and commit) | the job's creator, or a user with `USER_ADMIN` (the administrator's permission; checked by permission, never by role). Anyone else gets `404` |
 | Import headers | case-insensitive, trimmed, any order; unknown columns are an error |
 | Formula escaping (export) | prefix `'` when a text cell starts with `=`, `+`, `-`, `@`, tab or CR |
 | Feature flags | `GET /auth/me` → `features: { ask: bool }` (no separate status endpoint) |

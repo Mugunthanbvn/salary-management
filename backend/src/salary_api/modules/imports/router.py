@@ -2,7 +2,7 @@ from typing import Annotated
 
 from fastapi import APIRouter, Depends, File, Request, Response, UploadFile
 
-from salary_api.core.deps import SessionDep, require_permission
+from salary_api.core.deps import IdPath, SessionDep, require_permission
 from salary_api.core.errors import problem_responses
 from salary_api.core.permissions import Permission, Principal
 from salary_api.modules.imports import service
@@ -30,3 +30,13 @@ def upload_import(
     report = service.dry_run(session, principal, filename=file.filename, upload=file.file)
     response.headers["Location"] = f"{request.url.path}/{report.id}"
     return report
+
+
+@router.get(
+    "/{import_id:int}",
+    response_model=ImportJobReport,
+    responses=problem_responses(401, 403, 404),
+    summary="An import job's report (only for its creator or an administrator)",
+)
+def get_import(import_id: IdPath, principal: CanImport, session: SessionDep) -> ImportJobReport:
+    return service.get_job(session, principal, import_id)

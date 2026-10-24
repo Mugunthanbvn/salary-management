@@ -13,12 +13,13 @@ from sqlalchemy.orm import Session
 
 from salary_api.core.errors import (
     BadRequest,
+    NotFound,
     PayloadTooLarge,
     UnsupportedMediaType,
     ValidationFailed,
 )
 from salary_api.core.models import utc_now
-from salary_api.core.permissions import Principal
+from salary_api.core.permissions import Permission, Principal
 from salary_api.core.schemas import Money
 from salary_api.domain.constants import (
     DRY_RUN_TTL,
@@ -114,6 +115,22 @@ def dry_run(
     )
     session.commit()
     return _job_report(job, now)
+
+
+def get_job(session: Session, principal: Principal, job_id: int) -> ImportJobReport:
+    """The job's report, for its creator or an administrator (NotFound for anyone else)."""
+    return _job_report(_visible_job(session, principal, job_id), utc_now())
+
+
+def _visible_job(session: Session, principal: Principal, job_id: int) -> ImportJob:
+    """The job, if the caller uploaded it or holds USER_ADMIN, the administrator's
+    permission. Anyone else is told it does not exist (docs/glossary.md section 5)."""
+    job = repository.get(session, job_id)
+    if job is None or (
+        job.created_by != principal.user_id and not principal.has(Permission.USER_ADMIN)
+    ):
+        raise NotFound(f"Import {job_id} was not found.")
+    return job
 
 
 def _format_of(filename: str | None) -> ImportFormat:
