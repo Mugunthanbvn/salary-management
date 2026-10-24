@@ -103,14 +103,21 @@ describe("/employees/[id] for an HR manager", () => {
     expect(
       screen.getByRole("heading", { level: 1, name: "Lena Müller" }),
     ).toBeVisible();
-    expect(
-      screen.getByText(
-        "Customer Success Manager, L2, in Customer Success, Germany. Full-time since 1 Jun 2022. ACME-002210.",
-      ),
-    ).toBeVisible();
+    const heading = screen.getByRole("heading", { level: 1 });
+    expect(heading.nextElementSibling).toHaveTextContent(
+      "Customer Success Manager, L2, in Customer Success, Germany. Full-time since 1 Jun 2022. ACME-002210.",
+    );
     expect(
       screen.getByRole("link", { name: "Back to employees" }),
     ).toHaveAttribute("href", "/employees");
+  });
+
+  it("never breaks the employee code across two lines", async () => {
+    serveEmployee();
+
+    await renderPage("2210");
+
+    expect(screen.getByText("ACME-002210.")).toHaveClass("whitespace-nowrap");
   });
 
   it("highlights total pay and lists base pay and each component", async () => {
