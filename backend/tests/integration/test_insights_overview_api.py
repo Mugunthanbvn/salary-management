@@ -9,7 +9,7 @@ from fastapi.testclient import TestClient
 from sqlalchemy.orm import Session
 
 from salary_api.core.permissions import Principal, Role
-from salary_api.domain.money import FxRateMissingError
+from salary_api.domain.money import CurrencyMismatchError, FxRateMissingError
 from salary_api.modules.insights import service
 from salary_api.modules.insights.schemas import InsightQuery
 from tests.factories import make_employee, make_fx_rate, make_fx_rates
@@ -223,3 +223,27 @@ def test_an_unknown_country_in_the_filter_is_a_validation_error(
     assert response.json()["errors"] == [
         {"loc": ["query", "country"], "code": "not_found", "message": "Unknown country XX."}
     ]
+
+
+def _a_german_salary_stored_in_usd(session: Session) -> None:
+    """Corrupt data: v1 validates that every salary is in its country's currency."""
+    make_fx_rates(session)
+    make_employee(session, country="DE")
+    make_employee(session, country="DE").currency = "USD"
+    session.flush()
+
+
+def test_a_country_group_never_mixes_two_currencies(db_session: Session) -> None:
+    _a_german_salary_stored_in_usd(db_session)
+
+    with pytest.raises(CurrencyMismatchError):
+        service.overview(db_session, _principal(Role.HR_MANAGER), InsightQuery(country=["DE"]))
+
+
+def test_a_local_currency_statistic_never_takes_an_amount_in_another_currency(
+    db_session: Session,
+) -> None:
+    _a_german_salary_stored_in_usd(db_session)
+
+    with pytest.raises(CurrencyMismatchError):
+        service.by_department(db_session, _principal(Role.HR_MANAGER), InsightQuery(country=["DE"]))
