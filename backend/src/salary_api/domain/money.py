@@ -47,6 +47,12 @@ class Money:
             raise TooManyDecimalsError(f"{amount} has more decimals than {currency} allows")
         return cls(amount_minor, currency)
 
+    def to_major(self) -> Decimal:
+        """The exact amount in major units: 123456 USD cents is `Decimal("1234.56")`."""
+        # Built from the digits, so no Decimal context rounding applies at any size.
+        sign, digits, _ = Decimal(self.amount_minor).as_tuple()
+        return Decimal((sign, digits, -minor_unit_exponent(self.currency)))
+
 
 def _parse_major(amount: str | Decimal) -> Decimal:
     """The major-unit amount as a finite Decimal. A float is refused, not converted."""
