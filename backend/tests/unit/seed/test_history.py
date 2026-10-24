@@ -3,6 +3,7 @@
 import random
 from collections import Counter
 from datetime import date, timedelta
+from decimal import Decimal
 from itertools import pairwise
 
 from hypothesis import given
@@ -80,7 +81,11 @@ def test_merit_raises_are_two_to_six_percent_on_about_55_percent_of_anniversarie
 
     anniversaries = 400 * 10  # 2016-03-15 to 2026-10-01
     assert 0.48 < len(raises) / anniversaries < 0.58
-    assert all(1.015 <= after / before <= 1.065 for before, after in raises)
+    # Each earlier base is the later one / (1.02 to 1.06), rounded to the unit again.
+    half_unit = Decimal(UNIT) / 2
+    for before, after in raises:
+        assert Decimal(after) / Decimal("1.06") - half_unit <= before
+        assert before <= Decimal(after) / Decimal("1.02") + half_unit
 
 
 def test_about_15_percent_of_employees_get_one_promotion_up_one_level() -> None:
