@@ -2,6 +2,7 @@ from fastapi import APIRouter, Response
 
 from salary_api.core.config import Settings
 from salary_api.core.deps import CurrentUser, PasswordHasherDep, SessionDep, SettingsDep
+from salary_api.core.errors import problem_responses
 from salary_api.core.security import SESSION_COOKIE
 from salary_api.modules.auth import service
 from salary_api.modules.auth.schemas import LoginRequest, LoginResponse, MeResponse
@@ -9,7 +10,12 @@ from salary_api.modules.auth.schemas import LoginRequest, LoginResponse, MeRespo
 router = APIRouter(prefix="/auth", tags=["auth"])
 
 
-@router.post("/login", response_model=LoginResponse, summary="Sign in (public)")
+@router.post(
+    "/login",
+    response_model=LoginResponse,
+    responses=problem_responses(401, 429),
+    summary="Sign in (public)",
+)
 def login(
     credentials: LoginRequest,
     response: Response,
@@ -22,7 +28,7 @@ def login(
     return signed_in.body
 
 
-@router.post("/logout", status_code=204, summary="Sign out")
+@router.post("/logout", status_code=204, responses=problem_responses(401), summary="Sign out")
 def logout(
     principal: CurrentUser, response: Response, session: SessionDep, settings: SettingsDep
 ) -> None:
@@ -37,7 +43,12 @@ def logout(
     )
 
 
-@router.get("/me", response_model=MeResponse, summary="The signed-in user and features")
+@router.get(
+    "/me",
+    response_model=MeResponse,
+    responses=problem_responses(401),
+    summary="The signed-in user and features",
+)
 def me(principal: CurrentUser, settings: SettingsDep) -> MeResponse:
     return service.me(principal, settings=settings)
 

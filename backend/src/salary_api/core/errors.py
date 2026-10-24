@@ -152,6 +152,31 @@ PROBLEM_RESPONSES: dict[int | str, dict[str, Any]] = {
 }
 
 
+# Route-level error responses, more specific than the app-wide 4XX.
+_ROUTE_PROBLEMS: dict[int, dict[str, Any]] = {
+    401: {
+        "model": Problem,
+        "description": "Not authenticated: no valid session, or the user is inactive",
+    },
+    403: {"model": Problem, "description": "Forbidden: a required permission is missing"},
+    429: {
+        "model": Problem,
+        "description": "Too many requests",
+        "headers": {
+            "Retry-After": {
+                "description": "Seconds to wait before trying again",
+                "schema": {"type": "integer"},
+            }
+        },
+    },
+}
+
+
+def problem_responses(*statuses: int) -> dict[int | str, dict[str, Any]]:
+    """OpenAPI `responses` for the problems a route can send: `problem_responses(401, 403)`."""
+    return {status: _ROUTE_PROBLEMS[status] for status in statuses}
+
+
 def use_problem_json_in_openapi(app: FastAPI) -> None:
     """Document error responses as application/problem+json, the media type they are sent as.
 
