@@ -127,7 +127,9 @@ Every screen defines:
 
 - Email and password fields, a "Sign in" button, and the error "Email or password is incorrect" (no hint about which one).
 - After login, redirect to `next` or `/insights`.
-- The demo environment shows a small banner with the three demo accounts (Hema, Arun, Farah), **demo deployment only** (env flag), so reviewers can try each role ([12-seed-data.md](12-seed-data.md) §11).
+- The demo environment shows a small banner with the three demo accounts (Arun, Admin; Hema, HR Manager; Farah, Viewer) with their emails, **demo deployment only** (`NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS=true`), so reviewers can try each role ([12-seed-data.md](12-seed-data.md) §11). It never shows passwords; they are in the README.
+- 429 (5 failures in 15 minutes) says "Too many attempts. Try again in N minutes." from `Retry-After`; any other failure says "Couldn't sign you in. Try again in a moment."
+- `next` must be a path on this site (`/…`, not `//…`), otherwise `/insights`. The form posts with a client `fetch`, then does a full page load to `next`.
 
 ### 4.2 Insights dashboard (`/insights`)
 

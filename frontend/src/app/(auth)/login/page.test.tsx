@@ -3,10 +3,6 @@ import { describe, expect, it, vi } from "vitest";
 
 import LoginPage from "./page";
 
-vi.mock("next/navigation", () => ({
-  useSearchParams: () => new URLSearchParams(),
-}));
-
 describe("LoginPage", () => {
   it("asks for an email and a password", () => {
     render(<LoginPage />);

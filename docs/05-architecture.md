@@ -335,6 +335,7 @@ All configuration comes from environment variables, validated at startup by `pyd
 | Variable | Example | Notes |
 |---|---|---|
 | `API_ORIGIN` | `http://localhost:8000` | Used by the rewrite destination and by server-side fetches. Never exposed to the browser |
+| `NEXT_PUBLIC_SHOW_DEMO_ACCOUNTS` | `false` | `true` on the demo deployment: `/login` lists the demo accounts (no passwords). Inlined at build time |
 
 The browser never needs the API's address: it always calls the relative path `/api/v1/...`.
 
