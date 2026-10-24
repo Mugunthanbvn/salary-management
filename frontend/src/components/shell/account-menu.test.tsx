@@ -3,12 +3,16 @@ import userEvent from "@testing-library/user-event";
 import { http, HttpResponse } from "msw";
 import { describe, expect, it, vi } from "vitest";
 
+import { Toaster } from "@/components/ui/sonner";
+import type { components } from "@/lib/api/schema";
 import type { Me } from "@/lib/permissions";
 import { makeMe, VIEWER_PERMISSIONS } from "@/test/fixtures";
 import { server } from "@/test/msw/server";
 
 import { AccountMenu } from "./account-menu";
 import { MeProvider } from "./me-context";
+
+type Problem = components["schemas"]["Problem"];
 
 const { hardNavigate } = vi.hoisted(() => ({ hardNavigate: vi.fn() }));
 vi.mock("@/lib/hard-navigate", () => ({ hardNavigate }));
@@ -59,5 +63,30 @@ describe("AccountMenu", () => {
 
     await waitFor(() => expect(hardNavigate).toHaveBeenCalledWith("/login"));
     expect(signedOut).toBe(true);
+  });
+
+  it("stays on the page and says so when signing out fails", async () => {
+    server.use(
+      http.post<never, never, Problem>("/api/v1/auth/logout", () =>
+        HttpResponse.json(
+          {
+            type: "about:blank",
+            title: "Internal Server Error",
+            status: 500,
+            instance: "/api/v1/auth/logout",
+          },
+          { status: 500 },
+        ),
+      ),
+    );
+    render(<Toaster />);
+    await openMenu(makeMe());
+
+    await userEvent.click(screen.getByRole("menuitem", { name: "Sign out" }));
+
+    expect(
+      await screen.findByText("Couldn't sign you out. Try again."),
+    ).toBeVisible();
+    expect(hardNavigate).not.toHaveBeenCalled();
   });
 });
