@@ -1,13 +1,21 @@
 """API shapes and parameters shared by several modules (docs/glossary.md section 6)."""
 
 from enum import StrEnum
-from typing import Final
+from typing import Annotated, Final
 
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 # docs/glossary.md section 3: page size default 25, max 100.
 DEFAULT_PAGE_SIZE: Final = 25
 MAX_PAGE_SIZE: Final = 100
+
+MAX_ID: Final = 2**63 - 1
+"""The largest value of a 64-bit integer column; a larger id would overflow SQLite."""
+MAX_PAGE: Final = MAX_ID // MAX_PAGE_SIZE
+"""So that the offset (page - 1) * page_size always fits a 64-bit integer."""
+
+Id = Annotated[int, Field(ge=1, le=MAX_ID)]
+"""A row id in a query or body: 1 to MAX_ID, else 422."""
 
 
 class Money(BaseModel):

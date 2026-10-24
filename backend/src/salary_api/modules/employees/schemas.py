@@ -4,7 +4,15 @@ from typing import Annotated
 from pydantic import BaseModel, ConfigDict, Field, StringConstraints, field_validator
 from pydantic.json_schema import SkipJsonSchema
 
-from salary_api.core.schemas import DEFAULT_PAGE_SIZE, MAX_PAGE_SIZE, Comp, Money, SalaryBasis
+from salary_api.core.schemas import (
+    DEFAULT_PAGE_SIZE,
+    MAX_PAGE,
+    MAX_PAGE_SIZE,
+    Comp,
+    Id,
+    Money,
+    SalaryBasis,
+)
 from salary_api.domain.constants import MAX_AMOUNT_MINOR
 from salary_api.domain.enums import EmployeeStatus, EmploymentType, Level, SalaryReason
 from salary_api.modules.reference.schemas import CountryCode, CurrencyCode, Department, JobRoleRef
@@ -46,7 +54,7 @@ class EmployeeCreate(BaseModel):
     first_name: PersonName
     last_name: PersonName
     email: WorkEmail
-    job_role_id: int
+    job_role_id: Id
     level: Level
     employment_type: EmploymentType
     country_code: CountryCode
@@ -135,8 +143,8 @@ class EmployeeListQuery(BaseModel):
     # Name, employee code or email; accents and case are ignored (docs/06 section 6.4).
     q: SearchTerm | None = None
     country: list[CountryCode] = Field(default_factory=list[CountryCode])
-    department_id: list[int] = Field(default_factory=list[int])
-    job_role_id: list[int] = Field(default_factory=list[int])
+    department_id: list[Id] = Field(default_factory=list[Id])
+    job_role_id: list[Id] = Field(default_factory=list[Id])
     level: list[Level] = Field(default_factory=list[Level])
     employment_type: list[EmploymentType] = Field(default_factory=list[EmploymentType])
     status: list[EmployeeStatus] = Field(default_factory=lambda: [EmployeeStatus.ACTIVE])
@@ -150,7 +158,7 @@ class EmployeeListQuery(BaseModel):
     # Comma-separated fields, `-` for descending: sort=-hire_date,last_name. Ties are broken
     # by last_name, first_name, id.
     sort: str | None = None
-    page: int = Field(default=1, ge=1)
+    page: int = Field(default=1, ge=1, le=MAX_PAGE)
     page_size: int = Field(default=DEFAULT_PAGE_SIZE, ge=1, le=MAX_PAGE_SIZE)
 
 

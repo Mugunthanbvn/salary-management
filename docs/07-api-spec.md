@@ -19,7 +19,7 @@ The **source of truth** at build time is FastAPI's generated OpenAPI document (`
 | Versioning | URL prefix. Breaking changes would go to `/api/v2`; additive changes stay in v1 |
 | Format | JSON (`application/json`), UTF-8. File endpoints use `multipart/form-data` (upload) or a file response (download) |
 | Field casing | `snake_case`, matching Pydantic models and the generated TS types |
-| IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key |
+| IDs | Integers in paths (`/employees/42`); `employee_code` is a searchable field, not a path key. An id in a path, query or body is 1 to 2⁶³ − 1 (a 64-bit integer); anything else is a 422 `validation`, not a 404 |
 | Dates | `YYYY-MM-DD`; timestamps ISO-8601 UTC with `Z` |
 | Auth | Session JWT in the `session` httpOnly cookie (browser) or `Authorization: Bearer <JWT>` (server-side fetches). Both are accepted; when both are sent, the Bearer header is used |
 | Request ID | Optional `X-Request-ID` in; always echoed in the response header and in error bodies |
@@ -51,7 +51,7 @@ Offset pagination (10k rows; deep-page cost is negligible, see [19-performance.m
 
 | Param | Default | Limits |
 |---|---|---|
-| `page` | `1` | ≥ 1 |
+| `page` | `1` | 1 to (2⁶³ − 1) ÷ 100, so the offset always fits a 64-bit integer |
 | `page_size` | `25` | 1–100 |
 
 ```json
